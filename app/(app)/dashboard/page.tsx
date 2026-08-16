@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { DollarSign, TrendingUp, MousePointerClick, Users, TrendingUp as ScaleIcon, TrendingDown as ReviewIcon, Sparkles as TestIcon, Upload } from "lucide-react";
+import { DollarSign, TrendingUp, MousePointerClick, Users, TrendingUp as ScaleIcon, TrendingDown as ReviewIcon, Sparkles, Sparkles as TestIcon, Upload } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { AppShell } from "@/components/dashboard/AppShell";
 import { MetricCard } from "@/components/dashboard/MetricCard";
