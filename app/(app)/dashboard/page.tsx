@@ -9,7 +9,7 @@ import { RecentAnalysisTable } from "@/components/dashboard/RecentAnalysisTable"
 import { AccountStatusCard } from "@/components/dashboard/AccountStatusCard";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ButtonLink } from "@/components/ui/Button";
-import type { Profile } from "@/lib/types";
+import type { Profile, Creative } from "@/lib/types";
 
 function getGreeting() {
   const hour = new Date().getHours();
@@ -37,6 +37,25 @@ export default async function DashboardPage() {
   // No advertising account connected yet for a brand-new account — show
   // real empty states rather than fabricated performance numbers.
   const hasConnectedAccount = false;
+
+  const { data: creatives } = await supabase
+    .from("creatives")
+    .select("*")
+    .eq("user_id", user.id)
+    .order("created_at", { ascending: false })
+    .returns<Creative[]>();
+
+  const list = creatives ?? [];
+  const toScale = list.filter((c) => (c.score ?? 0) >= 80).length;
+  const toReview = list.filter((c) => (c.score ?? 0) < 60).length;
+  const topCreatives = [...list].sort((a, b) => (b.score ?? 0) - (a.score ?? 0)).slice(0, 5);
+  const recentRows = list.slice(0, 5).map((c) => ({
+    creative: c.summary || (c.file_type === "video" ? "Video creative" : "Image creative"),
+    platform: c.platform || "—",
+    score: c.score ?? 0,
+    insight: c.what_to_test || "—",
+    date: new Date(c.created_at).toLocaleDateString(),
+  }));
 
   const accounts = [
     { name: "Meta Ads", connected: false },
@@ -105,14 +124,22 @@ export default async function DashboardPage() {
                 icon={ScaleIcon}
                 tone="green"
                 title="Creatives to Scale"
-                description="Once you have analyzed creatives, top performers will surface here."
+                description={
+                  toScale > 0
+                    ? `${toScale} creative${toScale === 1 ? "" : "s"} scoring 80+ — strong performers worth scaling.`
+                    : "Once you have analyzed creatives, top performers will surface here."
+                }
                 href="/my-creatives"
               />
               <CreativeInsightCard
                 icon={ReviewIcon}
                 tone="red"
                 title="Creatives to Review"
-                description="Underperforming creatives consuming spend will be flagged here."
+                description={
+                  toReview > 0
+                    ? `${toReview} creative${toReview === 1 ? "" : "s"} scoring under 60 — worth a closer look.`
+                    : "Underperforming creatives consuming spend will be flagged here."
+                }
                 href="/my-creatives"
               />
               <CreativeInsightCard
@@ -133,11 +160,27 @@ export default async function DashboardPage() {
               </a>
             </div>
             <div className="mt-4">
-              <EmptyState
-                title="Analyze your first creative to start building your creative intelligence."
-                description="Once you upload and analyze ads, your top performers will show up here."
-                action={<ButtonLink href="/analyze">Analyze Creative</ButtonLink>}
-              />
+              {topCreatives.length === 0 ? (
+                <EmptyState
+                  title="Analyze your first creative to start building your creative intelligence."
+                  description="Once you upload and analyze ads, your top performers will show up here."
+                  action={<ButtonLink href="/analyze">Analyze Creative</ButtonLink>}
+                />
+              ) : (
+                <div className="flex gap-4 overflow-x-auto pb-2">
+                  {topCreatives.map((c) => (
+                    <div key={c.id} className="w-56 shrink-0 rounded-xl border border-base-border bg-base-surface p-4">
+                      <div className="flex items-center justify-between">
+                        <span className="flex h-9 w-9 items-center justify-center rounded-full border border-brand/40 text-sm font-semibold text-brand-light">
+                          {c.score ?? "—"}
+                        </span>
+                        <span className="text-xs text-ink-muted">{c.file_type === "video" ? "Video" : "Image"}</span>
+                      </div>
+                      <p className="mt-3 truncate text-sm text-ink-primary">{c.summary || "Analyzed creative"}</p>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         </div>
@@ -151,7 +194,7 @@ export default async function DashboardPage() {
               </a>
             </div>
             <div className="mt-4">
-              <RecentAnalysisTable rows={[]} />
+              <RecentAnalysisTable rows={recentRows} />
             </div>
           </div>
 

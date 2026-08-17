@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { AppShell } from "@/components/dashboard/AppShell";
-import { PlaceholderPage } from "@/components/dashboard/PlaceholderPage";
+import { SettingsClient } from "./SettingsClient";
 import type { Profile } from "@/lib/types";
 
 export default async function Page() {
@@ -18,12 +18,11 @@ export default async function Page() {
     .eq("id", user.id)
     .single<Profile>();
 
+  if (!profile) redirect("/login");
+
   return (
-    <AppShell profile={profile ?? null} greeting="Settings" subtitle="">
-      <PlaceholderPage
-        title="Settings"
-        description="Manage your profile, notifications and account preferences."
-      />
+    <AppShell profile={profile} greeting="Settings" subtitle="">
+      <SettingsClient profile={profile} />
     </AppShell>
   );
 }

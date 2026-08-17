@@ -1,7 +1,7 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { AppShell } from "@/components/dashboard/AppShell";
-import { PlaceholderPage } from "@/components/dashboard/PlaceholderPage";
+import { AnalyzeClient } from "./AnalyzeClient";
 import type { Profile } from "@/lib/types";
 
 export default async function Page() {
@@ -20,10 +20,7 @@ export default async function Page() {
 
   return (
     <AppShell profile={profile ?? null} greeting="Analyze Creative" subtitle="">
-      <PlaceholderPage
-        title="Analyze Creative"
-        description="Upload an ad and get AI-powered analysis on what's working, what's not, and what to test next. This workspace is being built out next."
-      />
+      <AnalyzeClient credits={profile?.ai_credits ?? 0} />
     </AppShell>
   );
 }
