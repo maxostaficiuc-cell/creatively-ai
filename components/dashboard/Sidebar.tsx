@@ -79,9 +79,9 @@ function NavSection({
 
 export function Sidebar({ profile }: { profile: Profile | null }) {
   const pathname = usePathname();
-  const winningAdsUsed = 245;
-  const winningAdsLimit = 250;
-  const pct = Math.min(100, Math.round((winningAdsUsed / winningAdsLimit) * 100));
+  const credits = profile?.ai_credits ?? 0;
+  const creditLimit = 10000;
+  const pct = Math.min(100, Math.round((credits / creditLimit) * 100));
 
   const displayName = profile?.full_name || "there";
   const initial = displayName.trim().charAt(0).toUpperCase() || "U";
@@ -111,9 +111,9 @@ export function Sidebar({ profile }: { profile: Profile | null }) {
           </div>
           <p className="mt-1 text-sm font-medium text-ink-primary">{profile?.plan || "Pro"}</p>
           <div className="mt-3 flex items-center justify-between text-xs text-ink-secondary">
-            <span>Winning Ads</span>
+            <span>AI Credits</span>
             <span>
-              {winningAdsUsed} / {winningAdsLimit}
+              {credits.toLocaleString()} / {creditLimit.toLocaleString()}
             </span>
           </div>
           <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-base-border">

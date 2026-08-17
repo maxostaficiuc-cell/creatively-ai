@@ -45,7 +45,9 @@ export function TopBar({
           <Zap size={15} className="text-accent-green" />
           <div>
             <p className="text-xs leading-none text-ink-secondary">AI Credits</p>
-            <p className="mt-1 text-xs font-medium text-ink-primary">8,450 / 10,000</p>
+            <p className="mt-1 text-xs font-medium text-ink-primary">
+              {(profile?.ai_credits ?? 0).toLocaleString()} / 10,000
+            </p>
           </div>
         </div>
 
