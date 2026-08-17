@@ -21,7 +21,9 @@ export function AppShell({
 
   return (
     <div className="flex min-h-screen bg-base-bg">
-      <Sidebar profile={profile} />
+      <div className="hidden lg:block">
+        <Sidebar profile={profile} />
+      </div>
 
       {mobileOpen && (
         <div className="fixed inset-0 z-50 flex lg:hidden">

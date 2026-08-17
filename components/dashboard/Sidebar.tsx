@@ -87,7 +87,7 @@ export function Sidebar({ profile }: { profile: Profile | null }) {
   const initial = displayName.trim().charAt(0).toUpperCase() || "U";
 
   return (
-    <aside className="hidden h-screen w-64 shrink-0 flex-col border-r border-base-border bg-base-surface px-4 py-5 lg:flex">
+    <aside className="flex h-screen w-64 shrink-0 flex-col border-r border-base-border bg-base-surface px-4 py-5">
       <div className="px-2">
         <Logo href="/dashboard" />
       </div>
