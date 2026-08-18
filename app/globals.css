@@ -31,3 +31,38 @@ body {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* Analyze Creative — scanning animation */
+@keyframes scan-beam-move {
+  from { top: 0%; opacity: 0; }
+  5% { opacity: 1; }
+  95% { opacity: 1; }
+  to { top: 100%; opacity: 0; }
+}
+.animate-scan-beam {
+  animation: scan-beam-move 2s cubic-bezier(0.45, 0, 0.55, 1) forwards;
+}
+
+@keyframes pulse-anchor {
+  0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 currentColor; }
+  50% { transform: scale(1.5); box-shadow: 0 0 12px 2px currentColor; }
+}
+.animate-pulse-anchor {
+  animation: pulse-anchor 1.4s ease-in-out infinite;
+}
+
+@keyframes fade-scale-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+.animate-fade-scale-in {
+  animation: fade-scale-in 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes frame-pulse {
+  0%, 100% { opacity: 0.5; }
+  50% { opacity: 1; }
+}
+.animate-frame-pulse {
+  animation: frame-pulse 2s ease-in-out infinite;
+}
