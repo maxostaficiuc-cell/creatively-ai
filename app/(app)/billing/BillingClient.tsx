@@ -1,0 +1,523 @@
+"use client";
+
+import { useState } from "react";
+import { Check, X, Zap, TrendingUp, CreditCard, AlertTriangle } from "lucide-react";
+import type { Profile } from "@/lib/types";
+
+// ─── Constants ────────────────────────────────────────────────────────────────
+export const CREDIT_COST_IMAGE = 100;
+export const CREDIT_COST_VIDEO = 500;
+
+const PLAN_CREDIT_LIMITS: Record<string, number> = {
+  Pro: 1000,
+  Max: 10000,
+  Starter: 0,
+  Custom: 50000,
+};
+
+const RENEWAL_DAYS = 30;
+
+const PLANS = [
+  {
+    id: "Pro",
+    name: "Pro",
+    price: "$9.99",
+    period: "/month",
+    description: "For creators and marketers who need reliable AI-powered creative analysis.",
+    badge: null,
+    highlight: false,
+    features: [
+      "AI Creative Analysis",
+      "Image Analysis",
+      "Creative Strengths & Weaknesses",
+      "AI Improvement Recommendations",
+      "Performance-focused creative insights",
+      "Creative History",
+      "Standard AI Processing",
+      "1,000 AI Credits / month",
+    ],
+    cta: "Subscribe",
+    ctaCurrent: "Current Plan",
+  },
+  {
+    id: "Max",
+    name: "Max",
+    price: "$49.99",
+    period: "/month",
+    description: "For agencies and serious marketers analyzing creatives at scale.",
+    badge: "MOST POPULAR",
+    highlight: true,
+    features: [
+      "Everything in Pro",
+      "10,000 AI Credits / month",
+      "Priority AI Processing",
+      "Advanced Creative Analysis",
+      "Higher analysis limits",
+      "Faster processing",
+      "Creative comparison",
+      "Advanced recommendations",
+      "Priority access to new AI features",
+    ],
+    cta: "Upgrade to Max",
+    ctaCurrent: "Current Plan",
+  },
+  {
+    id: "Custom",
+    name: "Custom",
+    price: "Let's build your plan",
+    period: "",
+    description: "For agencies, teams, and businesses that need custom AI analysis capacity.",
+    badge: null,
+    highlight: false,
+    features: [
+      "Custom AI Credit Allocation",
+      "Custom Usage Limits",
+      "Team / Agency Requirements",
+      "Priority Processing",
+      "Custom Features",
+      "Dedicated Support",
+      "Flexible Billing",
+    ],
+    cta: "Customize Plan",
+    ctaCurrent: "Current Plan",
+  },
+];
+
+const TOP_UP_PACKAGES = [
+  { credits: 1000, price: "$4.99" },
+  { credits: 5000, price: "$19.99" },
+  { credits: 10000, price: "$34.99" },
+];
+
+// ─── Credit progress color ─────────────────────────────────────────────────────
+function creditBarColor(pct: number): string {
+  if (pct > 65) return "bg-accent-green";
+  if (pct > 35) return "bg-orange-400";
+  if (pct > 5) return "bg-accent-red";
+  return "bg-red-900";
+}
+
+function creditTextColor(pct: number): string {
+  if (pct > 65) return "text-accent-green";
+  if (pct > 35) return "text-orange-400";
+  if (pct > 5) return "text-accent-red";
+  return "text-red-700";
+}
+
+// ─── Sub-components ────────────────────────────────────────────────────────────
+function CreditProgress({ remaining, total }: { remaining: number; total: number }) {
+  const pct = total > 0 ? Math.min(100, Math.round((remaining / total) * 100)) : 0;
+  const used = total - remaining;
+  const barColor = creditBarColor(pct);
+  const textColor = creditTextColor(pct);
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between text-sm">
+        <span className="text-ink-secondary">
+          <span className="font-medium text-ink-primary">{remaining.toLocaleString()}</span>
+          {" / "}
+          {total.toLocaleString()} credits remaining
+        </span>
+        <span className={`font-semibold ${textColor}`}>{pct}% remaining</span>
+      </div>
+      <div className="h-2 w-full overflow-hidden rounded-full bg-base-border">
+        <div
+          className={`h-full rounded-full transition-all duration-700 ${barColor}`}
+          style={{ width: `${pct}%` }}
+        />
+      </div>
+      <p className="text-xs text-ink-muted">{used.toLocaleString()} credits used this period</p>
+    </div>
+  );
+}
+
+function PlanSummaryCard({ profile }: { profile: Profile }) {
+  const planName = profile.plan || "Pro";
+  const totalCredits = PLAN_CREDIT_LIMITS[planName] ?? 10000;
+  const remaining = profile.ai_credits ?? totalCredits;
+  const renewalDate = new Date(Date.now() + RENEWAL_DAYS * 24 * 60 * 60 * 1000);
+  const price = planName === "Max" ? "$49.99" : planName === "Custom" ? "Custom" : "$9.99";
+
+  return (
+    <div className="rounded-2xl border border-base-border bg-base-card p-6">
+      <div className="mb-5 flex items-center justify-between">
+        <div>
+          <h2 className="font-semibold text-ink-primary">Plan Summary</h2>
+          <p className="mt-0.5 text-sm text-ink-secondary">Your current subscription and credit status</p>
+        </div>
+        <span className="rounded-full bg-brand/15 px-3 py-1 text-xs font-medium text-brand-light">
+          {planName}
+        </span>
+      </div>
+
+      <CreditProgress remaining={remaining} total={totalCredits} />
+
+      <div className="mt-5 grid grid-cols-1 gap-4 border-t border-base-border pt-5 sm:grid-cols-3">
+        <div>
+          <p className="text-xs text-ink-muted">Price / Month</p>
+          <p className="mt-1 text-sm font-medium text-ink-primary">{price}</p>
+        </div>
+        <div>
+          <p className="text-xs text-ink-muted">Included Credits</p>
+          <p className="mt-1 text-sm font-medium text-ink-primary">{totalCredits.toLocaleString()}</p>
+        </div>
+        <div>
+          <p className="text-xs text-ink-muted">Renewal Date</p>
+          <p className="mt-1 text-sm font-medium text-ink-primary">
+            {renewalDate.toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" })}
+          </p>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function PricingCard({
+  plan,
+  currentPlan,
+  onCustomize,
+}: {
+  plan: (typeof PLANS)[number];
+  currentPlan: string;
+  onCustomize: () => void;
+}) {
+  const isCurrent = plan.id === currentPlan;
+
+  return (
+    <div
+      className={`relative flex flex-col rounded-2xl border p-6 transition-all ${
+        plan.highlight
+          ? "border-brand/60 bg-base-card shadow-glow"
+          : "border-base-border bg-base-card"
+      }`}
+    >
+      {plan.badge && (
+        <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-brand px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-white shadow-glow">
+          {plan.badge}
+        </span>
+      )}
+
+      <div className="mb-4">
+        <div className="flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-ink-primary">{plan.name}</h3>
+          {isCurrent && (
+            <span className="rounded-full border border-base-border px-2.5 py-1 text-xs text-ink-muted">
+              Current
+            </span>
+          )}
+        </div>
+        <div className="mt-2 flex items-baseline gap-1">
+          <span className={`text-2xl font-bold ${plan.highlight ? "text-brand-light" : "text-ink-primary"}`}>
+            {plan.price}
+          </span>
+          {plan.period && <span className="text-sm text-ink-muted">{plan.period}</span>}
+        </div>
+        <p className="mt-2 text-sm text-ink-secondary">{plan.description}</p>
+      </div>
+
+      <button
+        onClick={plan.id === "Custom" ? onCustomize : undefined}
+        disabled={isCurrent}
+        className={`mb-5 w-full rounded-xl py-2.5 text-sm font-medium transition-all ${
+          isCurrent
+            ? "cursor-default border border-base-border text-ink-muted"
+            : plan.highlight
+            ? "bg-gradient-to-b from-brand-light to-brand text-white shadow-glow hover:brightness-110"
+            : "border border-base-border text-ink-primary hover:border-brand/50"
+        }`}
+      >
+        {isCurrent ? plan.ctaCurrent : plan.cta}
+      </button>
+
+      <ul className="flex-1 space-y-2.5">
+        {plan.features.map((f) => (
+          <li key={f} className="flex items-start gap-2 text-sm text-ink-secondary">
+            <Check size={14} className="mt-0.5 shrink-0 text-accent-green" />
+            <span className={f.includes("Credits") ? "font-medium text-ink-primary" : ""}>{f}</span>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+// ─── Modals ────────────────────────────────────────────────────────────────────
+function Backdrop({ onClose }: { onClose: () => void }) {
+  return (
+    <div
+      className="fixed inset-0 z-50 bg-black/60 backdrop-blur-sm"
+      onClick={onClose}
+    />
+  );
+}
+
+function TopUpModal({ onClose }: { onClose: () => void }) {
+  const [selected, setSelected] = useState<number | null>(null);
+
+  return (
+    <>
+      <Backdrop onClose={onClose} />
+      <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+        <div className="w-full max-w-md rounded-2xl border border-base-border bg-base-card p-6 shadow-2xl">
+          <div className="mb-4 flex items-center justify-between">
+            <h3 className="font-semibold text-ink-primary">Buy Additional Credits</h3>
+            <button onClick={onClose} className="text-ink-muted hover:text-ink-primary">
+              <X size={18} />
+            </button>
+          </div>
+          <p className="mb-5 text-sm text-ink-secondary">
+            Purchase additional AI credits without changing your plan. Credits are added immediately.
+          </p>
+          <div className="space-y-3">
+            {TOP_UP_PACKAGES.map((pkg) => (
+              <button
+                key={pkg.credits}
+                onClick={() => setSelected(pkg.credits)}
+                className={`flex w-full items-center justify-between rounded-xl border px-4 py-3 text-sm transition-colors ${
+                  selected === pkg.credits
+                    ? "border-brand bg-brand/10 text-ink-primary"
+                    : "border-base-border text-ink-secondary hover:border-brand/40"
+                }`}
+              >
+                <span className="flex items-center gap-2">
+                  <Zap size={14} className="text-accent-green" />
+                  {pkg.credits.toLocaleString()} credits
+                </span>
+                <span className="font-medium text-ink-primary">{pkg.price}</span>
+              </button>
+            ))}
+          </div>
+          <div className="mt-5 flex gap-3">
+            <button
+              onClick={onClose}
+              className="flex-1 rounded-xl border border-base-border py-2.5 text-sm text-ink-secondary hover:text-ink-primary"
+            >
+              Cancel
+            </button>
+            <button
+              disabled={!selected}
+              onClick={onClose}
+              className="flex-1 rounded-xl bg-gradient-to-b from-brand-light to-brand py-2.5 text-sm font-medium text-white shadow-glow hover:brightness-110 disabled:opacity-40"
+            >
+              Purchase Credits
+            </button>
+          </div>
+          <p className="mt-3 text-center text-xs text-ink-muted">
+            Real payment processing will be connected soon.
+          </p>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function CustomPlanModal({ onClose }: { onClose: () => void }) {
+  const [form, setForm] = useState({
+    credits: "50,000",
+    users: "5",
+    images: "500",
+    videos: "50",
+    requirements: "",
+  });
+
+  return (
+    <>
+      <Backdrop onClose={onClose} />
+      <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+        <div className="w-full max-w-lg rounded-2xl border border-base-border bg-base-card p-6 shadow-2xl">
+          <div className="mb-4 flex items-center justify-between">
+            <h3 className="font-semibold text-ink-primary">Customize Your Plan</h3>
+            <button onClick={onClose} className="text-ink-muted hover:text-ink-primary">
+              <X size={18} />
+            </button>
+          </div>
+          <p className="mb-5 text-sm text-ink-secondary">
+            Tell us about your needs and we&apos;ll build a plan around them.
+          </p>
+          <div className="space-y-4">
+            {[
+              { label: "Approximate monthly AI credits", key: "credits" as const },
+              { label: "Number of users", key: "users" as const },
+              { label: "Image analysis volume / month", key: "images" as const },
+              { label: "Video analysis volume / month", key: "videos" as const },
+            ].map(({ label, key }) => (
+              <div key={key}>
+                <label className="mb-1.5 block text-xs text-ink-secondary">{label}</label>
+                <input
+                  type="text"
+                  value={form[key]}
+                  onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
+                  className="w-full rounded-xl border border-base-border bg-base-surface px-4 py-2.5 text-sm text-ink-primary outline-none focus:border-brand"
+                />
+              </div>
+            ))}
+            <div>
+              <label className="mb-1.5 block text-xs text-ink-secondary">Additional requirements</label>
+              <textarea
+                rows={3}
+                value={form.requirements}
+                onChange={(e) => setForm((f) => ({ ...f, requirements: e.target.value }))}
+                placeholder="Any specific features, integrations, or requirements..."
+                className="w-full resize-none rounded-xl border border-base-border bg-base-surface px-4 py-2.5 text-sm text-ink-primary outline-none focus:border-brand"
+              />
+            </div>
+          </div>
+          <div className="mt-5 flex gap-3">
+            <button
+              onClick={onClose}
+              className="flex-1 rounded-xl border border-base-border py-2.5 text-sm text-ink-secondary hover:text-ink-primary"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={onClose}
+              className="flex-1 rounded-xl bg-gradient-to-b from-brand-light to-brand py-2.5 text-sm font-medium text-white shadow-glow hover:brightness-110"
+            >
+              Send Request
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function CancelModal({ onClose }: { onClose: () => void }) {
+  return (
+    <>
+      <Backdrop onClose={onClose} />
+      <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+        <div className="w-full max-w-sm rounded-2xl border border-base-border bg-base-card p-6 shadow-2xl">
+          <div className="mb-4 flex items-center gap-3">
+            <div className="flex h-10 w-10 items-center justify-center rounded-full bg-accent-red/10 text-accent-red">
+              <AlertTriangle size={18} />
+            </div>
+            <h3 className="font-semibold text-ink-primary">Cancel your subscription?</h3>
+          </div>
+          <p className="mb-5 text-sm text-ink-secondary">
+            Your plan will remain active until the end of your current billing period. You won&apos;t
+            be charged again after that.
+          </p>
+          <div className="flex gap-3">
+            <button
+              onClick={onClose}
+              className="flex-1 rounded-xl bg-gradient-to-b from-brand-light to-brand py-2.5 text-sm font-medium text-white shadow-glow hover:brightness-110"
+            >
+              Keep Plan
+            </button>
+            <button
+              onClick={onClose}
+              className="flex-1 rounded-xl border border-accent-red/40 py-2.5 text-sm text-accent-red hover:bg-accent-red/5"
+            >
+              Cancel Subscription
+            </button>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+// ─── Main exported component ───────────────────────────────────────────────────
+export function BillingClient({ profile }: { profile: Profile }) {
+  const [showTopUp, setShowTopUp] = useState(false);
+  const [showCustom, setShowCustom] = useState(false);
+  const [showCancel, setShowCancel] = useState(false);
+
+  const currentPlan = profile.plan || "Pro";
+
+  return (
+    <div className="mx-auto max-w-5xl space-y-8">
+
+      {/* Plan Summary */}
+      <PlanSummaryCard profile={profile} />
+
+      {/* Pricing Plans */}
+      <div>
+        <h2 className="mb-1 font-semibold text-ink-primary">Plans</h2>
+        <p className="mb-5 text-sm text-ink-secondary">
+          Upgrade or switch your plan at any time. Changes take effect immediately.
+        </p>
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
+          {PLANS.map((plan) => (
+            <PricingCard
+              key={plan.id}
+              plan={plan}
+              currentPlan={currentPlan}
+              onCustomize={() => setShowCustom(true)}
+            />
+          ))}
+        </div>
+      </div>
+
+      {/* Credit usage info */}
+      <div className="rounded-2xl border border-base-border bg-base-card p-5">
+        <h3 className="mb-3 text-sm font-medium text-ink-primary">Credit Usage</h3>
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <div className="flex items-center gap-2.5 rounded-xl border border-base-border bg-base-surface p-3">
+            <TrendingUp size={16} className="shrink-0 text-accent-green" />
+            <div>
+              <p className="text-xs text-ink-muted">Image analysis</p>
+              <p className="text-sm font-medium text-ink-primary">{CREDIT_COST_IMAGE} credits</p>
+            </div>
+          </div>
+          <div className="flex items-center gap-2.5 rounded-xl border border-base-border bg-base-surface p-3">
+            <TrendingUp size={16} className="shrink-0 text-brand-light" />
+            <div>
+              <p className="text-xs text-ink-muted">Video analysis</p>
+              <p className="text-sm font-medium text-ink-primary">{CREDIT_COST_VIDEO} credits</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Need more credits */}
+      <div className="flex flex-col items-start gap-4 rounded-2xl border border-base-border bg-base-card p-6 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <h3 className="font-medium text-ink-primary">Need more credits?</h3>
+          <p className="mt-1 text-sm text-ink-secondary">
+            Purchase additional AI credits without changing your plan.
+          </p>
+        </div>
+        <button
+          onClick={() => setShowTopUp(true)}
+          className="flex shrink-0 items-center gap-2 rounded-xl border border-base-border bg-base-surface px-5 py-2.5 text-sm font-medium text-ink-primary transition-colors hover:border-brand/50"
+        >
+          <CreditCard size={15} />
+          Buy Credits
+        </button>
+      </div>
+
+      {/* Danger Zone */}
+      <div>
+        <div className="mb-4 flex items-center gap-3">
+          <div className="h-px flex-1 bg-base-border" />
+          <span className="text-xs font-medium uppercase tracking-wide text-ink-muted">Danger Zone</span>
+          <div className="h-px flex-1 bg-base-border" />
+        </div>
+        <div className="rounded-2xl border border-accent-red/20 bg-accent-red/5 p-5">
+          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 className="font-medium text-ink-primary">Cancel subscription</h3>
+              <p className="mt-1 text-sm text-ink-secondary">
+                Your access remains active until the end of your billing period.
+              </p>
+            </div>
+            <button
+              onClick={() => setShowCancel(true)}
+              className="shrink-0 rounded-xl border border-accent-red/40 px-5 py-2.5 text-sm text-accent-red transition-colors hover:bg-accent-red/10"
+            >
+              Cancel Plan
+            </button>
+          </div>
+        </div>
+      </div>
+
+      {/* Modals */}
+      {showTopUp && <TopUpModal onClose={() => setShowTopUp(false)} />}
+      {showCustom && <CustomPlanModal onClose={() => setShowCustom(false)} />}
+      {showCancel && <CancelModal onClose={() => setShowCancel(false)} />}
+    </div>
+  );
+}

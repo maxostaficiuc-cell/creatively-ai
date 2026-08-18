@@ -1,10 +1,10 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
 import { AppShell } from "@/components/dashboard/AppShell";
-import { PlaceholderPage } from "@/components/dashboard/PlaceholderPage";
+import { BillingClient } from "./BillingClient";
 import type { Profile } from "@/lib/types";
 
-export default async function Page() {
+export default async function BillingPage() {
   const supabase = createClient();
   const {
     data: { user },
@@ -18,12 +18,15 @@ export default async function Page() {
     .eq("id", user.id)
     .single<Profile>();
 
+  if (!profile) redirect("/login");
+
   return (
-    <AppShell profile={profile ?? null} greeting="Billing" subtitle="">
-      <PlaceholderPage
-        title="Billing"
-        description="Manage your plan, payment method and invoices here once billing is connected."
-      />
+    <AppShell
+      profile={profile}
+      greeting="Billing"
+      subtitle="Manage your plan, AI credits, and subscription."
+    >
+      <BillingClient profile={profile} />
     </AppShell>
   );
 }
