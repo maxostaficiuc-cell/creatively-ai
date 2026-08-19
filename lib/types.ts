@@ -31,4 +31,4 @@ export type Creative = {
 };
 
 export const CREDIT_COST_IMAGE = 100;
-export const CREDIT_COST_VIDEO = 400;
+export const CREDIT_COST_VIDEO = 500;

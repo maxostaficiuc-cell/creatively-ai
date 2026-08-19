@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import type { Creative } from "@/lib/types";
+import { CREDIT_COST_IMAGE, CREDIT_COST_VIDEO } from "@/lib/types";
 
 type Phase = "idle" | "ready" | "scanning" | "results";
 
@@ -179,7 +180,7 @@ export function AnalyzeClient({ credits }: { credits: number }) {
       {phase !== "results" && (
         <div className="rounded-2xl border border-base-border bg-base-card p-6 text-center text-sm text-ink-secondary">
           You have <span className="font-medium text-ink-primary">{credits.toLocaleString()}</span> AI credits.
-          Images cost 100 credits, videos cost 400.
+          Images cost {CREDIT_COST_IMAGE} credits, videos cost {CREDIT_COST_VIDEO}.
         </div>
       )}
 

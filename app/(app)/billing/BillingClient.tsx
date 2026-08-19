@@ -3,10 +3,9 @@
 import { useState } from "react";
 import { Check, X, Zap, TrendingUp, CreditCard, AlertTriangle } from "lucide-react";
 import type { Profile } from "@/lib/types";
+import { CREDIT_COST_IMAGE, CREDIT_COST_VIDEO } from "@/lib/types";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-export const CREDIT_COST_IMAGE = 100;
-export const CREDIT_COST_VIDEO = 500;
 
 const PLAN_CREDIT_LIMITS: Record<string, number> = {
   Pro: 1000,
@@ -132,10 +131,18 @@ function CreditProgress({ remaining, total }: { remaining: number; total: number
   );
 }
 
-function PlanSummaryCard({ profile }: { profile: Profile }) {
+function PlanSummaryCard({
+  profile,
+  onBuyCredits,
+}: {
+  profile: Profile;
+  onBuyCredits: () => void;
+}) {
   const planName = profile.plan || "Pro";
   const totalCredits = PLAN_CREDIT_LIMITS[planName] ?? 10000;
-  const remaining = profile.ai_credits ?? totalCredits;
+  // The stored balance should never be presented as exceeding the plan's
+  // actual allowance — clamp for display so the numbers stay consistent.
+  const remaining = Math.min(profile.ai_credits ?? totalCredits, totalCredits);
   const renewalDate = new Date(Date.now() + RENEWAL_DAYS * 24 * 60 * 60 * 1000);
   const price = planName === "Max" ? "$49.99" : planName === "Custom" ? "Custom" : "$9.99";
 
@@ -152,6 +159,16 @@ function PlanSummaryCard({ profile }: { profile: Profile }) {
       </div>
 
       <CreditProgress remaining={remaining} total={totalCredits} />
+
+      <div className="mt-4">
+        <button
+          onClick={onBuyCredits}
+          className="flex items-center gap-2 rounded-xl border border-base-border bg-base-surface px-4 py-2 text-xs font-medium text-ink-primary transition-colors hover:border-brand/50"
+        >
+          <CreditCard size={14} />
+          Buy Credits
+        </button>
+      </div>
 
       <div className="mt-5 grid grid-cols-1 gap-4 border-t border-base-border pt-5 sm:grid-cols-3">
         <div>
@@ -431,7 +448,7 @@ export function BillingClient({ profile }: { profile: Profile }) {
     <div className="mx-auto max-w-5xl space-y-8">
 
       {/* Plan Summary */}
-      <PlanSummaryCard profile={profile} />
+      <PlanSummaryCard profile={profile} onBuyCredits={() => setShowTopUp(true)} />
 
       {/* Pricing Plans */}
       <div>
@@ -470,23 +487,6 @@ export function BillingClient({ profile }: { profile: Profile }) {
             </div>
           </div>
         </div>
-      </div>
-
-      {/* Need more credits */}
-      <div className="flex flex-col items-start gap-4 rounded-2xl border border-base-border bg-base-card p-6 sm:flex-row sm:items-center sm:justify-between">
-        <div>
-          <h3 className="font-medium text-ink-primary">Need more credits?</h3>
-          <p className="mt-1 text-sm text-ink-secondary">
-            Purchase additional AI credits without changing your plan.
-          </p>
-        </div>
-        <button
-          onClick={() => setShowTopUp(true)}
-          className="flex shrink-0 items-center gap-2 rounded-xl border border-base-border bg-base-surface px-5 py-2.5 text-sm font-medium text-ink-primary transition-colors hover:border-brand/50"
-        >
-          <CreditCard size={15} />
-          Buy Credits
-        </button>
       </div>
 
       {/* Danger Zone */}
