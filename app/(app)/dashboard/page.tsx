@@ -12,7 +12,19 @@ import { AccountStatusCard } from "@/components/dashboard/AccountStatusCard";
 import { CreativeThumb } from "@/components/dashboard/CreativeThumb";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ButtonLink } from "@/components/ui/Button";
-import type { Creative } from "@/lib/types";
+import type { Creative, AdAccount } from "@/lib/types";
+
+type DashboardMetrics = { spend?: string; ctr?: string; clicks?: string; cpm?: string } | null;
+
+async function getDashboardMetrics(metaAccount: AdAccount | null): Promise<DashboardMetrics> {
+  if (!metaAccount?.access_token || !metaAccount.external_account_id) return null;
+  try {
+    const insights = await fetchMetaInsights(metaAccount.access_token, metaAccount.external_account_id);
+    return (insights?.[0] as DashboardMetrics) ?? null;
+  } catch {
+    return null;
+  }
+}
 
 function getGreeting() {
   const hour = new Date().getHours();
@@ -33,16 +45,7 @@ export default async function DashboardPage() {
   const firstName = (profile?.full_name || user.email || "there").split(" ")[0];
 
   const metaAccount = await getConnectedAdAccount(supabase, user.id);
-
-  let metrics: { spend?: string; ctr?: string; clicks?: string; cpm?: string } | null = null;
-  if (metaAccount?.access_token && metaAccount.external_account_id) {
-    try {
-      const insights = await fetchMetaInsights(metaAccount.access_token, metaAccount.external_account_id);
-      metrics = (insights?.[0] as typeof metrics) ?? null;
-    } catch {
-      metrics = null;
-    }
-  }
+  const metrics = await getDashboardMetrics(metaAccount);
 
   const { data: creatives } = await supabase
     .from("creatives")
