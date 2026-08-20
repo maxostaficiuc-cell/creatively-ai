@@ -5,6 +5,7 @@ import { Bell, Zap, LogOut, Menu } from "lucide-react";
 import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Profile } from "@/lib/types";
+import { weeklyAllowanceFor } from "@/lib/types";
 
 export function TopBar({
   profile,
@@ -46,7 +47,7 @@ export function TopBar({
           <div>
             <p className="text-xs leading-none text-ink-secondary">AI Credits</p>
             <p className="mt-1 text-xs font-medium text-ink-primary">
-              {(profile?.ai_credits ?? 0).toLocaleString()} / 10,000
+              {(profile?.ai_credits ?? 0).toLocaleString()} / {weeklyAllowanceFor(profile?.plan ?? "Pro").toLocaleString()}
             </p>
           </div>
         </div>

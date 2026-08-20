@@ -4,6 +4,7 @@ import { useState } from "react";
 import { X } from "lucide-react";
 import { Sidebar } from "@/components/dashboard/Sidebar";
 import { TopBar } from "@/components/dashboard/TopBar";
+import { UpgradePrompt } from "@/components/dashboard/UpgradePrompt";
 import type { Profile } from "@/lib/types";
 
 export function AppShell({
@@ -43,6 +44,8 @@ export function AppShell({
         <TopBar profile={profile} greeting={greeting} subtitle={subtitle} onMenuClick={() => setMobileOpen(true)} />
         <main className="flex-1 overflow-y-auto px-6 py-6">{children}</main>
       </div>
+
+      <UpgradePrompt profile={profile} />
     </div>
   );
 }

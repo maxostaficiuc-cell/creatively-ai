@@ -1,25 +1,37 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { getFreshProfile } from "@/lib/profile";
 import { CREDIT_COST_IMAGE, CREDIT_COST_VIDEO } from "@/lib/types";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;
 
-// Uses Claude's vision capability to give a real, ROAS-focused critique of an
-// uploaded ad image. Requires ANTHROPIC_API_KEY to be set in your environment.
+// Uses Claude's vision capability to give a real, rigorous, ROAS-focused
+// critique of an uploaded ad image. Requires ANTHROPIC_API_KEY to be set.
 // Video files are accepted and stored, but scored with a clearly-labeled
 // simulated result for now — real video analysis is a larger feature.
 
-const ANALYSIS_PROMPT = `You are a senior performance-marketing creative strategist. You are shown a single advertising creative (an image used as a paid ad on Meta, TikTok, or Google).
+const ANALYSIS_PROMPT = `You are a senior performance-marketing creative strategist reviewing a single advertising creative (used as a paid ad on Meta, TikTok, or Google). You have reviewed thousands of ads and know most ads are mediocre.
 
-Evaluate it the way a paid-media buyer optimizing for ROAS would. Be specific and concrete — reference what you actually see (colors, copy, layout, offer, CTA, product framing), not generic advice.
+Be BRUTALLY HONEST. Most ads should score in the 40-75 range. Reserve 85+ for genuinely exceptional creative — a strong hook, clear offer, sharp visual execution, and real conversion potential all present at once. That combination is rare. A merely polished-looking ad with weak messaging or no clear offer should score 50-65, not 80+. A generic, unfocused, or poorly targeted ad can and should score below 40.
+
+Evaluate across these dimensions, using what you actually see in the image (specific colors, copy, layout, offer, CTA, product framing) — never generic praise:
+
+1. HOOK — Does it grab attention immediately? Is the headline compelling and clear within seconds?
+2. OFFER — Is there a clear, specific value proposition? A reason to act now?
+3. CREATIVE QUALITY — Visual hierarchy, composition, readability, branding, contrast.
+4. CONVERSION POTENTIAL — CTA clarity, trust signals, social proof, objection handling, urgency.
+5. AUDIENCE FIT — Does it speak to a specific audience, or feel generic?
+6. DIFFERENTIATION — Does it look like every other ad in this category, or does it have a distinct angle?
+
+In your written feedback, prioritize actionable criticism over compliments. Instead of "Great visual design," say something like "Strong product photography, but the headline communicates almost no customer benefit — a viewer can see what the product is without understanding why they should buy it." Instead of "Good CTA," say "The CTA is visible, but 'Learn More' creates weak purchase intent — test a benefit-driven CTA tied to the specific offer."
 
 Respond with ONLY a JSON object, no other text, in exactly this shape:
 {
-  "score": <integer 0-100, overall creative strength for driving conversions>,
-  "summary": "<one sentence verdict>",
-  "whats_working": "<2-3 sentences on concrete strengths>",
-  "whats_not": "<2-3 sentences on concrete weaknesses or risks>",
+  "score": <integer 0-100, following the strict, discriminating scale above>,
+  "summary": "<one honest sentence verdict — name the single biggest issue or strength>",
+  "whats_working": "<2-3 sentences on genuine, specific strengths — skip this if there are none worth naming>",
+  "whats_not": "<2-3 sentences identifying the biggest conversion problem first, then messaging or visual issues, with specifics>",
   "what_to_test": "<2-3 sentences with specific, actionable next tests to improve ROAS>"
 }`;
 
@@ -45,17 +57,16 @@ export async function POST(request: Request) {
   const fileType: "image" | "video" = isVideo ? "video" : "image";
   const cost = isVideo ? CREDIT_COST_VIDEO : CREDIT_COST_IMAGE;
 
-  // Check credits before doing any expensive work
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("ai_credits")
-    .eq("id", user.id)
-    .single();
-
+  // Single source of truth for credits — this also applies the weekly
+  // reset if the user's period has rolled over.
+  const profile = await getFreshProfile(supabase, user.id);
   const currentCredits = profile?.ai_credits ?? 0;
+
   if (currentCredits < cost) {
     return NextResponse.json(
-      { error: `Not enough AI credits. This analysis costs ${cost}, you have ${currentCredits}.` },
+      {
+        error: `Not enough AI credits. This analysis costs ${cost}, you have ${currentCredits} remaining this week.`,
+      },
       { status: 402 }
     );
   }
@@ -104,7 +115,7 @@ export async function POST(request: Request) {
         },
         body: JSON.stringify({
           model: "claude-haiku-4-5-20251001",
-          max_tokens: 700,
+          max_tokens: 800,
           messages: [
             {
               role: "user",
@@ -172,7 +183,10 @@ export async function POST(request: Request) {
 }
 
 function simulatedResult() {
-  const score = 60 + Math.floor(Math.random() * 30);
+  // A wide, honest-looking spread rather than clustering high — this is
+  // only ever shown when no real AI provider is configured, and is
+  // labeled as simulated everywhere it's displayed.
+  const score = 30 + Math.floor(Math.random() * 60);
   return {
     score,
     summary: "Simulated result — connect a real AI provider for genuine analysis.",

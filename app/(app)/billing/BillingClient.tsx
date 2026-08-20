@@ -3,18 +3,9 @@
 import { useState } from "react";
 import { Check, X, Zap, TrendingUp, CreditCard, AlertTriangle } from "lucide-react";
 import type { Profile } from "@/lib/types";
-import { CREDIT_COST_IMAGE, CREDIT_COST_VIDEO } from "@/lib/types";
+import { CREDIT_COST_IMAGE, CREDIT_COST_VIDEO, PLAN_WEEKLY_CREDITS } from "@/lib/types";
 
 // ─── Constants ────────────────────────────────────────────────────────────────
-
-const PLAN_CREDIT_LIMITS: Record<string, number> = {
-  Pro: 1000,
-  Max: 10000,
-  Starter: 0,
-  Custom: 50000,
-};
-
-const RENEWAL_DAYS = 30;
 
 const PLANS = [
   {
@@ -33,7 +24,7 @@ const PLANS = [
       "Performance-focused creative insights",
       "Creative History",
       "Standard AI Processing",
-      "1,000 AI Credits / month",
+      "1,000 AI Credits / week",
     ],
     cta: "Subscribe",
     ctaCurrent: "Current Plan",
@@ -48,7 +39,8 @@ const PLANS = [
     highlight: true,
     features: [
       "Everything in Pro",
-      "10,000 AI Credits / month",
+      "10,000 AI Credits / week",
+      "~40,000 credits per 4-week period",
       "Priority AI Processing",
       "Advanced Creative Analysis",
       "Higher analysis limits",
@@ -139,11 +131,11 @@ function PlanSummaryCard({
   onBuyCredits: () => void;
 }) {
   const planName = profile.plan || "Pro";
-  const totalCredits = PLAN_CREDIT_LIMITS[planName] ?? 10000;
-  // The stored balance should never be presented as exceeding the plan's
-  // actual allowance — clamp for display so the numbers stay consistent.
+  const totalCredits = PLAN_WEEKLY_CREDITS[planName] ?? PLAN_WEEKLY_CREDITS.Pro;
+  // profile.ai_credits is kept correct by the weekly reset logic (see
+  // lib/profile.ts) — never fabricated or clamped here.
   const remaining = Math.min(profile.ai_credits ?? totalCredits, totalCredits);
-  const renewalDate = new Date(Date.now() + RENEWAL_DAYS * 24 * 60 * 60 * 1000);
+  const resetDate = new Date(profile.credits_reset_at);
   const price = planName === "Max" ? "$49.99" : planName === "Custom" ? "Custom" : "$9.99";
 
   return (
@@ -159,6 +151,11 @@ function PlanSummaryCard({
       </div>
 
       <CreditProgress remaining={remaining} total={totalCredits} />
+      <p className="mt-2 text-xs text-ink-muted">
+        Credits reset weekly · Next reset:{" "}
+        {resetDate.toLocaleDateString("en-US", { day: "numeric", month: "short" })} at{" "}
+        {resetDate.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+      </p>
 
       <div className="mt-4">
         <button
@@ -176,13 +173,16 @@ function PlanSummaryCard({
           <p className="mt-1 text-sm font-medium text-ink-primary">{price}</p>
         </div>
         <div>
-          <p className="text-xs text-ink-muted">Included Credits</p>
+          <p className="text-xs text-ink-muted">Weekly Credits</p>
           <p className="mt-1 text-sm font-medium text-ink-primary">{totalCredits.toLocaleString()}</p>
+          {planName === "Max" && (
+            <p className="mt-0.5 text-[11px] text-ink-muted">~40,000 / 4-week period</p>
+          )}
         </div>
         <div>
-          <p className="text-xs text-ink-muted">Renewal Date</p>
+          <p className="text-xs text-ink-muted">Next Reset</p>
           <p className="mt-1 text-sm font-medium text-ink-primary">
-            {renewalDate.toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" })}
+            {resetDate.toLocaleDateString("en-US", { day: "numeric", month: "short", year: "numeric" })}
           </p>
         </div>
       </div>

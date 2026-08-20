@@ -1,8 +1,8 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getFreshProfile } from "@/lib/profile";
 import { AppShell } from "@/components/dashboard/AppShell";
 import { BillingClient } from "./BillingClient";
-import type { Profile } from "@/lib/types";
 
 export default async function BillingPage() {
   const supabase = createClient();
@@ -12,11 +12,7 @@ export default async function BillingPage() {
 
   if (!user) redirect("/login");
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", user.id)
-    .single<Profile>();
+  const profile = await getFreshProfile(supabase, user.id);
 
   if (!profile) redirect("/login");
 

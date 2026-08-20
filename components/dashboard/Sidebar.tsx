@@ -17,6 +17,7 @@ import {
 } from "lucide-react";
 import { Logo } from "@/components/ui/Logo";
 import type { Profile } from "@/lib/types";
+import { weeklyAllowanceFor } from "@/lib/types";
 
 const mainLinks = [
   { href: "/dashboard", label: "Overview", icon: LayoutGrid },
@@ -80,7 +81,7 @@ function NavSection({
 export function Sidebar({ profile }: { profile: Profile | null }) {
   const pathname = usePathname();
   const credits = profile?.ai_credits ?? 0;
-  const creditLimit = 10000;
+  const creditLimit = weeklyAllowanceFor(profile?.plan ?? "Pro");
   const pct = Math.min(100, Math.round((credits / creditLimit) * 100));
 
   const displayName = profile?.full_name || "there";

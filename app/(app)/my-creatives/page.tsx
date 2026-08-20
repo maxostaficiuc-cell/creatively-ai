@@ -1,11 +1,12 @@
 import { redirect } from "next/navigation";
 import { createClient } from "@/lib/supabase/server";
+import { getFreshProfile } from "@/lib/profile";
 import { AppShell } from "@/components/dashboard/AppShell";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ButtonLink } from "@/components/ui/Button";
 import { FolderOpen } from "lucide-react";
-import type { Profile, Creative } from "@/lib/types";
-import { CreativeThumb } from "./CreativeThumb";
+import type { Creative } from "@/lib/types";
+import { CreativeThumb } from "@/components/dashboard/CreativeThumb";
 
 export default async function Page() {
   const supabase = createClient();
@@ -15,11 +16,7 @@ export default async function Page() {
 
   if (!user) redirect("/login");
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", user.id)
-    .single<Profile>();
+  const profile = await getFreshProfile(supabase, user.id);
 
   const { data: creatives } = await supabase
     .from("creatives")

@@ -1,15 +1,18 @@
 import { redirect } from "next/navigation";
 import { DollarSign, TrendingUp, MousePointerClick, Users, TrendingUp as ScaleIcon, TrendingDown as ReviewIcon, Sparkles, Sparkles as TestIcon, Upload } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { getFreshProfile } from "@/lib/profile";
+import { getConnectedAdAccount, fetchMetaInsights } from "@/lib/meta/client";
 import { AppShell } from "@/components/dashboard/AppShell";
 import { MetricCard } from "@/components/dashboard/MetricCard";
 import { PerformanceChart } from "@/components/dashboard/PerformanceChart";
 import { CreativeInsightCard } from "@/components/dashboard/CreativeInsightCard";
 import { RecentAnalysisTable } from "@/components/dashboard/RecentAnalysisTable";
 import { AccountStatusCard } from "@/components/dashboard/AccountStatusCard";
+import { CreativeThumb } from "@/components/dashboard/CreativeThumb";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ButtonLink } from "@/components/ui/Button";
-import type { Profile, Creative } from "@/lib/types";
+import type { Creative } from "@/lib/types";
 
 function getGreeting() {
   const hour = new Date().getHours();
@@ -26,17 +29,20 @@ export default async function DashboardPage() {
 
   if (!user) redirect("/login");
 
-  const { data: profile } = await supabase
-    .from("profiles")
-    .select("*")
-    .eq("id", user.id)
-    .single<Profile>();
-
+  const profile = await getFreshProfile(supabase, user.id);
   const firstName = (profile?.full_name || user.email || "there").split(" ")[0];
 
-  // No advertising account connected yet for a brand-new account — show
-  // real empty states rather than fabricated performance numbers.
-  const hasConnectedAccount = false;
+  const metaAccount = await getConnectedAdAccount(supabase, user.id);
+
+  let metrics: { spend?: string; ctr?: string; clicks?: string; cpm?: string } | null = null;
+  if (metaAccount?.access_token && metaAccount.external_account_id) {
+    try {
+      const insights = await fetchMetaInsights(metaAccount.access_token, metaAccount.external_account_id);
+      metrics = (insights?.[0] as typeof metrics) ?? null;
+    } catch {
+      metrics = null;
+    }
+  }
 
   const { data: creatives } = await supabase
     .from("creatives")
@@ -58,24 +64,24 @@ export default async function DashboardPage() {
   }));
 
   const accounts = [
-    { name: "Meta Ads", connected: false },
+    { name: "Meta Ads", connected: !!metaAccount },
     { name: "TikTok Ads", connected: false },
     { name: "Google Ads", connected: false },
   ];
 
   return (
     <AppShell
-      profile={profile ?? null}
+      profile={profile}
       greeting={`${getGreeting()}, ${firstName}. 👋`}
       subtitle="Here's what's happening with your advertising."
     >
       <div className="space-y-6">
-        {hasConnectedAccount ? (
+        {metaAccount && metrics ? (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
-            <MetricCard icon={DollarSign} label="Ad Spend" value="$12,482" delta="18.6%" />
-            <MetricCard icon={TrendingUp} label="ROAS" value="4.82x" delta="22.8%" />
-            <MetricCard icon={MousePointerClick} label="CTR" value="3.21%" delta="8.7%" />
-            <MetricCard icon={Users} label="Conversions" value="184" delta="15.2%" />
+            <MetricCard icon={DollarSign} label="Ad Spend" value={metrics.spend ? `$${metrics.spend}` : "—"} />
+            <MetricCard icon={TrendingUp} label="CTR" value={metrics.ctr ? `${metrics.ctr}%` : "—"} />
+            <MetricCard icon={MousePointerClick} label="Clicks" value={metrics.clicks ?? "—"} />
+            <MetricCard icon={Users} label="CPM" value={metrics.cpm ? `$${metrics.cpm}` : "—"} />
           </div>
         ) : (
           <EmptyState
@@ -169,15 +175,22 @@ export default async function DashboardPage() {
               ) : (
                 <div className="flex gap-4 overflow-x-auto pb-2">
                   {topCreatives.map((c) => (
-                    <div key={c.id} className="w-56 shrink-0 rounded-xl border border-base-border bg-base-surface p-4">
-                      <div className="flex items-center justify-between">
-                        <span className="flex h-9 w-9 items-center justify-center rounded-full border border-brand/40 text-sm font-semibold text-brand-light">
-                          {c.score ?? "—"}
-                        </span>
-                        <span className="text-xs text-ink-muted">{c.file_type === "video" ? "Video" : "Image"}</span>
+                    <a
+                      key={c.id}
+                      href="/my-creatives"
+                      className="w-40 shrink-0 overflow-hidden rounded-xl border border-base-border bg-base-surface transition-colors hover:border-brand/40"
+                    >
+                      <CreativeThumb url={c.file_url} fileType={c.file_type} className="h-32 w-full rounded-none" />
+                      <div className="p-3">
+                        <div className="flex items-center justify-between">
+                          <span className="flex h-8 w-8 items-center justify-center rounded-full border border-brand/40 text-xs font-semibold text-brand-light">
+                            {c.score ?? "—"}
+                          </span>
+                          <span className="text-[11px] text-ink-muted">{c.file_type === "video" ? "Video" : "Image"}</span>
+                        </div>
+                        <p className="mt-2 truncate text-xs text-ink-primary">{c.summary || "Analyzed creative"}</p>
                       </div>
-                      <p className="mt-3 truncate text-sm text-ink-primary">{c.summary || "Analyzed creative"}</p>
-                    </div>
+                    </a>
                   ))}
                 </div>
               )}
