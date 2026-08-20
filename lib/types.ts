@@ -37,6 +37,8 @@ export type AdAccount = {
   platform: "meta" | "tiktok" | "google";
   external_account_id: string | null;
   account_name: string | null;
+  access_token: string | null;
+  token_expires_at: string | null;
   status: "connected" | "error" | "disconnected";
   created_at: string;
 };
