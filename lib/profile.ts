@@ -22,9 +22,15 @@ export async function getFreshProfile(
 
   const resetAt = new Date(profile.credits_reset_at);
   const now = new Date();
+  const allowance = weeklyAllowanceFor(profile.plan);
 
-  if (now >= resetAt) {
-    const allowance = weeklyAllowanceFor(profile.plan);
+  // Two conditions trigger a reset: the weekly window has passed, OR the
+  // stored balance is somehow above what the plan allows (this catches
+  // stale data left over from before weekly limits existed, without
+  // waiting for the next calendar reset).
+  const needsReset = now >= resetAt || profile.ai_credits > allowance;
+
+  if (needsReset) {
     const nextReset = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
     const { data: updated } = await supabase
