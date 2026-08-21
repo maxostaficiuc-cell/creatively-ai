@@ -11,6 +11,7 @@ import {
   Zap,
   ShieldCheck,
 } from "lucide-react";
+import { PLANS } from "@/lib/pricing";
 
 const problems = [
   {
@@ -42,44 +43,6 @@ const howItWorks = [
     step: "Act",
     title: "Know exactly what to test next",
     body: "Get a prioritized list of creatives to scale, review, or test — backed by data.",
-  },
-];
-
-const plans = [
-  {
-    name: "Starter",
-    price: "$0",
-    period: "/mo",
-    description: "Try Creatively.ai with limited analyses.",
-    features: ["10 creative analyses / mo", "1 connected ad account", "Winning Ads library access"],
-    cta: "Start Free Trial",
-  },
-  {
-    name: "Pro",
-    price: "$79",
-    period: "/mo",
-    description: "For media buyers and growing brands.",
-    features: [
-      "Unlimited creative analyses",
-      "3 connected ad accounts",
-      "Full Creative Intelligence suite",
-      "Priority AI processing",
-    ],
-    cta: "Start Free Trial",
-    highlight: true,
-  },
-  {
-    name: "Agency",
-    price: "Custom",
-    period: "",
-    description: "For agencies managing multiple clients.",
-    features: [
-      "Unlimited accounts & clients",
-      "Team seats & permissions",
-      "White-label reporting",
-      "Dedicated support",
-    ],
-    cta: "Talk to Sales",
   },
 ];
 
@@ -338,47 +301,57 @@ export default function LandingPage() {
           <div className="text-center">
             <p className="text-sm font-medium uppercase tracking-wide text-brand-light">Pricing</p>
             <h2 className="mt-3 text-3xl font-semibold tracking-tight text-ink-primary sm:text-4xl">
-              Simple plans that scale with your spend.
+              Simple plans that scale with your creative intelligence.
             </h2>
           </div>
-          <div className="mt-14 grid gap-6 lg:grid-cols-3">
-            {plans.map((p) => (
-              <div
-                key={p.name}
-                className={`rounded-2xl border p-8 ${
-                  p.highlight
-                    ? "border-brand/60 bg-base-card shadow-glow"
-                    : "border-base-border bg-base-card"
-                }`}
-              >
-                {p.highlight && (
-                  <span className="mb-4 inline-block rounded-full bg-brand/15 px-3 py-1 text-xs text-brand-light">
-                    Most popular
-                  </span>
-                )}
-                <h3 className="text-lg font-medium text-ink-primary">{p.name}</h3>
-                <p className="mt-4 flex items-baseline gap-1">
-                  <span className="text-3xl font-semibold text-ink-primary">{p.price}</span>
-                  <span className="text-sm text-ink-muted">{p.period}</span>
-                </p>
-                <p className="mt-2 text-sm text-ink-secondary">{p.description}</p>
-                <ul className="mt-6 space-y-3">
-                  {p.features.map((f) => (
-                    <li key={f} className="flex items-start gap-2 text-sm text-ink-secondary">
-                      <Check size={16} className="mt-0.5 shrink-0 text-accent-green" /> {f}
-                    </li>
-                  ))}
-                </ul>
-                <ButtonLink
-                  href="/signup"
-                  variant={p.highlight ? "primary" : "secondary"}
-                  className="mt-8 w-full"
+          <div className="mt-14 grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            {PLANS.map((p) => {
+              const isEnterprise = p.monthlyPrice === null;
+              return (
+                <div
+                  key={p.id}
+                  className={`rounded-2xl border p-7 ${
+                    p.highlight
+                      ? "border-brand/60 bg-base-card shadow-glow"
+                      : "border-base-border bg-base-card"
+                  }`}
                 >
-                  {p.cta}
-                </ButtonLink>
-              </div>
-            ))}
+                  {p.badge && (
+                    <span className="mb-4 inline-block rounded-full bg-brand/15 px-3 py-1 text-xs text-brand-light">
+                      {p.badge}
+                    </span>
+                  )}
+                  <h3 className="text-lg font-medium text-ink-primary">{p.name}</h3>
+                  <p className="mt-4 flex items-baseline gap-1">
+                    <span className="text-3xl font-semibold text-ink-primary">
+                      {isEnterprise ? "Let's Talk" : `$${p.monthlyPrice}`}
+                    </span>
+                    {!isEnterprise && <span className="text-sm text-ink-muted">/month</span>}
+                  </p>
+                  <p className="mt-2 text-sm text-ink-secondary">{p.tagline}</p>
+                  <ul className="mt-6 space-y-3">
+                    {p.features.slice(0, 4).map((f) => (
+                      <li key={f} className="flex items-start gap-2 text-sm text-ink-secondary">
+                        <Check size={16} className="mt-0.5 shrink-0 text-accent-green" /> {f}
+                      </li>
+                    ))}
+                  </ul>
+                  <ButtonLink
+                    href={isEnterprise ? "/pricing" : "/signup"}
+                    variant={p.highlight ? "primary" : "secondary"}
+                    className="mt-8 w-full"
+                  >
+                    {p.cta}
+                  </ButtonLink>
+                </div>
+              );
+            })}
           </div>
+          <p className="mt-10 text-center text-sm text-ink-secondary">
+            <a href="/pricing" className="text-brand-light hover:underline">
+              See full plan details and annual pricing →
+            </a>
+          </p>
         </div>
       </section>
 

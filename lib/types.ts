@@ -44,25 +44,23 @@ export type AdAccount = {
 };
 
 // ─── Credits: single source of truth ───────────────────────────────────────
+// The actual plan data (prices, features, weekly credits) lives in
+// lib/pricing.ts — this file just re-exports credit-lookup helpers under
+// their existing names so Sidebar, TopBar, lib/profile.ts, and the analyze
+// route don't need to change their imports.
+import { PLANS, planAfter } from "@/lib/pricing";
+
 export const CREDIT_COST_IMAGE = 100;
 export const CREDIT_COST_VIDEO = 500;
 
-// Weekly credit allowance per plan. This is the ONE place plan credit
-// amounts are defined — every page (dashboard, billing, analyze, etc.)
-// should read from here, never hardcode a number.
-export const PLAN_WEEKLY_CREDITS: Record<string, number> = {
-  Starter: 0,
-  Pro: 1000,
-  Max: 10000,
-  Custom: 50000,
-};
+export const PLAN_WEEKLY_CREDITS: Record<string, number> = Object.fromEntries(
+  PLANS.filter((p) => p.weeklyCredits !== null).map((p) => [p.id, p.weeklyCredits as number])
+);
 
-export const PLAN_ORDER = ["Starter", "Pro", "Max", "Custom"];
+export const PLAN_ORDER = PLANS.map((p) => p.id);
 
 export function nextPlan(currentPlan: string): string | null {
-  const idx = PLAN_ORDER.indexOf(currentPlan);
-  if (idx === -1 || idx === PLAN_ORDER.length - 1) return null;
-  return PLAN_ORDER[idx + 1];
+  return planAfter(currentPlan)?.id ?? null;
 }
 
 export function weeklyAllowanceFor(plan: string): number {

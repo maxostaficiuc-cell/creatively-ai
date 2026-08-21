@@ -1,78 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Check, X, Zap, TrendingUp, CreditCard, AlertTriangle } from "lucide-react";
+import { Check, X, TrendingUp, CreditCard, AlertTriangle } from "lucide-react";
 import type { Profile } from "@/lib/types";
-import { CREDIT_COST_IMAGE, CREDIT_COST_VIDEO, PLAN_WEEKLY_CREDITS } from "@/lib/types";
-
-// ─── Constants ────────────────────────────────────────────────────────────────
-
-const PLANS = [
-  {
-    id: "Pro",
-    name: "Pro",
-    price: "$9.99",
-    period: "/month",
-    description: "For creators and marketers who need reliable AI-powered creative analysis.",
-    badge: null,
-    highlight: false,
-    features: [
-      "AI Creative Analysis",
-      "Image Analysis",
-      "Creative Strengths & Weaknesses",
-      "AI Improvement Recommendations",
-      "Performance-focused creative insights",
-      "Creative History",
-      "Standard AI Processing",
-      "1,000 AI Credits / week",
-    ],
-    cta: "Subscribe",
-    ctaCurrent: "Current Plan",
-  },
-  {
-    id: "Max",
-    name: "Max",
-    price: "$49.99",
-    period: "/month",
-    description: "For agencies and serious marketers analyzing creatives at scale.",
-    badge: "MOST POPULAR",
-    highlight: true,
-    features: [
-      "Everything in Pro",
-      "10,000 AI Credits / week",
-      "~40,000 credits per 4-week period",
-      "Priority AI Processing",
-      "Advanced Creative Analysis",
-      "Higher analysis limits",
-      "Faster processing",
-      "Creative comparison",
-      "Advanced recommendations",
-      "Priority access to new AI features",
-    ],
-    cta: "Upgrade to Max",
-    ctaCurrent: "Current Plan",
-  },
-  {
-    id: "Custom",
-    name: "Custom",
-    price: "Let's build your plan",
-    period: "",
-    description: "For agencies, teams, and businesses that need custom AI analysis capacity.",
-    badge: null,
-    highlight: false,
-    features: [
-      "Custom AI Credit Allocation",
-      "Custom Usage Limits",
-      "Team / Agency Requirements",
-      "Priority Processing",
-      "Custom Features",
-      "Dedicated Support",
-      "Flexible Billing",
-    ],
-    cta: "Customize Plan",
-    ctaCurrent: "Current Plan",
-  },
-];
+import { CREDIT_COST_IMAGE, CREDIT_COST_VIDEO } from "@/lib/types";
+import { PLANS, getPlan, type Plan } from "@/lib/pricing";
 
 const TOP_UP_PACKAGES = [
   { credits: 1000, price: "$4.99" },
@@ -130,13 +62,14 @@ function PlanSummaryCard({
   profile: Profile;
   onBuyCredits: () => void;
 }) {
-  const planName = profile.plan || "Pro";
-  const totalCredits = PLAN_WEEKLY_CREDITS[planName] ?? PLAN_WEEKLY_CREDITS.Pro;
+  const plan = getPlan(profile.plan || "Pro");
+  const totalCredits = plan.weeklyCredits ?? 0;
   // profile.ai_credits is kept correct by the weekly reset logic (see
   // lib/profile.ts) — never fabricated or clamped here.
   const remaining = Math.min(profile.ai_credits ?? totalCredits, totalCredits);
+  const used = totalCredits - remaining;
   const resetDate = new Date(profile.credits_reset_at);
-  const price = planName === "Max" ? "$49.99" : planName === "Custom" ? "Custom" : "$9.99";
+  const priceDisplay = plan.monthlyPrice === null ? "Let's Talk" : `$${plan.monthlyPrice}`;
 
   return (
     <div className="rounded-2xl border border-base-border bg-base-card p-6">
@@ -146,7 +79,7 @@ function PlanSummaryCard({
           <p className="mt-0.5 text-sm text-ink-secondary">Your current subscription and credit status</p>
         </div>
         <span className="rounded-full bg-brand/15 px-3 py-1 text-xs font-medium text-brand-light">
-          {planName}
+          {plan.name}
         </span>
       </div>
 
@@ -167,16 +100,20 @@ function PlanSummaryCard({
         </button>
       </div>
 
-      <div className="mt-5 grid grid-cols-1 gap-4 border-t border-base-border pt-5 sm:grid-cols-3">
+      <div className="mt-5 grid grid-cols-2 gap-4 border-t border-base-border pt-5 sm:grid-cols-4">
         <div>
           <p className="text-xs text-ink-muted">Price / Month</p>
-          <p className="mt-1 text-sm font-medium text-ink-primary">{price}</p>
+          <p className="mt-1 text-sm font-medium text-ink-primary">{priceDisplay}</p>
+        </div>
+        <div>
+          <p className="text-xs text-ink-muted">Credits Used</p>
+          <p className="mt-1 text-sm font-medium text-ink-primary">{used.toLocaleString()}</p>
         </div>
         <div>
           <p className="text-xs text-ink-muted">Weekly Credits</p>
           <p className="mt-1 text-sm font-medium text-ink-primary">{totalCredits.toLocaleString()}</p>
-          {planName === "Max" && (
-            <p className="mt-0.5 text-[11px] text-ink-muted">~40,000 / 4-week period</p>
+          {plan.fourWeekCredits && (
+            <p className="mt-0.5 text-[11px] text-ink-muted">{plan.fourWeekCredits} / 4-week period</p>
           )}
         </div>
         <div>
@@ -192,14 +129,28 @@ function PlanSummaryCard({
 
 function PricingCard({
   plan,
-  currentPlan,
-  onCustomize,
+  currentPlanId,
+  onTalkToSales,
 }: {
-  plan: (typeof PLANS)[number];
-  currentPlan: string;
-  onCustomize: () => void;
+  plan: Plan;
+  currentPlanId: string;
+  onTalkToSales: () => void;
 }) {
-  const isCurrent = plan.id === currentPlan;
+  const currentPlan = getPlan(currentPlanId);
+  const isCurrent = plan.id === currentPlanId;
+  const isEnterprise = plan.monthlyPrice === null;
+  const isUpgrade = plan.rank > currentPlan.rank;
+
+  // Dashboard-context CTA: upgrade wording toward the user's next plan,
+  // "Talk to Sales" for Enterprise, or a plain switch for a downgrade.
+  let ctaLabel = plan.ctaCurrent;
+  if (!isCurrent) {
+    if (isEnterprise) ctaLabel = "Talk to Sales";
+    else if (isUpgrade) ctaLabel = `Upgrade to ${plan.name}`;
+    else ctaLabel = `Switch to ${plan.name}`;
+  }
+
+  const priceDisplay = isEnterprise ? "Let's Talk" : `$${plan.monthlyPrice}`;
 
   return (
     <div
@@ -226,15 +177,15 @@ function PricingCard({
         </div>
         <div className="mt-2 flex items-baseline gap-1">
           <span className={`text-2xl font-bold ${plan.highlight ? "text-brand-light" : "text-ink-primary"}`}>
-            {plan.price}
+            {priceDisplay}
           </span>
-          {plan.period && <span className="text-sm text-ink-muted">{plan.period}</span>}
+          {!isEnterprise && <span className="text-sm text-ink-muted">/month</span>}
         </div>
-        <p className="mt-2 text-sm text-ink-secondary">{plan.description}</p>
+        <p className="mt-2 text-sm text-ink-secondary">{plan.tagline}</p>
       </div>
 
       <button
-        onClick={plan.id === "Custom" ? onCustomize : undefined}
+        onClick={isEnterprise && !isCurrent ? onTalkToSales : undefined}
         disabled={isCurrent}
         className={`mb-5 w-full rounded-xl py-2.5 text-sm font-medium transition-all ${
           isCurrent
@@ -244,7 +195,7 @@ function PricingCard({
             : "border border-base-border text-ink-primary hover:border-brand/50"
         }`}
       >
-        {isCurrent ? plan.ctaCurrent : plan.cta}
+        {ctaLabel}
       </button>
 
       <ul className="flex-1 space-y-2.5">
@@ -298,7 +249,7 @@ function TopUpModal({ onClose }: { onClose: () => void }) {
                 }`}
               >
                 <span className="flex items-center gap-2">
-                  <Zap size={14} className="text-accent-green" />
+                  <CreditCard size={14} className="text-accent-green" />
                   {pkg.credits.toLocaleString()} credits
                 </span>
                 <span className="font-medium text-ink-primary">{pkg.price}</span>
@@ -329,12 +280,12 @@ function TopUpModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-function CustomPlanModal({ onClose }: { onClose: () => void }) {
+function TalkToSalesModal({ onClose }: { onClose: () => void }) {
   const [form, setForm] = useState({
-    credits: "50,000",
-    users: "5",
-    images: "500",
-    videos: "50",
+    credits: "500,000",
+    users: "10",
+    images: "5,000",
+    videos: "500",
     requirements: "",
   });
 
@@ -344,13 +295,13 @@ function CustomPlanModal({ onClose }: { onClose: () => void }) {
       <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
         <div className="w-full max-w-lg rounded-2xl border border-base-border bg-base-card p-6 shadow-2xl">
           <div className="mb-4 flex items-center justify-between">
-            <h3 className="font-semibold text-ink-primary">Customize Your Plan</h3>
+            <h3 className="font-semibold text-ink-primary">Talk to Sales</h3>
             <button onClick={onClose} className="text-ink-muted hover:text-ink-primary">
               <X size={18} />
             </button>
           </div>
           <p className="mb-5 text-sm text-ink-secondary">
-            Tell us about your needs and we&apos;ll build a plan around them.
+            Tell us about your needs and we&apos;ll build an Enterprise plan around them.
           </p>
           <div className="space-y-4">
             {[
@@ -375,7 +326,7 @@ function CustomPlanModal({ onClose }: { onClose: () => void }) {
                 rows={3}
                 value={form.requirements}
                 onChange={(e) => setForm((f) => ({ ...f, requirements: e.target.value }))}
-                placeholder="Any specific features, integrations, or requirements..."
+                placeholder="SSO, dedicated support, custom integrations, etc..."
                 className="w-full resize-none rounded-xl border border-base-border bg-base-surface px-4 py-2.5 text-sm text-ink-primary outline-none focus:border-brand"
               />
             </div>
@@ -439,13 +390,13 @@ function CancelModal({ onClose }: { onClose: () => void }) {
 // ─── Main exported component ───────────────────────────────────────────────────
 export function BillingClient({ profile }: { profile: Profile }) {
   const [showTopUp, setShowTopUp] = useState(false);
-  const [showCustom, setShowCustom] = useState(false);
+  const [showSales, setShowSales] = useState(false);
   const [showCancel, setShowCancel] = useState(false);
 
-  const currentPlan = profile.plan || "Pro";
+  const currentPlanId = profile.plan || "Pro";
 
   return (
-    <div className="mx-auto max-w-5xl space-y-8">
+    <div className="mx-auto max-w-6xl space-y-8">
 
       {/* Plan Summary */}
       <PlanSummaryCard profile={profile} onBuyCredits={() => setShowTopUp(true)} />
@@ -456,13 +407,13 @@ export function BillingClient({ profile }: { profile: Profile }) {
         <p className="mb-5 text-sm text-ink-secondary">
           Upgrade or switch your plan at any time. Changes take effect immediately.
         </p>
-        <div className="grid grid-cols-1 gap-5 sm:grid-cols-3">
+        <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
           {PLANS.map((plan) => (
             <PricingCard
               key={plan.id}
               plan={plan}
-              currentPlan={currentPlan}
-              onCustomize={() => setShowCustom(true)}
+              currentPlanId={currentPlanId}
+              onTalkToSales={() => setShowSales(true)}
             />
           ))}
         </div>
@@ -516,7 +467,7 @@ export function BillingClient({ profile }: { profile: Profile }) {
 
       {/* Modals */}
       {showTopUp && <TopUpModal onClose={() => setShowTopUp(false)} />}
-      {showCustom && <CustomPlanModal onClose={() => setShowCustom(false)} />}
+      {showSales && <TalkToSalesModal onClose={() => setShowSales(false)} />}
       {showCancel && <CancelModal onClose={() => setShowCancel(false)} />}
     </div>
   );
