@@ -184,19 +184,34 @@ function PricingCard({
         <p className="mt-2 text-sm text-ink-secondary">{plan.tagline}</p>
       </div>
 
-      <button
-        onClick={isEnterprise && !isCurrent ? onTalkToSales : undefined}
-        disabled={isCurrent}
-        className={`mb-5 w-full rounded-xl py-2.5 text-sm font-medium transition-all ${
-          isCurrent
-            ? "cursor-default border border-base-border text-ink-muted"
-            : plan.highlight
-            ? "bg-gradient-to-b from-brand-light to-brand text-white shadow-glow hover:brightness-110"
-            : "border border-base-border text-ink-primary hover:border-brand/50"
-        }`}
-      >
-        {ctaLabel}
-      </button>
+      {!isCurrent && !isEnterprise ? (
+        <form action="/api/checkout" method="POST" className="mb-5">
+          <input type="hidden" name="plan" value={plan.id} />
+          <input type="hidden" name="interval" value="monthly" />
+          <button
+            type="submit"
+            className={`w-full rounded-xl py-2.5 text-sm font-medium transition-all ${
+              plan.highlight
+                ? "bg-gradient-to-b from-brand-light to-brand text-white shadow-glow hover:brightness-110"
+                : "border border-base-border text-ink-primary hover:border-brand/50"
+            }`}
+          >
+            {ctaLabel}
+          </button>
+        </form>
+      ) : (
+        <button
+          onClick={isEnterprise && !isCurrent ? onTalkToSales : undefined}
+          disabled={isCurrent}
+          className={`mb-5 w-full rounded-xl py-2.5 text-sm font-medium transition-all ${
+            isCurrent
+              ? "cursor-default border border-base-border text-ink-muted"
+              : "bg-gradient-to-b from-brand-light to-brand text-white shadow-glow hover:brightness-110"
+          }`}
+        >
+          {ctaLabel}
+        </button>
+      )}
 
       <ul className="flex-1 space-y-2.5">
         {plan.features.map((f) => (
