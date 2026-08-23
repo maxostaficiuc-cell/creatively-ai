@@ -1,4 +1,4 @@
-import Whop from "@whop/sdk";
+import { Whop } from "@whop/sdk";
 
 let _whop: Whop | null = null;
 
