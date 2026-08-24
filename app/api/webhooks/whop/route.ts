@@ -1,15 +1,22 @@
 import { NextResponse } from "next/server";
 import { getWhop } from "@/lib/whop";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { ourPlanFromWhopPlanId } from "@/lib/whop-plans";
 import { weeklyAllowanceFor } from "@/lib/types";
+import { ourPlanFromWhopPlanId } from "@/lib/whop-plans";
 
 // Real Whop webhook handling — verifies the signature, then updates the
-// paying user's plan and resets their weekly credits. This is the ONLY
-// place a user's plan changes as a result of an actual payment.
+// paying user's plan and resets their weekly credits.
+//
+// Since checkout now happens via plain Whop-hosted checkout links (not an
+// API-created session), we don't have our own metadata.userId attached to
+// the purchase. Instead we match the buyer back to a Creatively.ai account
+// by email — Whop includes the buyer's email on every payment and
+// membership webhook. This means a customer must check out with the same
+// email they signed up with for their plan to update automatically.
 export const runtime = "nodejs";
 
 type WhopEvent = { type: string; id: string; data: Record<string, unknown> };
+type WhopUser = { email?: string };
 
 async function alreadyProcessed(id: string): Promise<boolean> {
   const supabase = createAdminClient();
@@ -24,20 +31,35 @@ async function markProcessed(id: string, type: string) {
   await supabase.from("webhook_events").insert({ id, type });
 }
 
-function readUserId(metadata: unknown): string | null {
-  if (!metadata || typeof metadata !== "object") return null;
-  const value = (metadata as Record<string, unknown>).userId;
-  return typeof value === "string" ? value : null;
+function readEmail(data: Record<string, unknown>): string | null {
+  const user = data.user as WhopUser | undefined;
+  return user?.email ?? null;
 }
 
-async function grantPlan(userId: string, planId: string) {
+function readPlanId(data: Record<string, unknown>): string | null {
+  const plan = data.plan as { id?: string } | undefined;
+  return plan?.id ?? null;
+}
+
+async function grantPlanByEmail(email: string, planId: string): Promise<boolean> {
   const supabase = createAdminClient();
   const allowance = weeklyAllowanceFor(planId);
   const nextReset = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("id")
+    .ilike("email", email)
+    .maybeSingle();
+
+  if (!profile) return false;
+
   await supabase
     .from("profiles")
     .update({ plan: planId, ai_credits: allowance, credits_reset_at: nextReset })
-    .eq("id", userId);
+    .eq("id", profile.id);
+
+  return true;
 }
 
 export async function POST(request: Request) {
@@ -63,19 +85,23 @@ export async function POST(request: Request) {
 
   try {
     if (event.type === "payment.succeeded" || event.type === "membership.activated") {
-      const data = event.data as { metadata?: unknown; plan?: { id?: string } };
-      const userId = readUserId(data.metadata);
-      const planInfo = data.plan?.id ? ourPlanFromWhopPlanId(data.plan.id) : null;
+      const email = readEmail(event.data);
+      const whopPlanId = readPlanId(event.data);
+      const ourPlan = whopPlanId ? ourPlanFromWhopPlanId(whopPlanId) : null;
 
-      if (userId && planInfo) {
-        await grantPlan(userId, planInfo.ourPlan);
+      if (email && ourPlan) {
+        const matched = await grantPlanByEmail(email, ourPlan);
+        if (!matched) {
+          console.error(`Whop webhook: no Creatively.ai account found for email ${email}`, event.id);
+        }
+      } else if (!ourPlan) {
+        console.error(`Whop webhook: unrecognized plan_id ${whopPlanId}`, event.id);
       } else {
-        console.error("Whop webhook: missing userId or unrecognized plan id", event.id);
+        console.error("Whop webhook: no email on payload", event.id);
       }
     } else if (event.type === "membership.deactivated") {
-      const data = event.data as { metadata?: unknown };
-      const userId = readUserId(data.metadata);
-      if (userId) await grantPlan(userId, "Starter");
+      const email = readEmail(event.data);
+      if (email) await grantPlanByEmail(email, "Starter");
     }
     // payment.failed: nothing to do — the user's plan simply doesn't change.
 

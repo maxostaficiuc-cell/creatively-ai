@@ -1,9 +1,10 @@
 "use client";
 
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { Logo } from "@/components/ui/Logo";
 import { Button } from "@/components/ui/Button";
 import { createClient } from "@/lib/supabase/client";
+import { checkoutUrlFor } from "@/lib/whop-plans";
 
 const personas = [
   "Agency",
@@ -30,7 +31,6 @@ const goals = [
 ];
 
 export default function OnboardingPage() {
-  const checkoutFormRef = useRef<HTMLFormElement>(null);
   const [step, setStep] = useState(0);
   const [persona, setPersona] = useState<string | null>(null);
   const [platform, setPlatform] = useState<string | null>(null);
@@ -81,11 +81,16 @@ export default function OnboardingPage() {
         .eq("id", user.id);
     }
 
-    // Submitting this hidden form (rather than router.push) sends the user
-    // into a real Whop checkout for the Starter plan. The browser includes
-    // the session cookie automatically, so /api/checkout still knows who
-    // they are.
-    checkoutFormRef.current?.submit();
+    // Send the new user straight into a real Whop checkout link for
+    // Starter — no free trial, no server round trip. If no checkout link
+    // is configured yet, fall back to the dashboard so onboarding never
+    // gets stuck.
+    const checkoutUrl = checkoutUrlFor("Starter");
+    if (checkoutUrl) {
+      window.location.href = checkoutUrl;
+    } else {
+      window.location.href = "/dashboard";
+    }
   }
 
   const current = steps[step];
@@ -93,14 +98,6 @@ export default function OnboardingPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-base-bg px-6">
-      {/* Hidden — submitted programmatically when onboarding finishes, to
-          send the new user straight into a real Whop checkout instead of
-          the dashboard. No free trial. */}
-      <form ref={checkoutFormRef} action="/api/checkout" method="POST" className="hidden">
-        <input type="hidden" name="plan" value="Starter" />
-        <input type="hidden" name="interval" value="monthly" />
-      </form>
-
       <div className="w-full max-w-lg">
         <div className="mb-8 flex justify-center">
           <Logo />

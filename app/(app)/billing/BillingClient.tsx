@@ -5,6 +5,7 @@ import { Check, X, TrendingUp, CreditCard, AlertTriangle } from "lucide-react";
 import type { Profile } from "@/lib/types";
 import { CREDIT_COST_IMAGE, CREDIT_COST_VIDEO } from "@/lib/types";
 import { PLANS, getPlan, type Plan } from "@/lib/pricing";
+import { checkoutUrlFor } from "@/lib/whop-plans";
 
 const TOP_UP_PACKAGES = [
   { credits: 1000, price: "$4.99" },
@@ -185,20 +186,25 @@ function PricingCard({
       </div>
 
       {!isCurrent && !isEnterprise ? (
-        <form action="/api/checkout" method="POST" className="mb-5">
-          <input type="hidden" name="plan" value={plan.id} />
-          <input type="hidden" name="interval" value="monthly" />
-          <button
-            type="submit"
-            className={`w-full rounded-xl py-2.5 text-sm font-medium transition-all ${
+        checkoutUrlFor(plan.id) ? (
+          <a
+            href={checkoutUrlFor(plan.id)!}
+            className={`mb-5 block w-full rounded-xl py-2.5 text-center text-sm font-medium transition-all ${
               plan.highlight
                 ? "bg-gradient-to-b from-brand-light to-brand text-white shadow-glow hover:brightness-110"
                 : "border border-base-border text-ink-primary hover:border-brand/50"
             }`}
           >
             {ctaLabel}
-          </button>
-        </form>
+          </a>
+        ) : (
+          <div
+            className="mb-5 w-full rounded-xl border border-base-border py-2.5 text-center text-sm text-ink-muted"
+            title="Checkout link not configured yet"
+          >
+            {ctaLabel} — coming soon
+          </div>
+        )
       ) : (
         <button
           onClick={isEnterprise && !isCurrent ? onTalkToSales : undefined}
