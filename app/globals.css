@@ -66,3 +66,23 @@ body {
 .animate-frame-pulse {
   animation: frame-pulse 2s ease-in-out infinite;
 }
+
+/* Public website redesign */
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.animate-fade-in-up {
+  animation: fade-in-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes logo-loop {
+  0% { transform: translateX(0); opacity: 1; }
+  45% { transform: translateX(-6px); opacity: 1; }
+  50% { opacity: 0; }
+  55% { transform: translateX(6px); opacity: 0; }
+  100% { transform: translateX(0); opacity: 1; }
+}
+.animate-logo-loop {
+  animation: logo-loop 6s ease-in-out infinite;
+}
