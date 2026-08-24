@@ -11,6 +11,8 @@ import { Footer } from "@/components/marketing/Footer";
 import { ButtonLink } from "@/components/ui/Button";
 import { PricingCards } from "@/app/pricing/PricingCards";
 import { ScoreCounter } from "@/components/marketing/ScoreCounter";
+import { DashboardShowcase } from "@/components/marketing/DashboardShowcase";
+import { PublicAnalyzeDemo } from "@/components/marketing/PublicAnalyzeDemo";
 
 const scoreBreakdown = [
   { label: "Hook", value: 91 },
@@ -122,33 +124,11 @@ export default function LandingPage() {
         </div>
 
         {/* HERO PRODUCT SHOWCASE */}
-        <div className="mx-auto mt-20 max-w-5xl animate-fade-in-up" style={{ animationDelay: "150ms" }}>
-          <p className="text-center text-xs font-medium uppercase tracking-wide text-brand-light">
-            The Creatively.ai Workspace
-          </p>
-          <div className="group relative mt-6">
-            <div
-              className="pointer-events-none absolute -inset-6 -z-10 rounded-[32px] opacity-70 blur-2xl transition-opacity duration-500 group-hover:opacity-100"
-              style={{ background: "radial-gradient(closest-side, rgba(139,92,246,0.35), transparent)" }}
-            />
-            <div className="overflow-hidden rounded-2xl border border-base-border bg-base-card shadow-glow transition-all duration-500 ease-out group-hover:-translate-y-1 group-hover:brightness-110">
-              {/* Save your real dashboard screenshot to public/dashboard-screenshot.png
-                  and it will appear here automatically. */}
-              <img
-                src="/dashboard-screenshot.png"
-                alt="The Creatively.ai dashboard"
-                className="w-full"
-              />
-            </div>
-            <div
-              className="pointer-events-none absolute inset-x-0 -bottom-10 h-24"
-              style={{ background: "linear-gradient(to bottom, transparent, #0A0A0D)" }}
-            />
-          </div>
-          <p className="mx-auto mt-6 max-w-lg text-center text-sm text-ink-secondary">
-            Analyze creatives, understand performance, and turn your advertising data into your
-            next decision.
-          </p>
+        <div className="mt-20 animate-fade-in-up" style={{ animationDelay: "150ms" }}>
+          <DashboardShowcase
+            label="The Creatively.ai Workspace"
+            caption="Analyze creatives, understand performance, and turn your advertising data into your next decision."
+          />
         </div>
       </section>
 
@@ -200,7 +180,11 @@ export default function LandingPage() {
                 ))}
               </ul>
             </div>
-            <div className="rounded-2xl border border-brand/40 bg-base-card p-7 shadow-glow">
+            <div className="group relative rounded-2xl border border-brand/40 bg-base-card p-7 shadow-glow transition-transform duration-300 ease-out hover:-translate-y-1">
+              <div
+                className="pointer-events-none absolute -inset-4 -z-10 rounded-[28px] opacity-60 blur-2xl animate-pulse"
+                style={{ background: "radial-gradient(closest-side, rgba(139,92,246,0.28), transparent)" }}
+              />
               <p className="text-xs font-medium uppercase tracking-wide text-brand-light">
                 With Creatively.ai
               </p>
@@ -228,58 +212,7 @@ export default function LandingPage() {
             </p>
           </div>
 
-          <div className="mt-14 grid gap-6 lg:grid-cols-5">
-            <div className="flex flex-col items-center justify-center rounded-2xl border border-dashed border-base-border bg-base-surface/40 p-10 text-center lg:col-span-2">
-              <Upload className="text-brand-light" size={26} />
-              <p className="mt-3 text-sm text-ink-secondary">
-                Drag and drop an image or video
-                <br />
-                or click to upload
-              </p>
-              <span className="mt-5 flex h-14 w-14 items-center justify-center rounded-full border border-brand/40 text-lg font-semibold text-brand-light">
-                <ScoreCounter value={87} />
-              </span>
-              <p className="mt-2 text-xs text-ink-muted">/ 100</p>
-            </div>
-
-            <div className="grid gap-4 lg:col-span-3">
-              <div className="flex gap-3 rounded-xl border border-base-border bg-base-card p-5">
-                <TrendingUp size={16} className="mt-0.5 shrink-0 text-accent-green" />
-                <div>
-                  <p className="text-xs font-medium uppercase tracking-wide text-accent-green">
-                    What&apos;s great
-                  </p>
-                  <p className="mt-1.5 text-sm text-ink-secondary">
-                    Strong visual hierarchy, clear product presentation, strong brand consistency.
-                  </p>
-                </div>
-              </div>
-              <div className="flex gap-3 rounded-xl border border-base-border bg-base-card p-5">
-                <TrendingDown size={16} className="mt-0.5 shrink-0 text-accent-red" />
-                <div>
-                  <p className="text-xs font-medium uppercase tracking-wide text-accent-red">
-                    What&apos;s not great
-                  </p>
-                  <p className="mt-1.5 text-sm text-ink-secondary">
-                    Headline explains the product but not the strongest benefit; CTA lacks urgency;
-                    no clear differentiating offer.
-                  </p>
-                </div>
-              </div>
-              <div className="flex gap-3 rounded-xl border border-base-border bg-base-card p-5">
-                <Sparkles size={16} className="mt-0.5 shrink-0 text-brand-light" />
-                <div>
-                  <p className="text-xs font-medium uppercase tracking-wide text-brand-light">
-                    What you could improve
-                  </p>
-                  <p className="mt-1.5 text-sm text-ink-secondary">
-                    Strengthen the opening hook, make the offer more specific, add social proof,
-                    test a stronger CTA.
-                  </p>
-                </div>
-              </div>
-            </div>
-          </div>
+          <PublicAnalyzeDemo />
         </div>
       </section>
 
@@ -403,31 +336,17 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* SECOND PRODUCT SHOWCASE */}
+      {/* PREMIUM DASHBOARD SHOWCASE */}
       <section className="border-t border-white/5 px-6 py-24">
-        <div className="mx-auto max-w-5xl text-center">
-          <h2 className="mx-auto max-w-2xl text-3xl font-semibold tracking-tight text-ink-primary sm:text-4xl">
-            Everything you need to understand your creative.
-          </h2>
-          <p className="mx-auto mt-4 max-w-xl text-ink-secondary">
-            Creatively.ai brings creative analysis and advertising intelligence into one workspace.
-          </p>
-          <div className="mt-14 overflow-hidden rounded-2xl border border-base-border bg-base-card shadow-glow">
-            <img src="/dashboard-screenshot.png" alt="Creatively.ai workspace" className="w-full" />
-          </div>
-          <div className="mt-10 grid gap-6 text-left sm:grid-cols-2 lg:grid-cols-4">
-            {[
-              { title: "Creative Analysis", body: "Understand what's working and what isn't." },
-              { title: "Performance Overview", body: "See spend, revenue, and ROAS once your ad account is connected." },
-              { title: "Winning Creatives", body: "Understand which creatives stand out." },
-              { title: "Creative Intelligence", body: "Turn analysis into actionable next steps." },
-            ].map((f) => (
-              <div key={f.title}>
-                <p className="text-sm font-medium text-ink-primary">{f.title}</p>
-                <p className="mt-1.5 text-sm text-ink-secondary">{f.body}</p>
-              </div>
-            ))}
-          </div>
+        <p className="mx-auto max-w-2xl text-center text-3xl font-semibold tracking-tight text-ink-primary sm:text-4xl">
+          This is the actual software you&apos;re getting.
+        </p>
+        <p className="mx-auto mt-4 max-w-xl text-center text-ink-secondary">
+          Overview, Analyze Creative, Winning Ads, My Creatives, Campaigns, Ad Sets, Ads,
+          Insights — one workspace, no separate tools to stitch together.
+        </p>
+        <div className="mt-14">
+          <DashboardShowcase />
         </div>
       </section>
 
