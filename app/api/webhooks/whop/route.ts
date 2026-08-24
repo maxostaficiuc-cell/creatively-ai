@@ -46,7 +46,12 @@ export async function POST(request: Request) {
 
   let event: WhopEvent;
   try {
-    event = getWhop().webhooks.unwrap(bodyText, { headers }) as unknown as WhopEvent;
+    // @whop/sdk ships new versions multiple times a day right now and its
+    // type declarations lag behind its own documented API — .webhooks.unwrap
+    // is the officially documented method, just not fully typed yet. Cast
+    // past that gap rather than fight a moving target.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    event = (getWhop().webhooks as any).unwrap(bodyText, { headers }) as WhopEvent;
   } catch (err) {
     console.error("Whop webhook signature verification failed:", err);
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
