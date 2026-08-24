@@ -99,7 +99,7 @@ export default function LandingPage() {
           </p>
           <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
             <ButtonLink href="/signup" className="px-7 py-3.5 text-base">
-              Start Free Trial <ArrowRight size={16} />
+              Get Started <ArrowRight size={16} />
             </ButtonLink>
             <ButtonLink href="#winning-ads" variant="secondary" className="px-7 py-3.5 text-base">
               Explore Winning Ads
@@ -387,7 +387,7 @@ export default function LandingPage() {
         </p>
         <div className="mt-8">
           <ButtonLink href="/signup" className="px-7 py-3.5 text-base">
-            Start Free Trial <ArrowRight size={16} />
+            Get Started <ArrowRight size={16} />
           </ButtonLink>
         </div>
       </section>

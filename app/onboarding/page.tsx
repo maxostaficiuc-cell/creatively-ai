@@ -1,7 +1,6 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { useRef, useState } from "react";
 import { Logo } from "@/components/ui/Logo";
 import { Button } from "@/components/ui/Button";
 import { createClient } from "@/lib/supabase/client";
@@ -31,7 +30,7 @@ const goals = [
 ];
 
 export default function OnboardingPage() {
-  const router = useRouter();
+  const checkoutFormRef = useRef<HTMLFormElement>(null);
   const [step, setStep] = useState(0);
   const [persona, setPersona] = useState<string | null>(null);
   const [platform, setPlatform] = useState<string | null>(null);
@@ -74,13 +73,19 @@ export default function OnboardingPage() {
           ad_platforms: skip || !platform ? null : [platform],
           main_goal: skip ? null : goal,
           onboarding_completed: true,
+          // No free trial — every new account starts on Starter and goes
+          // straight into a real checkout next, rather than getting free
+          // Pro-tier credits by default.
+          plan: "Starter",
         })
         .eq("id", user.id);
     }
 
-    setSaving(false);
-    router.push("/dashboard");
-    router.refresh();
+    // Submitting this hidden form (rather than router.push) sends the user
+    // into a real Whop checkout for the Starter plan. The browser includes
+    // the session cookie automatically, so /api/checkout still knows who
+    // they are.
+    checkoutFormRef.current?.submit();
   }
 
   const current = steps[step];
@@ -88,6 +93,14 @@ export default function OnboardingPage() {
 
   return (
     <div className="flex min-h-screen items-center justify-center bg-base-bg px-6">
+      {/* Hidden — submitted programmatically when onboarding finishes, to
+          send the new user straight into a real Whop checkout instead of
+          the dashboard. No free trial. */}
+      <form ref={checkoutFormRef} action="/api/checkout" method="POST" className="hidden">
+        <input type="hidden" name="plan" value="Starter" />
+        <input type="hidden" name="interval" value="monthly" />
+      </form>
+
       <div className="w-full max-w-lg">
         <div className="mb-8 flex justify-center">
           <Logo />

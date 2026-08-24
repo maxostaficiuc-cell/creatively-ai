@@ -37,7 +37,7 @@ export function Nav() {
             Login
           </ButtonLink>
           <ButtonLink href="/signup" variant="primary">
-            Start Free Trial
+            Get Started
           </ButtonLink>
         </div>
 
@@ -63,7 +63,7 @@ export function Nav() {
                 Login
               </ButtonLink>
               <ButtonLink href="/signup" variant="primary">
-                Start Free Trial
+                Get Started
               </ButtonLink>
             </div>
           </nav>

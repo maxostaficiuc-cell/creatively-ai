@@ -115,7 +115,7 @@ export default function SignupPage() {
             {error && <p className="text-sm text-accent-red">{error}</p>}
 
             <Button type="submit" disabled={loading} className="w-full">
-              {loading ? "Creating account…" : "Start Free Trial"}
+              {loading ? "Creating account…" : "Get Started"}
             </Button>
           </form>
 
