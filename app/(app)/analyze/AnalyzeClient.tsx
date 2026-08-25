@@ -11,6 +11,7 @@ import {
   Zap,
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
+import { CreativeReportView } from "@/components/marketing/CreativeReportView";
 import type { Creative } from "@/lib/types";
 import { CREDIT_COST_IMAGE, CREDIT_COST_VIDEO } from "@/lib/types";
 
@@ -35,7 +36,6 @@ export function AnalyzeClient({ credits }: { credits: number }) {
   const [progress, setProgress] = useState(0);
   const [scanComplete, setScanComplete] = useState(false);
   const [anchors, setAnchors] = useState([false, false, false]);
-  const [cards, setCards] = useState([false, false, false]);
   const [finalizing, setFinalizing] = useState(false);
 
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
@@ -63,7 +63,6 @@ export function AnalyzeClient({ credits }: { credits: number }) {
     setProgress(0);
     setScanComplete(false);
     setAnchors([false, false, false]);
-    setCards([false, false, false]);
     setFinalizing(false);
     resultRef.current = null;
     errorRef.current = null;
@@ -122,7 +121,6 @@ export function AnalyzeClient({ credits }: { credits: number }) {
       setResult(creative);
       resultRef.current = creative;
       setPhase("results");
-      schedule(() => setCards([true, true, true]), 100);
       router.refresh();
       return;
     }
@@ -155,10 +153,6 @@ export function AnalyzeClient({ credits }: { credits: number }) {
       resultRef.current = creative;
       setFinalizing(false);
       setPhase("results");
-
-      schedule(() => setCards([true, false, false]), 300);
-      schedule(() => setCards([true, true, false]), 700);
-      schedule(() => setCards([true, true, true]), 1100);
     }, 3000);
 
     // If the API is slower than the scan animation, show a brief
@@ -270,70 +264,70 @@ export function AnalyzeClient({ credits }: { credits: number }) {
         </div>
       )}
 
-      {/* RESULTS — creative + three connected insight cards */}
+      {/* RESULTS — full creative intelligence report */}
       {phase === "results" && result && (
         <div className="space-y-6">
-          <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
-            <div className="lg:col-span-3">
-              <div className="relative overflow-hidden rounded-2xl border border-base-border bg-base-surface p-4">
-                <div className="mb-3 flex items-center justify-between">
-                  <div>
-                    <p className="text-xs font-medium uppercase tracking-wide text-ink-muted">Analysis complete</p>
-                    <p className="mt-0.5 text-sm text-ink-secondary">{result.summary}</p>
-                  </div>
-                  <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-brand/40 text-lg font-semibold text-brand-light">
-                    {result.score ?? "—"}
-                  </span>
-                </div>
-                <div className="relative overflow-hidden rounded-xl bg-black">
-                  {previewUrl ? (
-                    <img src={previewUrl} alt="" className="max-h-[420px] w-full object-contain" />
-                  ) : (
-                    <div className="flex h-48 items-center justify-center text-sm text-ink-secondary">
-                      Video creative
+          {result.report ? (
+            <CreativeReportView
+              report={result.report}
+              imageUrl={previewUrl}
+              isSimulated={result.is_simulated}
+            />
+          ) : (
+            // Graceful fallback for older rows saved before the deep report existed
+            <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
+              <div className="lg:col-span-3">
+                <div className="relative overflow-hidden rounded-2xl border border-base-border bg-base-surface p-4">
+                  <div className="mb-3 flex items-center justify-between">
+                    <div>
+                      <p className="text-xs font-medium uppercase tracking-wide text-ink-muted">Analysis complete</p>
+                      <p className="mt-0.5 text-sm text-ink-secondary">{result.summary}</p>
                     </div>
-                  )}
-                  {/* Anchor dots on the settled image, desktop only */}
-                  {!isVideoFile && (
-                    <>
-                      <AnchorDot tone="green" style={{ top: "20%", right: "6px" }} />
-                      <AnchorDot tone="red" style={{ top: "50%", right: "6px" }} />
-                      <AnchorDot tone="purple" style={{ top: "80%", right: "6px" }} />
-                    </>
+                    <span className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-brand/40 text-lg font-semibold text-brand-light">
+                      {result.score ?? "—"}
+                    </span>
+                  </div>
+                  <div className="relative overflow-hidden rounded-xl bg-black">
+                    {previewUrl ? (
+                      <img src={previewUrl} alt="" className="max-h-[420px] w-full object-contain" />
+                    ) : (
+                      <div className="flex h-48 items-center justify-center text-sm text-ink-secondary">
+                        Video creative
+                      </div>
+                    )}
+                  </div>
+                  {result.is_simulated && (
+                    <p className="mt-3 text-xs text-ink-muted">
+                      Simulated result — connect a real AI provider for genuine analysis.
+                    </p>
                   )}
                 </div>
-                {result.is_simulated && (
-                  <p className="mt-3 text-xs text-ink-muted">
-                    Simulated result — connect a real AI provider for genuine analysis.
-                  </p>
-                )}
+              </div>
+              <div className="flex flex-col gap-4 lg:col-span-2">
+                <ResultCard
+                  tone="green"
+                  title="WHAT'S GREAT"
+                  icon={<CheckCircle2 size={16} />}
+                  body={result.whats_working}
+                  visible
+                />
+                <ResultCard
+                  tone="red"
+                  title="WHAT'S NOT GREAT"
+                  icon={<XCircle size={16} />}
+                  body={result.whats_not}
+                  visible
+                />
+                <ResultCard
+                  tone="purple"
+                  title="WHAT YOU COULD IMPROVE"
+                  icon={<TrendingUp size={16} />}
+                  body={result.what_to_test}
+                  visible
+                />
               </div>
             </div>
-
-            <div className="flex flex-col gap-4 lg:col-span-2">
-              <ResultCard
-                tone="green"
-                title="WHAT'S GREAT"
-                icon={<CheckCircle2 size={16} />}
-                body={result.whats_working}
-                visible={cards[0]}
-              />
-              <ResultCard
-                tone="red"
-                title="WHAT'S NOT GREAT"
-                icon={<XCircle size={16} />}
-                body={result.whats_not}
-                visible={cards[1]}
-              />
-              <ResultCard
-                tone="purple"
-                title="WHAT YOU COULD IMPROVE"
-                icon={<TrendingUp size={16} />}
-                body={result.what_to_test}
-                visible={cards[2]}
-              />
-            </div>
-          </div>
+          )}
 
           <div className="flex items-center justify-between rounded-xl border border-base-border bg-base-card px-5 py-3">
             <span className="flex items-center gap-1.5 text-xs text-ink-muted">

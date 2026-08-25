@@ -112,6 +112,7 @@ export async function POST(request: Request) {
       what_to_test: finalResult.what_to_test,
       credits_used: cost,
       is_simulated: isSimulated,
+      report: finalResult,
     })
     .select()
     .single();

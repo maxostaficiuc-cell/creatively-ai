@@ -15,9 +15,11 @@ export type Profile = {
   updated_at: string;
 };
 
+import type { CreativeReport } from "@/lib/analyzeCreative";
+
 export type Creative = {
   id: string;
-  user_id: string;
+  user_id: string | null;
   file_url: string;
   file_type: "image" | "video";
   platform: string | null;
@@ -28,6 +30,8 @@ export type Creative = {
   what_to_test: string | null;
   credits_used: number;
   is_simulated: boolean;
+  report: CreativeReport | null;
+  is_free_report: boolean;
   created_at: string;
 };
 

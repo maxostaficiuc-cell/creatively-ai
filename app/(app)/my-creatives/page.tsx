@@ -4,7 +4,8 @@ import { getFreshProfile } from "@/lib/profile";
 import { AppShell } from "@/components/dashboard/AppShell";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ButtonLink } from "@/components/ui/Button";
-import { FolderOpen } from "lucide-react";
+import { FolderOpen, ArrowRight } from "lucide-react";
+import Link from "next/link";
 import type { Creative } from "@/lib/types";
 import { CreativeThumb } from "@/components/dashboard/CreativeThumb";
 
@@ -41,7 +42,11 @@ export default async function Page() {
       ) : (
         <div className="mx-auto max-w-4xl space-y-4">
           {list.map((c) => (
-            <div key={c.id} className="rounded-2xl border border-base-border bg-base-card p-5">
+            <Link
+              key={c.id}
+              href={`/my-creatives/${c.id}`}
+              className="block rounded-2xl border border-base-border bg-base-card p-5 transition-colors hover:border-brand/40"
+            >
               <div className="flex items-start justify-between gap-4">
                 <div className="flex items-center gap-4">
                   <CreativeThumb url={c.file_url} fileType={c.file_type} />
@@ -60,7 +65,10 @@ export default async function Page() {
                     </div>
                   </div>
                 </div>
-                <span className="shrink-0 text-xs text-ink-muted">{c.credits_used} credits</span>
+                <div className="flex shrink-0 items-center gap-3">
+                  <span className="text-xs text-ink-muted">{c.credits_used} credits</span>
+                  <ArrowRight size={14} className="text-ink-muted" />
+                </div>
               </div>
               {c.whats_working && (
                 <div className="mt-4 grid gap-2 text-sm text-ink-secondary sm:grid-cols-3">
@@ -69,7 +77,7 @@ export default async function Page() {
                   <p><span className="text-brand-light">Test next:</span> {c.what_to_test}</p>
                 </div>
               )}
-            </div>
+            </Link>
           ))}
         </div>
       )}

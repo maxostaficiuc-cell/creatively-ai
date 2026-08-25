@@ -4,6 +4,7 @@ import { useState } from "react";
 import { Menu, X } from "lucide-react";
 import { Logo } from "@/components/ui/Logo";
 import { ButtonLink } from "@/components/ui/Button";
+import { GetFreeReportButton } from "@/components/marketing/GetFreeReportButton";
 
 const links = [
   { href: "#features", label: "Features" },
@@ -36,9 +37,7 @@ export function Nav() {
           <ButtonLink href="/login" variant="ghost">
             Login
           </ButtonLink>
-          <ButtonLink href="/signup" variant="primary">
-            Get Started
-          </ButtonLink>
+          <GetFreeReportButton />
         </div>
 
         <button
@@ -62,9 +61,7 @@ export function Nav() {
               <ButtonLink href="/login" variant="secondary">
                 Login
               </ButtonLink>
-              <ButtonLink href="/signup" variant="primary">
-                Get Started
-              </ButtonLink>
+              <GetFreeReportButton className="w-full" />
             </div>
           </nav>
         </div>

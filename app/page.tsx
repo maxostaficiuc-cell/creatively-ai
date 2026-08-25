@@ -12,7 +12,7 @@ import { ButtonLink } from "@/components/ui/Button";
 import { PricingCards } from "@/app/pricing/PricingCards";
 import { ScoreCounter } from "@/components/marketing/ScoreCounter";
 import { DashboardShowcase } from "@/components/marketing/DashboardShowcase";
-import { PublicAnalyzeDemo } from "@/components/marketing/PublicAnalyzeDemo";
+import { GetFreeReportButton } from "@/components/marketing/GetFreeReportButton";
 
 const scoreBreakdown = [
   { label: "Hook", value: 91 },
@@ -114,9 +114,9 @@ export default function LandingPage() {
             exposes what&apos;s hurting performance, and tells you what to test next.
           </p>
           <div className="mt-9 flex flex-col items-center justify-center gap-4 sm:flex-row">
-            <ButtonLink href="/signup" className="px-7 py-3.5 text-base">
-              Get Started <ArrowRight size={16} />
-            </ButtonLink>
+            <GetFreeReportButton className="px-7 py-3.5 text-base">
+              Get Your Free Report <ArrowRight size={16} />
+            </GetFreeReportButton>
             <ButtonLink href="#winning-ads" variant="secondary" className="px-7 py-3.5 text-base">
               Explore Winning Ads
             </ButtonLink>
@@ -212,7 +212,15 @@ export default function LandingPage() {
             </p>
           </div>
 
-          <PublicAnalyzeDemo />
+          <div className="mt-14 rounded-2xl border border-dashed border-base-border bg-base-surface/40 p-14 text-center">
+            <p className="text-sm text-ink-secondary">
+              Upload your ad and get a full creative intelligence report — score, strengths,
+              priority fixes, and exactly what to test next.
+            </p>
+            <GetFreeReportButton className="mt-6 px-7 py-3.5 text-base">
+              Get Your Free Report
+            </GetFreeReportButton>
+          </div>
         </div>
       </section>
 
@@ -557,9 +565,9 @@ export default function LandingPage() {
           Analyze your creative before you commit more budget to it.
         </p>
         <div className="mt-8 flex flex-col items-center justify-center gap-4 sm:flex-row">
-          <ButtonLink href="/signup" className="px-7 py-3.5 text-base">
-            Get Started <ArrowRight size={16} />
-          </ButtonLink>
+          <GetFreeReportButton className="px-7 py-3.5 text-base">
+            Get Your Free Report <ArrowRight size={16} />
+          </GetFreeReportButton>
           <ButtonLink href="#winning-ads" variant="secondary" className="px-7 py-3.5 text-base">
             Explore Winning Ads
           </ButtonLink>
