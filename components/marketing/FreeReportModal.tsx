@@ -125,34 +125,40 @@ export function FreeReportModal({ onClose }: { onClose: () => void }) {
 
   return (
     <div
-      className={`fixed inset-0 z-50 flex flex-col bg-base-bg transition-opacity duration-200 ${
+      className={`fixed inset-0 z-[999] isolate flex items-start justify-center overflow-y-auto bg-black/75 backdrop-blur-sm px-4 py-8 transition-opacity duration-200 sm:items-center ${
         visible ? "opacity-100" : "opacity-0"
       }`}
+      onClick={(e) => {
+        // Close on backdrop click only — never when the click originated
+        // inside the panel itself.
+        if (e.target === e.currentTarget) close();
+      }}
     >
-      <div className="flex items-center justify-between border-b border-base-border px-6 py-4">
-        <p className="text-sm font-medium text-ink-primary">Get your free creative report</p>
-        <button onClick={close} className="text-ink-muted hover:text-ink-primary" aria-label="Close">
-          <X size={20} />
-        </button>
-      </div>
-
       <div
-        className={`flex-1 overflow-y-auto px-6 py-10 transition-all duration-300 ${
-          visible ? "translate-y-0 opacity-100" : "translate-y-2 opacity-0"
+        className={`flex max-h-[85vh] w-full max-w-[900px] flex-col overflow-hidden rounded-2xl border border-base-border bg-base-bg shadow-2xl transition-all duration-200 ${
+          visible ? "translate-y-0 scale-100 opacity-100" : "translate-y-2 scale-[0.98] opacity-0"
         }`}
       >
-        {phase === "form" && (
-          <div className="mx-auto max-w-md">
-            <p className="mb-6 text-center text-sm text-ink-secondary">
-              Upload your ad and see exactly what&apos;s working, what&apos;s hurting performance,
-              and what you should test next.
-            </p>
+        <div className="flex items-center justify-between border-b border-base-border px-6 py-4">
+          <p className="text-sm font-medium text-ink-primary">Get your free creative report</p>
+          <button onClick={close} className="text-ink-muted hover:text-ink-primary" aria-label="Close">
+            <X size={20} />
+          </button>
+        </div>
 
-            <input
-              ref={inputRef}
-              type="file"
-              accept="image/*"
-              className="hidden"
+        <div className="flex-1 overflow-y-auto px-6 py-8">
+          {phase === "form" && (
+            <div className="mx-auto max-w-md">
+              <p className="mb-6 text-center text-sm text-ink-secondary">
+                Upload your ad and see exactly what&apos;s working, what&apos;s hurting performance,
+                and what you should test next.
+              </p>
+
+              <input
+                ref={inputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
               onChange={(e) => {
                 const file = e.target.files?.[0];
                 if (file) pickFile(file);
@@ -255,6 +261,7 @@ export function FreeReportModal({ onClose }: { onClose: () => void }) {
             </ButtonLink>
           </div>
         )}
+        </div>
       </div>
     </div>
   );

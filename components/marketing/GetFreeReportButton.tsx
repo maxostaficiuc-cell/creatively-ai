@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
 import { FreeReportModal } from "@/components/marketing/FreeReportModal";
 
 export function GetFreeReportButton({
@@ -13,6 +14,10 @@ export function GetFreeReportButton({
   children?: React.ReactNode;
 }) {
   const [open, setOpen] = useState(false);
+  // Portals must not render during SSR (no document) or before hydration —
+  // this flag ensures createPortal only ever runs client-side.
+  const [mounted, setMounted] = useState(false);
+  useEffect(() => setMounted(true), []);
 
   const styles: Record<string, string> = {
     primary:
@@ -29,7 +34,13 @@ export function GetFreeReportButton({
       >
         {children || "Get Your Free Report"}
       </button>
-      {open && <FreeReportModal onClose={() => setOpen(false)} />}
+      {/* Rendered via a portal straight into document.body — this is
+          required, not optional. The Nav this button often lives inside
+          uses backdrop-blur, which per the CSS spec makes Nav the
+          containing block for any position:fixed descendant. Without the
+          portal, the modal gets trapped inside Nav's box no matter how
+          high its z-index is. */}
+      {open && mounted && createPortal(<FreeReportModal onClose={() => setOpen(false)} />, document.body)}
     </>
   );
 }
