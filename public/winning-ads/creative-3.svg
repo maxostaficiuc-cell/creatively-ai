@@ -1,0 +1,23 @@
+<svg viewBox="0 0 800 1000" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg3" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0A2B22"/>
+      <stop offset="100%" stop-color="#0F4536"/>
+    </linearGradient>
+    <linearGradient id="can3" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#7CF7C4"/>
+      <stop offset="100%" stop-color="#1FB981"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="1000" fill="url(#bg3)"/>
+  <circle cx="250" cy="230" r="10" fill="#BFFCE3" opacity="0.6"/>
+  <circle cx="560" cy="300" r="6" fill="#BFFCE3" opacity="0.5"/>
+  <circle cx="600" cy="180" r="14" fill="#BFFCE3" opacity="0.4"/>
+  <rect x="335" y="300" width="130" height="300" rx="24" fill="url(#can3)"/>
+  <rect x="335" y="410" width="130" height="70" fill="#083D2E" opacity="0.85"/>
+  <text x="400" y="455" font-family="Helvetica, Arial, sans-serif" font-size="26" font-weight="700" fill="#FFFFFF" text-anchor="middle">HYDR8</text>
+  <text x="400" y="850" font-family="Helvetica, Arial, sans-serif" font-size="50" font-weight="700" fill="#FFFFFF" text-anchor="middle" letter-spacing="1">HYDRATION THAT HITS DIFFERENT</text>
+  <text x="400" y="900" font-family="Helvetica, Arial, sans-serif" font-size="25" fill="#9BEBC9" text-anchor="middle">Zero sugar. All electrolytes.</text>
+  <rect x="290" y="930" width="220" height="56" rx="28" fill="#3EE8A6"/>
+  <text x="400" y="966" font-family="Helvetica, Arial, sans-serif" font-size="24" font-weight="600" fill="#062A1E" text-anchor="middle">Try It Free</text>
+</svg>

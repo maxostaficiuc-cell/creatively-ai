@@ -1,0 +1,22 @@
+<svg viewBox="0 0 800 1000" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <linearGradient id="bg1" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#0B1D2E"/>
+      <stop offset="100%" stop-color="#132F45"/>
+    </linearGradient>
+    <linearGradient id="hull1" x1="0%" y1="0%" x2="0%" y2="100%">
+      <stop offset="0%" stop-color="#EAF2F7"/>
+      <stop offset="100%" stop-color="#C7D8E2"/>
+    </linearGradient>
+  </defs>
+  <rect width="800" height="1000" fill="url(#bg1)"/>
+  <ellipse cx="400" cy="720" rx="380" ry="30" fill="#08141F" opacity="0.6"/>
+  <path d="M170 700 L630 700 L560 620 L240 620 Z" fill="url(#hull1)"/>
+  <rect x="330" y="440" width="16" height="180" fill="#9FB3C0"/>
+  <path d="M346 460 L470 610 L346 610 Z" fill="#F4F8FA"/>
+  <rect x="260" y="600" width="280" height="30" rx="6" fill="#5A7A8F"/>
+  <text x="400" y="840" font-family="Helvetica, Arial, sans-serif" font-size="52" font-weight="700" fill="#FFFFFF" text-anchor="middle" letter-spacing="1">PROTECT YOUR INVESTMENT</text>
+  <text x="400" y="895" font-family="Helvetica, Arial, sans-serif" font-size="26" fill="#9FB8C9" text-anchor="middle">Premium yacht detailing, done right.</text>
+  <rect x="300" y="925" width="200" height="56" rx="28" fill="#2DD4A7"/>
+  <text x="400" y="961" font-family="Helvetica, Arial, sans-serif" font-size="24" font-weight="600" fill="#06231C" text-anchor="middle">Book Now</text>
+</svg>

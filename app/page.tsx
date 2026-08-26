@@ -6,6 +6,7 @@ import {
   TrendingUp,
   TrendingDown,
 } from "lucide-react";
+import Link from "next/link";
 import { Nav } from "@/components/marketing/Nav";
 import { Footer } from "@/components/marketing/Footer";
 import { ButtonLink } from "@/components/ui/Button";
@@ -30,9 +31,9 @@ const honestExamples = [
 ];
 
 const winningAds = [
-  { title: "DETAILING THAT PROTECTS YOUR INVESTMENT", score: 91, platform: "Meta Ads", format: "Static" },
-  { title: "KEEP YOUR YACHT LOOKING BRAND NEW", score: 88, platform: "Meta Ads", format: "Video" },
-  { title: "HYDRATION THAT HITS DIFFERENT", score: 84, platform: "Meta Ads", format: "UGC" },
+  { slug: "demo-creative-1", imageUrl: "/winning-ads/creative-1.svg", score: 91 },
+  { slug: "demo-creative-2", imageUrl: "/winning-ads/creative-2.svg", score: 92 },
+  { slug: "demo-creative-3", imageUrl: "/winning-ads/creative-3.svg", score: 97 },
 ];
 
 const howItWorks = [
@@ -310,17 +311,22 @@ export default function LandingPage() {
               See what&apos;s working.
             </h2>
             <p className="mx-auto mt-4 max-w-xl text-ink-secondary">
-              Explore winning creative patterns and understand what makes strong ads different.
+              Explore example creative analyses and see what makes strong ads different.
             </p>
           </div>
           <div className="mt-12 grid gap-6 sm:grid-cols-3">
             {winningAds.map((ad) => (
-              <div
-                key={ad.title}
-                className="group overflow-hidden rounded-2xl border border-base-border bg-base-card transition-colors hover:border-brand/40"
+              <Link
+                key={ad.slug}
+                href={`/report/${ad.slug}`}
+                className="group block cursor-pointer overflow-hidden rounded-2xl border border-base-border bg-base-card transition-all duration-300 hover:-translate-y-1 hover:border-brand/40 hover:shadow-glow"
               >
-                <div className="flex h-44 items-center justify-center bg-gradient-to-br from-base-surface to-base-card px-6 text-center text-sm font-semibold uppercase tracking-tight text-ink-primary transition-transform duration-500 group-hover:scale-[1.03]">
-                  {ad.title}
+                <div className="overflow-hidden bg-black">
+                  <img
+                    src={ad.imageUrl}
+                    alt=""
+                    className="aspect-[4/5] w-full object-cover transition-transform duration-500 group-hover:scale-[1.02]"
+                  />
                 </div>
                 <div className="p-4">
                   <div className="flex items-center justify-between">
@@ -332,13 +338,13 @@ export default function LandingPage() {
                     </span>
                   </div>
                   <div className="mt-3 flex items-center justify-between text-xs text-ink-muted">
-                    <span>{ad.platform} · {ad.format}</span>
-                    <span className="opacity-0 transition-opacity group-hover:opacity-100">
+                    <span>Meta Ads · Static</span>
+                    <span className="text-brand-light opacity-0 transition-opacity group-hover:opacity-100">
                       View Analysis →
                     </span>
                   </div>
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
         </div>
