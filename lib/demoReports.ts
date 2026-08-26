@@ -323,19 +323,19 @@ export const DEMO_CREATIVES: Record<string, DemoCreative> = {
   "demo-creative-1": {
     slug: "demo-creative-1",
     title: "Yacht Detailing — Static",
-    imageUrl: "/winning-ads/creative-1.svg",
+    imageUrl: "/winning-ads/creative-1.png",
     report: demo1,
   },
   "demo-creative-2": {
     slug: "demo-creative-2",
     title: "Skincare Serum — Static",
-    imageUrl: "/winning-ads/creative-2.svg",
+    imageUrl: "/winning-ads/creative-2.png",
     report: demo2,
   },
   "demo-creative-3": {
     slug: "demo-creative-3",
     title: "Hydration Drink — Static",
-    imageUrl: "/winning-ads/creative-3.svg",
+    imageUrl: "/winning-ads/creative-3.png",
     report: demo3,
   },
 };

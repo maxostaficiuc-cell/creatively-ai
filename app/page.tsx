@@ -31,9 +31,9 @@ const honestExamples = [
 ];
 
 const winningAds = [
-  { slug: "demo-creative-1", imageUrl: "/winning-ads/creative-1.svg", score: 91 },
-  { slug: "demo-creative-2", imageUrl: "/winning-ads/creative-2.svg", score: 92 },
-  { slug: "demo-creative-3", imageUrl: "/winning-ads/creative-3.svg", score: 97 },
+  { slug: "demo-creative-1", imageUrl: "/winning-ads/creative-1.png", score: 91 },
+  { slug: "demo-creative-2", imageUrl: "/winning-ads/creative-2.png", score: 92 },
+  { slug: "demo-creative-3", imageUrl: "/winning-ads/creative-3.png", score: 97 },
 ];
 
 const howItWorks = [
