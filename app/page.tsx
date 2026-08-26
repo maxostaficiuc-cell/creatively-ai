@@ -134,7 +134,7 @@ export default function LandingPage() {
       </section>
 
       {/* TRUST-BUILDING PRODUCT PROOF */}
-      <section className="border-t border-white/5 px-6 py-24">
+      <section id="features" className="scroll-mt-24 border-t border-white/5 px-6 py-24">
         <div className="mx-auto max-w-5xl text-center">
           <h2 className="text-3xl font-semibold tracking-tight text-ink-primary sm:text-4xl">
             See exactly what you get.
@@ -202,7 +202,7 @@ export default function LandingPage() {
       </section>
 
       {/* CREATIVE ANALYSIS CENTERPIECE */}
-      <section id="creative-analysis" className="border-t border-white/5 px-6 py-24">
+      <section id="creative-analysis" className="scroll-mt-24 border-t border-white/5 px-6 py-24">
         <div className="mx-auto max-w-5xl">
           <div className="text-center">
             <h2 className="mx-auto max-w-2xl text-3xl font-semibold tracking-tight text-ink-primary sm:text-4xl">
@@ -304,7 +304,7 @@ export default function LandingPage() {
       </section>
 
       {/* WINNING ADS LIBRARY */}
-      <section id="winning-ads" className="border-t border-white/5 px-6 py-24">
+      <section id="winning-ads" className="scroll-mt-24 border-t border-white/5 px-6 py-24">
         <div className="mx-auto max-w-6xl">
           <div className="text-center">
             <h2 className="text-3xl font-semibold tracking-tight text-ink-primary sm:text-4xl">
@@ -365,7 +365,7 @@ export default function LandingPage() {
       </section>
 
       {/* AI INSIGHTS INTO ACTION */}
-      <section id="insights" className="border-t border-white/5 px-6 py-24">
+      <section id="insights" className="scroll-mt-24 border-t border-white/5 px-6 py-24">
         <div className="mx-auto max-w-5xl">
           <h2 className="text-center text-3xl font-semibold tracking-tight text-ink-primary sm:text-4xl">
             AI insights organized into action.
@@ -397,7 +397,7 @@ export default function LandingPage() {
       </section>
 
       {/* HOW IT WORKS */}
-      <section id="how-it-works" className="border-t border-white/5 px-6 py-24">
+      <section id="how-it-works" className="scroll-mt-24 border-t border-white/5 px-6 py-24">
         <div className="mx-auto max-w-6xl">
           <h2 className="text-center text-3xl font-semibold tracking-tight text-ink-primary sm:text-4xl">
             From upload to insight in four steps.
@@ -415,7 +415,7 @@ export default function LandingPage() {
       </section>
 
       {/* REAL ADVERTISING DATA / INTEGRATIONS */}
-      <section id="integrations" className="border-t border-white/5 px-6 py-24">
+      <section id="integrations" className="scroll-mt-24 border-t border-white/5 px-6 py-24">
         <div className="mx-auto max-w-4xl text-center">
           <h2 className="text-3xl font-semibold tracking-tight text-ink-primary sm:text-4xl">
             Bring your real advertising data into the picture.
@@ -510,7 +510,7 @@ export default function LandingPage() {
       </section>
 
       {/* PRICING */}
-      <section id="pricing" className="border-t border-white/5 px-6 py-24">
+      <section id="pricing" className="scroll-mt-24 border-t border-white/5 px-6 py-24">
         <div className="mx-auto max-w-3xl text-center">
           <p className="text-sm font-medium uppercase tracking-wide text-brand-light">Pricing</p>
           <h2 className="mt-3 text-3xl font-semibold tracking-tight text-ink-primary sm:text-4xl">
@@ -544,7 +544,7 @@ export default function LandingPage() {
       </section>
 
       {/* FAQ */}
-      <section id="faq" className="border-t border-white/5 px-6 py-24">
+      <section id="faq" className="scroll-mt-24 border-t border-white/5 px-6 py-24">
         <div className="mx-auto max-w-3xl">
           <h2 className="text-center text-3xl font-semibold tracking-tight text-ink-primary">
             Frequently asked questions

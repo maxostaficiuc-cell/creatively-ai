@@ -1,44 +1,68 @@
+"use client";
+
+import { usePathname, useRouter } from "next/navigation";
+import Link from "next/link";
 import { Logo } from "@/components/ui/Logo";
 
-const columns = [
+// Links come in two kinds: a real "page" (its own route, plain navigation)
+// or a "section" (an id on the homepage — needs the same smooth
+// scroll-or-navigate logic as the header nav, not a plain anchor). Mixing
+// these up (e.g. Pricing pointing at a separate /pricing route) was
+// exactly the source of the original navigation bug.
+type FooterLink = { label: string; id: string; kind: "section" } | { label: string; href: string; kind: "page" };
+
+const columns: { title: string; links: FooterLink[] }[] = [
   {
     title: "Product",
     links: [
-      { label: "Creative Analysis", href: "/#creative-analysis" },
-      { label: "Winning Ads", href: "/#winning-ads" },
-      { label: "Creative Intelligence", href: "/#insights" },
-      { label: "Integrations", href: "/#integrations" },
-      { label: "Pricing", href: "/pricing" },
+      { label: "Creative Analysis", id: "creative-analysis", kind: "section" },
+      { label: "Winning Ads", id: "winning-ads", kind: "section" },
+      { label: "Creative Intelligence", id: "insights", kind: "section" },
+      { label: "Integrations", id: "integrations", kind: "section" },
+      { label: "Pricing", id: "pricing", kind: "section" },
     ],
   },
   {
     title: "Resources",
     links: [
-      { label: "How It Works", href: "/#how-it-works" },
-      { label: "FAQ", href: "/#faq" },
-      { label: "Creative Library", href: "/winning-ads" },
+      { label: "How It Works", id: "how-it-works", kind: "section" },
+      { label: "FAQ", id: "faq", kind: "section" },
+      { label: "Creative Library", id: "winning-ads", kind: "section" },
     ],
   },
   {
     title: "Company",
     links: [
-      { label: "About", href: "/about" },
-      { label: "Contact", href: "/contact" },
+      { label: "About", href: "/about", kind: "page" },
+      { label: "Contact", href: "/contact", kind: "page" },
     ],
   },
   {
     title: "Legal",
     links: [
-      { label: "Privacy Policy", href: "/privacy" },
-      { label: "Terms of Service", href: "/terms" },
-      { label: "Cookie Policy", href: "/cookies" },
-      { label: "Refund Policy", href: "/refund-policy" },
-      { label: "Data & Security", href: "/data-security" },
+      { label: "Privacy Policy", href: "/privacy", kind: "page" },
+      { label: "Terms of Service", href: "/terms", kind: "page" },
+      { label: "Cookie Policy", href: "/cookies", kind: "page" },
+      { label: "Refund Policy", href: "/refund-policy", kind: "page" },
+      { label: "Data & Security", href: "/data-security", kind: "page" },
     ],
   },
 ];
 
 export function Footer() {
+  const pathname = usePathname();
+  const router = useRouter();
+  const onHomepage = pathname === "/";
+
+  function goToSection(id: string) {
+    if (onHomepage) {
+      document.getElementById(id)?.scrollIntoView({ behavior: "smooth", block: "start" });
+      history.pushState(null, "", `#${id}`);
+    } else {
+      router.push(`/#${id}`);
+    }
+  }
+
   return (
     <footer className="border-t border-white/5 px-6 py-16">
       <div className="mx-auto max-w-7xl">
@@ -55,13 +79,24 @@ export function Footer() {
                 {col.title}
               </p>
               <ul className="mt-4 space-y-2.5">
-                {col.links.map((l) => (
-                  <li key={l.label}>
-                    <a href={l.href} className="text-sm text-ink-secondary hover:text-ink-primary">
-                      {l.label}
-                    </a>
-                  </li>
-                ))}
+                {col.links.map((l) =>
+                  l.kind === "section" ? (
+                    <li key={l.label}>
+                      <button
+                        onClick={() => goToSection(l.id)}
+                        className="text-sm text-ink-secondary hover:text-ink-primary"
+                      >
+                        {l.label}
+                      </button>
+                    </li>
+                  ) : (
+                    <li key={l.label}>
+                      <Link href={l.href} className="text-sm text-ink-secondary hover:text-ink-primary">
+                        {l.label}
+                      </Link>
+                    </li>
+                  )
+                )}
               </ul>
             </div>
           ))}
@@ -71,9 +106,9 @@ export function Footer() {
           <p className="text-sm text-ink-muted">
             © {new Date().getFullYear()} Creatively.ai. All rights reserved.
           </p>
-          <a href="/login" className="text-sm text-ink-secondary hover:text-ink-primary">
+          <Link href="/login" className="text-sm text-ink-secondary hover:text-ink-primary">
             Login
-          </a>
+          </Link>
         </div>
       </div>
     </footer>
