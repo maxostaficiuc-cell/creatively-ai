@@ -116,6 +116,24 @@ export function CreativeReportView({
       <div className="rounded-2xl border border-base-border bg-base-card p-6">
         <p className="text-xs font-medium uppercase tracking-wide text-ink-muted">Executive Summary</p>
         <p className="mt-2 text-sm text-ink-secondary">{report.executive_summary}</p>
+        <div className="mt-5 grid gap-4 border-t border-base-border pt-5 sm:grid-cols-2 lg:grid-cols-4">
+          <div>
+            <p className="text-xs font-medium text-accent-green">Biggest Strength</p>
+            <p className="mt-1 text-xs text-ink-secondary">{report.biggest_strength}</p>
+          </div>
+          <div>
+            <p className="text-xs font-medium text-accent-red">Biggest Weakness</p>
+            <p className="mt-1 text-xs text-ink-secondary">{report.biggest_weakness}</p>
+          </div>
+          <div>
+            <p className="text-xs font-medium text-brand-light">Biggest Opportunity</p>
+            <p className="mt-1 text-xs text-ink-secondary">{report.biggest_opportunity}</p>
+          </div>
+          <div>
+            <p className="text-xs font-medium text-ink-primary">Campaign Readiness</p>
+            <p className="mt-1 text-xs text-ink-secondary">{report.campaign_readiness}</p>
+          </div>
+        </div>
       </div>
 
       {/* What's great / priority fixes */}
@@ -207,6 +225,15 @@ export function CreativeReportView({
           ))}
         </ol>
       </Section>
+
+      {/* Hook analysis */}
+      <div className="flex gap-3 rounded-2xl border border-base-border bg-base-card p-5">
+        <Sparkles size={16} className="mt-0.5 shrink-0 text-brand-light" />
+        <div>
+          <p className="text-xs font-medium uppercase tracking-wide text-brand-light">Hook Analysis</p>
+          <p className="mt-1.5 text-sm text-ink-secondary">{report.hook_analysis}</p>
+        </div>
+      </div>
 
       {/* Hook recommendations */}
       <Section title="Hook Recommendations" icon={<Sparkles size={16} />} defaultOpen={false}>
@@ -310,6 +337,15 @@ export function CreativeReportView({
             ))}
           </ul>
         </Section>
+      </div>
+
+      {/* Final: creative readiness */}
+      <div className="flex flex-col items-center gap-3 rounded-2xl border border-base-border bg-base-card p-7 text-center">
+        <p className="text-xs font-medium uppercase tracking-wide text-ink-muted">Creative Readiness</p>
+        <p className="text-3xl font-bold text-ink-primary">
+          {report.creative_readiness_score}
+          <span className="text-base text-ink-muted"> / 100</span>
+        </p>
       </div>
 
       {showUpgradeCta && (

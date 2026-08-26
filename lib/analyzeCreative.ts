@@ -18,17 +18,22 @@ export type CreativeReport = {
 
   // Deep report — everything below is new
   executive_summary: string;
+  biggest_strength: string;
+  biggest_weakness: string;
+  biggest_opportunity: string;
+  campaign_readiness: string; // qualitative, e.g. "Ready with minor changes"
   strengths: string[]; // 3-5 specific strengths
   priority_fixes: string[]; // 3-5 highest-impact weaknesses
   expected_impact: string; // qualitative only, never fabricated numbers
 
-  signal_scores: SignalScore[]; // Hook, Visual Hierarchy, Offer, CTA, etc. out of 10
+  signal_scores: SignalScore[]; // Hook, Visual Hierarchy, Offer, CTA, Mobile Readability, Fatigue Risk, etc. out of 10
 
   positive_factors: string[]; // why the score isn't lower
   negative_factors: string[]; // why the score isn't higher
 
   improvement_plan: string[]; // prioritized, each explains what/why/how in one line
 
+  hook_analysis: string; // dedicated paragraph: what the current hook communicates, curiosity/urgency/specificity
   hook_recommendations: HookCategory[]; // Emotional / Curiosity / Direct Response / etc.
   new_ad_angles: string[];
   creative_improvements: string[]; // concrete visual changes
@@ -54,6 +59,7 @@ export type CreativeReport = {
     verdict: "YES" | "YES — WITH CHANGES" | "TEST FIRST" | "NO — REWORK REQUIRED";
     reason: string;
   };
+  creative_readiness_score: number; // 0-100, final "should you launch this" readiness
 };
 
 const ANALYSIS_PROMPT = `You are a senior performance-marketing creative strategist producing a professional advertising intelligence report for a single ad creative (used on Meta, TikTok, or Google). You have reviewed thousands of ads. Most are mediocre — be BRUTALLY HONEST.
@@ -75,6 +81,10 @@ Respond with ONLY a JSON object, no other text, matching EXACTLY this shape (all
   "whats_not": "<2-3 sentences, biggest conversion problem first>",
   "what_to_test": "<2-3 sentences, specific next tests>",
   "executive_summary": "<3-4 sentences: what was analyzed and the personalized conclusion, referencing the actual offer/product shown>",
+  "biggest_strength": "<1 sentence, the single biggest strength>",
+  "biggest_weakness": "<1 sentence, the single biggest weakness>",
+  "biggest_opportunity": "<1 sentence, the highest-leverage opportunity>",
+  "campaign_readiness": "<short qualitative phrase, e.g. 'Ready with minor changes', 'Needs rework before launch'>",
   "strengths": [<3 to 5 short specific strength strings>],
   "priority_fixes": [<3 to 5 short specific weakness strings, highest-impact first>],
   "expected_impact": "<1-2 sentences using qualitative language only — 'likely to', 'could improve' — never invented numbers>",
@@ -87,12 +97,16 @@ Respond with ONLY a JSON object, no other text, matching EXACTLY this shape (all
     {"label": "CTA Strength", "score": <0-10>},
     {"label": "Audience Match", "score": <0-10>},
     {"label": "Brand Consistency", "score": <0-10>},
+    {"label": "Trust / Credibility", "score": <0-10>},
     {"label": "Differentiation", "score": <0-10>},
-    {"label": "Emotional Appeal", "score": <0-10>}
+    {"label": "Emotional Appeal", "score": <0-10>},
+    {"label": "Mobile Readability", "score": <0-10>},
+    {"label": "Creative Fatigue Risk", "score": <0-10, where 10 = low risk/fresh, 0 = high risk/overused feel>}
   ],
   "positive_factors": [<2-4 short strings: specific signals that increased the score>],
   "negative_factors": [<2-4 short strings: specific signals that reduced the score>],
   "improvement_plan": [<3-5 short strings, each stating what to change and why, ordered by priority>],
+  "hook_analysis": "<2-3 sentences: what the current hook communicates, whether it creates curiosity/urgency, whether it's specific, whether it speaks to the intended audience>",
   "hook_recommendations": [
     {"category": "Emotional", "hooks": [<1-2 personalized alternative hooks referencing the actual offer>]},
     {"category": "Curiosity", "hooks": [<1-2>]},
@@ -129,7 +143,8 @@ Respond with ONLY a JSON object, no other text, matching EXACTLY this shape (all
   "final_recommendation": {
     "verdict": <"YES"|"YES — WITH CHANGES"|"TEST FIRST"|"NO — REWORK REQUIRED">,
     "reason": "<1-2 sentences explaining the verdict>"
-  }
+  },
+  "creative_readiness_score": <integer 0-100, your final launch-readiness assessment — may equal "score" or differ slightly if readiness considers different factors than raw creative quality>
 }`;
 
 /**
@@ -202,17 +217,23 @@ export function simulatedResult(): CreativeReport {
     whats_not: "No real creative analysis has been performed on this file.",
     what_to_test: "Add an ANTHROPIC_API_KEY environment variable to enable real AI-powered analysis.",
     executive_summary: placeholder,
+    biggest_strength: placeholder,
+    biggest_weakness: placeholder,
+    biggest_opportunity: placeholder,
+    campaign_readiness: placeholder,
     strengths: [placeholder],
     priority_fixes: [placeholder],
     expected_impact: placeholder,
     signal_scores: [
       "Hook Strength", "Scroll-Stop Potential", "Message Clarity", "Visual Hierarchy",
       "Offer Strength", "CTA Strength", "Audience Match", "Brand Consistency",
-      "Differentiation", "Emotional Appeal",
+      "Trust / Credibility", "Differentiation", "Emotional Appeal",
+      "Mobile Readability", "Creative Fatigue Risk",
     ].map((label) => ({ label, score: Math.round((score / 10) * 10) / 10 })),
     positive_factors: [placeholder],
     negative_factors: [placeholder],
     improvement_plan: [placeholder],
+    hook_analysis: placeholder,
     hook_recommendations: [{ category: "Simulated", hooks: [placeholder] }],
     new_ad_angles: [placeholder],
     creative_improvements: [placeholder],
@@ -231,5 +252,6 @@ export function simulatedResult(): CreativeReport {
     testing_plan: [{ name: "Test A: Current creative", variable_isolated: "Baseline" }],
     creative_variations: [{ name: "Variation 1", angle: placeholder }],
     final_recommendation: { verdict: "TEST FIRST", reason: placeholder },
+    creative_readiness_score: score,
   };
 }
