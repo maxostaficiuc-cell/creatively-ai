@@ -14,6 +14,7 @@ import { PricingCards } from "@/app/pricing/PricingCards";
 import { ScoreCounter } from "@/components/marketing/ScoreCounter";
 import { DashboardShowcase } from "@/components/marketing/DashboardShowcase";
 import { GetFreeReportButton } from "@/components/marketing/GetFreeReportButton";
+import { LiveActivityStats } from "@/components/marketing/LiveActivityStats";
 
 const scoreBreakdown = [
   { label: "Hook", value: 91 },
@@ -131,6 +132,11 @@ export default function LandingPage() {
             caption="Analyze creatives, understand performance, and turn your advertising data into your next decision."
           />
         </div>
+      </section>
+
+      {/* LIVE ACTIVITY — real aggregate data, not scripted numbers */}
+      <section className="border-t border-white/5 px-6 py-16">
+        <LiveActivityStats />
       </section>
 
       {/* TRUST-BUILDING PRODUCT PROOF */}
@@ -331,7 +337,7 @@ export default function LandingPage() {
                 <div className="p-4">
                   <div className="flex items-center justify-between">
                     <span className="flex h-8 w-8 items-center justify-center rounded-full border border-brand/40 text-xs font-semibold text-brand-light">
-                      {ad.score}
+                      <ScoreCounter value={ad.score} />
                     </span>
                     <span className="rounded-full bg-accent-green/10 px-2 py-0.5 text-xs text-accent-green">
                       Example Creative
