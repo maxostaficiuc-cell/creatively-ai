@@ -12,6 +12,7 @@ import { Footer } from "@/components/marketing/Footer";
 import { ButtonLink } from "@/components/ui/Button";
 import { PricingCards } from "@/app/pricing/PricingCards";
 import { ScoreCounter } from "@/components/marketing/ScoreCounter";
+import { ScoreRing } from "@/components/marketing/ScoreRing";
 import { DashboardShowcase } from "@/components/marketing/DashboardShowcase";
 import { GetFreeReportButton } from "@/components/marketing/GetFreeReportButton";
 import { LiveActivityStats } from "@/components/marketing/LiveActivityStats";
@@ -336,9 +337,7 @@ export default function LandingPage() {
                 </div>
                 <div className="p-4">
                   <div className="flex items-center justify-between">
-                    <span className="flex h-8 w-8 items-center justify-center rounded-full border border-brand/40 text-xs font-semibold text-brand-light">
-                      <ScoreCounter value={ad.score} />
-                    </span>
+                    <ScoreRing score={ad.score} size={40} showLabel={false} />
                     <span className="rounded-full bg-accent-green/10 px-2 py-0.5 text-xs text-accent-green">
                       Example Creative
                     </span>
