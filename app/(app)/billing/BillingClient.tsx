@@ -5,7 +5,7 @@ import { Check, X, TrendingUp, CreditCard, AlertTriangle } from "lucide-react";
 import type { Profile } from "@/lib/types";
 import { CREDIT_COST_IMAGE, CREDIT_COST_VIDEO } from "@/lib/types";
 import { PLANS, getPlan, type Plan } from "@/lib/pricing";
-import { checkoutUrlFor } from "@/lib/whop-plans";
+import { checkoutUrlFor, type BillingInterval } from "@/lib/whop-plans";
 
 const TOP_UP_PACKAGES = [
   { credits: 1000, price: "$4.99" },
@@ -131,10 +131,12 @@ function PlanSummaryCard({
 function PricingCard({
   plan,
   currentPlanId,
+  interval,
   onTalkToSales,
 }: {
   plan: Plan;
   currentPlanId: string;
+  interval: BillingInterval;
   onTalkToSales: () => void;
 }) {
   const currentPlan = getPlan(currentPlanId);
@@ -151,7 +153,12 @@ function PricingCard({
     else ctaLabel = `Switch to ${plan.name}`;
   }
 
-  const priceDisplay = isEnterprise ? "Let's Talk" : `$${plan.monthlyPrice}`;
+  const priceDisplay = isEnterprise
+    ? "Let's Talk"
+    : interval === "annual"
+    ? `$${plan.annualPrice}`
+    : `$${plan.monthlyPrice}`;
+  const checkoutUrl = !isEnterprise ? checkoutUrlFor(plan.id, interval) : null;
 
   return (
     <div
@@ -180,15 +187,17 @@ function PricingCard({
           <span className={`text-2xl font-bold ${plan.highlight ? "text-brand-light" : "text-ink-primary"}`}>
             {priceDisplay}
           </span>
-          {!isEnterprise && <span className="text-sm text-ink-muted">/month</span>}
+          {!isEnterprise && (
+            <span className="text-sm text-ink-muted">{interval === "annual" ? "/year" : "/month"}</span>
+          )}
         </div>
         <p className="mt-2 text-sm text-ink-secondary">{plan.tagline}</p>
       </div>
 
       {!isCurrent && !isEnterprise ? (
-        checkoutUrlFor(plan.id) ? (
+        checkoutUrl ? (
           <a
-            href={checkoutUrlFor(plan.id)!}
+            href={checkoutUrl}
             className={`mb-5 block w-full rounded-xl py-2.5 text-center text-sm font-medium transition-all ${
               plan.highlight
                 ? "bg-gradient-to-b from-brand-light to-brand text-white shadow-glow hover:brightness-110"
@@ -200,7 +209,7 @@ function PricingCard({
         ) : (
           <div
             className="mb-5 w-full rounded-xl border border-base-border py-2.5 text-center text-sm text-ink-muted"
-            title="Checkout link not configured yet"
+            title={`${interval === "annual" ? "Annual" : "Monthly"} checkout link not configured yet`}
           >
             {ctaLabel} — coming soon
           </div>
@@ -413,6 +422,7 @@ export function BillingClient({ profile }: { profile: Profile }) {
   const [showTopUp, setShowTopUp] = useState(false);
   const [showSales, setShowSales] = useState(false);
   const [showCancel, setShowCancel] = useState(false);
+  const [interval, setBillingInterval] = useState<BillingInterval>("monthly");
 
   const currentPlanId = profile.plan || "Pro";
 
@@ -424,16 +434,39 @@ export function BillingClient({ profile }: { profile: Profile }) {
 
       {/* Pricing Plans */}
       <div>
-        <h2 className="mb-1 font-semibold text-ink-primary">Plans</h2>
-        <p className="mb-5 text-sm text-ink-secondary">
-          Upgrade or switch your plan at any time. Changes take effect immediately.
-        </p>
+        <div className="mb-5 flex flex-wrap items-center justify-between gap-4">
+          <div>
+            <h2 className="mb-1 font-semibold text-ink-primary">Plans</h2>
+            <p className="text-sm text-ink-secondary">
+              Upgrade or switch your plan at any time. Changes take effect immediately.
+            </p>
+          </div>
+          <div className="flex items-center gap-1 rounded-full border border-base-border bg-base-card p-1">
+            <button
+              onClick={() => setBillingInterval("monthly")}
+              className={`rounded-full px-4 py-1.5 text-xs font-medium transition-colors ${
+                interval === "monthly" ? "bg-base-surface text-ink-primary" : "text-ink-muted hover:text-ink-secondary"
+              }`}
+            >
+              Monthly
+            </button>
+            <button
+              onClick={() => setBillingInterval("annual")}
+              className={`rounded-full px-4 py-1.5 text-xs font-medium transition-colors ${
+                interval === "annual" ? "bg-base-surface text-ink-primary" : "text-ink-muted hover:text-ink-secondary"
+              }`}
+            >
+              Annually
+            </button>
+          </div>
+        </div>
         <div className="grid grid-cols-1 gap-5 sm:grid-cols-2 xl:grid-cols-4">
           {PLANS.map((plan) => (
             <PricingCard
               key={plan.id}
               plan={plan}
               currentPlanId={currentPlanId}
+              interval={interval}
               onTalkToSales={() => setShowSales(true)}
             />
           ))}

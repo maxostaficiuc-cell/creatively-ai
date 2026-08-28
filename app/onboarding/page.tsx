@@ -85,7 +85,7 @@ export default function OnboardingPage() {
     // Starter — no free trial, no server round trip. If no checkout link
     // is configured yet, fall back to the dashboard so onboarding never
     // gets stuck.
-    const checkoutUrl = checkoutUrlFor("Starter");
+    const checkoutUrl = checkoutUrlFor("Starter", "monthly");
     if (checkoutUrl) {
       window.location.href = checkoutUrl;
     } else {
