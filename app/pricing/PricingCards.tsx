@@ -4,6 +4,7 @@ import { useState } from "react";
 import Link from "next/link";
 import { Check, Sparkles } from "lucide-react";
 import { PLANS, ANNUAL_DISCOUNT_LABEL } from "@/lib/pricing";
+import { TalkToSalesButton } from "@/components/marketing/TalkToSalesButton";
 
 export function PricingCards() {
   const [annual, setAnnual] = useState(false);
@@ -88,16 +89,28 @@ export function PricingCards() {
                 </p>
               )}
 
-              <Link
-                href={isEnterprise ? "/pricing#contact" : "/signup"}
-                className={`mt-7 flex w-full items-center justify-center rounded-xl px-5 py-3 text-sm font-medium transition-all ${
-                  plan.highlight
-                    ? "bg-gradient-to-b from-brand-light to-brand text-white shadow-glow hover:brightness-110"
-                    : "border border-base-border text-ink-primary hover:border-brand/50"
-                }`}
-              >
-                {plan.cta}
-              </Link>
+              {isEnterprise ? (
+                <TalkToSalesButton
+                  className={`mt-7 flex w-full items-center justify-center rounded-xl px-5 py-3 text-sm font-medium transition-all ${
+                    plan.highlight
+                      ? "bg-gradient-to-b from-brand-light to-brand text-white shadow-glow hover:brightness-110"
+                      : "border border-base-border text-ink-primary hover:border-brand/50"
+                  }`}
+                >
+                  {plan.cta}
+                </TalkToSalesButton>
+              ) : (
+                <Link
+                  href="/signup"
+                  className={`mt-7 flex w-full items-center justify-center rounded-xl px-5 py-3 text-sm font-medium transition-all ${
+                    plan.highlight
+                      ? "bg-gradient-to-b from-brand-light to-brand text-white shadow-glow hover:brightness-110"
+                      : "border border-base-border text-ink-primary hover:border-brand/50"
+                  }`}
+                >
+                  {plan.cta}
+                </Link>
+              )}
 
               <ul className="mt-7 flex-1 space-y-3">
                 {plan.features.map((f) => (

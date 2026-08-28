@@ -6,6 +6,7 @@ import type { Profile } from "@/lib/types";
 import { CREDIT_COST_IMAGE, CREDIT_COST_VIDEO } from "@/lib/types";
 import { PLANS, getPlan, type Plan } from "@/lib/pricing";
 import { checkoutUrlFor, type BillingInterval } from "@/lib/whop-plans";
+import { TalkToSalesButton } from "@/components/marketing/TalkToSalesButton";
 
 const TOP_UP_PACKAGES = [
   { credits: 1000, price: "$4.99" },
@@ -132,12 +133,10 @@ function PricingCard({
   plan,
   currentPlanId,
   interval,
-  onTalkToSales,
 }: {
   plan: Plan;
   currentPlanId: string;
   interval: BillingInterval;
-  onTalkToSales: () => void;
 }) {
   const currentPlan = getPlan(currentPlanId);
   const isCurrent = plan.id === currentPlanId;
@@ -214,19 +213,20 @@ function PricingCard({
             {ctaLabel} — coming soon
           </div>
         )
-      ) : (
+      ) : !isCurrent && isEnterprise ? (
+        <TalkToSalesButton
+          className={`mb-5 w-full rounded-xl py-2.5 text-sm font-medium transition-all bg-gradient-to-b from-brand-light to-brand text-white shadow-glow hover:brightness-110`}
+        >
+          {ctaLabel}
+        </TalkToSalesButton>
+      ) : isCurrent ? (
         <button
-          onClick={isEnterprise && !isCurrent ? onTalkToSales : undefined}
-          disabled={isCurrent}
-          className={`mb-5 w-full rounded-xl py-2.5 text-sm font-medium transition-all ${
-            isCurrent
-              ? "cursor-default border border-base-border text-ink-muted"
-              : "bg-gradient-to-b from-brand-light to-brand text-white shadow-glow hover:brightness-110"
-          }`}
+          disabled
+          className="mb-5 w-full cursor-default rounded-xl border border-base-border py-2.5 text-sm text-ink-muted"
         >
           {ctaLabel}
         </button>
-      )}
+      ) : null}
 
       <ul className="flex-1 space-y-2.5">
         {plan.features.map((f) => (
@@ -310,77 +310,6 @@ function TopUpModal({ onClose }: { onClose: () => void }) {
   );
 }
 
-function TalkToSalesModal({ onClose }: { onClose: () => void }) {
-  const [form, setForm] = useState({
-    credits: "500,000",
-    users: "10",
-    images: "5,000",
-    videos: "500",
-    requirements: "",
-  });
-
-  return (
-    <>
-      <Backdrop onClose={onClose} />
-      <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
-        <div className="w-full max-w-lg rounded-2xl border border-base-border bg-base-card p-6 shadow-2xl">
-          <div className="mb-4 flex items-center justify-between">
-            <h3 className="font-semibold text-ink-primary">Talk to Sales</h3>
-            <button onClick={onClose} className="text-ink-muted hover:text-ink-primary">
-              <X size={18} />
-            </button>
-          </div>
-          <p className="mb-5 text-sm text-ink-secondary">
-            Tell us about your needs and we&apos;ll build an Enterprise plan around them.
-          </p>
-          <div className="space-y-4">
-            {[
-              { label: "Approximate monthly AI credits", key: "credits" as const },
-              { label: "Number of users", key: "users" as const },
-              { label: "Image analysis volume / month", key: "images" as const },
-              { label: "Video analysis volume / month", key: "videos" as const },
-            ].map(({ label, key }) => (
-              <div key={key}>
-                <label className="mb-1.5 block text-xs text-ink-secondary">{label}</label>
-                <input
-                  type="text"
-                  value={form[key]}
-                  onChange={(e) => setForm((f) => ({ ...f, [key]: e.target.value }))}
-                  className="w-full rounded-xl border border-base-border bg-base-surface px-4 py-2.5 text-sm text-ink-primary outline-none focus:border-brand"
-                />
-              </div>
-            ))}
-            <div>
-              <label className="mb-1.5 block text-xs text-ink-secondary">Additional requirements</label>
-              <textarea
-                rows={3}
-                value={form.requirements}
-                onChange={(e) => setForm((f) => ({ ...f, requirements: e.target.value }))}
-                placeholder="SSO, dedicated support, custom integrations, etc..."
-                className="w-full resize-none rounded-xl border border-base-border bg-base-surface px-4 py-2.5 text-sm text-ink-primary outline-none focus:border-brand"
-              />
-            </div>
-          </div>
-          <div className="mt-5 flex gap-3">
-            <button
-              onClick={onClose}
-              className="flex-1 rounded-xl border border-base-border py-2.5 text-sm text-ink-secondary hover:text-ink-primary"
-            >
-              Cancel
-            </button>
-            <button
-              onClick={onClose}
-              className="flex-1 rounded-xl bg-gradient-to-b from-brand-light to-brand py-2.5 text-sm font-medium text-white shadow-glow hover:brightness-110"
-            >
-              Send Request
-            </button>
-          </div>
-        </div>
-      </div>
-    </>
-  );
-}
-
 function CancelModal({ onClose }: { onClose: () => void }) {
   return (
     <>
@@ -420,7 +349,6 @@ function CancelModal({ onClose }: { onClose: () => void }) {
 // ─── Main exported component ───────────────────────────────────────────────────
 export function BillingClient({ profile }: { profile: Profile }) {
   const [showTopUp, setShowTopUp] = useState(false);
-  const [showSales, setShowSales] = useState(false);
   const [showCancel, setShowCancel] = useState(false);
   const [interval, setBillingInterval] = useState<BillingInterval>("monthly");
 
@@ -467,7 +395,6 @@ export function BillingClient({ profile }: { profile: Profile }) {
               plan={plan}
               currentPlanId={currentPlanId}
               interval={interval}
-              onTalkToSales={() => setShowSales(true)}
             />
           ))}
         </div>
@@ -521,7 +448,6 @@ export function BillingClient({ profile }: { profile: Profile }) {
 
       {/* Modals */}
       {showTopUp && <TopUpModal onClose={() => setShowTopUp(false)} />}
-      {showSales && <TalkToSalesModal onClose={() => setShowSales(false)} />}
       {showCancel && <CancelModal onClose={() => setShowCancel(false)} />}
     </div>
   );
