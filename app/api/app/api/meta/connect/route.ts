@@ -24,7 +24,7 @@ export async function GET(request: Request) {
   authUrl.searchParams.set("client_id", process.env.META_APP_ID!);
   authUrl.searchParams.set("redirect_uri", redirectUri);
   authUrl.searchParams.set("state", user.id);
-  authUrl.searchParams.set("scope", "ads_read,ads_management,business_management");
+  authUrl.searchParams.set("scope", "ads_read");
 
   return NextResponse.redirect(authUrl.toString());
 }
