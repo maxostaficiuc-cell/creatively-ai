@@ -10,6 +10,8 @@ import { CreativeInsightCard } from "@/components/dashboard/CreativeInsightCard"
 import { RecentAnalysisTable } from "@/components/dashboard/RecentAnalysisTable";
 import { AccountStatusCard } from "@/components/dashboard/AccountStatusCard";
 import { CreativeThumb } from "@/components/dashboard/CreativeThumb";
+import { CreativeHealthCard } from "@/components/dashboard/CreativeHealthCard";
+import { computeCreativeHealth } from "@/lib/creativeHealth";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ButtonLink } from "@/components/ui/Button";
 import type { Creative, AdAccount } from "@/lib/types";
@@ -55,6 +57,7 @@ export default async function DashboardPage() {
     .returns<Creative[]>();
 
   const list = creatives ?? [];
+  const creativeHealth = computeCreativeHealth(list);
   const toScale = list.filter((c) => (c.score ?? 0) >= 80).length;
   const toReview = list.filter((c) => (c.score ?? 0) < 60).length;
   const topCreatives = [...list].sort((a, b) => (b.score ?? 0) - (a.score ?? 0)).slice(0, 5);
@@ -79,6 +82,8 @@ export default async function DashboardPage() {
       subtitle="Here's what's happening with your advertising."
     >
       <div className="space-y-6">
+        <CreativeHealthCard health={creativeHealth} />
+
         {metaAccount && metrics ? (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
             <MetricCard icon={DollarSign} label="Ad Spend" value={metrics.spend ? `$${metrics.spend}` : "—"} />
