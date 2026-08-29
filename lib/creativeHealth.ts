@@ -152,3 +152,36 @@ export function computeCreativeHealth(creatives: Creative[]): CreativeHealthData
     },
   };
 }
+
+export type NextMoveRecommendation = {
+  headline: string;
+  description: string;
+};
+
+const SIGNAL_LABELS: Record<keyof Omit<CreativeHealthData["signals"], "fatigueRisk">, string> = {
+  hookStrength: "hook strength",
+  visualAttention: "visual attention",
+  messageClarity: "message clarity",
+  ctaStrength: "CTA strength",
+  audienceMatch: "audience match",
+};
+
+/**
+ * Identifies the user's genuinely weakest signal (excluding fatigueRisk,
+ * which is framed as risk rather than strength) and names their strongest
+ * one — real, derived from their actual data, not a fixed suggestion.
+ */
+export function getNextMoveRecommendation(health: CreativeHealthData): NextMoveRecommendation {
+  const entries = Object.entries(SIGNAL_LABELS) as [keyof typeof SIGNAL_LABELS, string][];
+  const scored = entries.map(([key, label]) => ({ key, label, value: health.signals[key] }));
+  const weakest = scored.reduce((min, s) => (s.value < min.value ? s : min));
+  const strongest = scored.reduce((max, s) => (s.value > max.value ? s : max));
+
+  return {
+    headline: `Improve your ${weakest.label}`,
+    description:
+      strongest.key !== weakest.key
+        ? `Your creatives have strong ${strongest.label}, but ${weakest.label} is currently your weakest signal. Test a change focused specifically on that next.`
+        : `${weakest.label[0].toUpperCase()}${weakest.label.slice(1)} is currently your lowest-scoring signal — a good place to focus your next test.`,
+  };
+}
