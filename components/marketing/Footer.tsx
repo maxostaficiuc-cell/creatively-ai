@@ -17,7 +17,6 @@ const columns: { title: string; links: FooterLink[] }[] = [
     links: [
       { label: "Creative Analysis", id: "creative-analysis", kind: "section" },
       { label: "Winning Ads", id: "winning-ads", kind: "section" },
-      { label: "Creative Intelligence", id: "insights", kind: "section" },
       { label: "Integrations", id: "integrations", kind: "section" },
       { label: "Pricing", id: "pricing", kind: "section" },
     ],
@@ -25,7 +24,6 @@ const columns: { title: string; links: FooterLink[] }[] = [
   {
     title: "Resources",
     links: [
-      { label: "How It Works", id: "how-it-works", kind: "section" },
       { label: "FAQ", id: "faq", kind: "section" },
       { label: "Creative Library", id: "winning-ads", kind: "section" },
     ],

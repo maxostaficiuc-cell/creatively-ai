@@ -3,8 +3,6 @@ import {
   ArrowRight,
   Check,
   Upload,
-  TrendingUp,
-  TrendingDown,
 } from "lucide-react";
 import Link from "next/link";
 import { Nav } from "@/components/marketing/Nav";
@@ -36,13 +34,6 @@ const winningAds = [
   { slug: "demo-creative-1", imageUrl: "/winning-ads/creative-1.png", score: 91 },
   { slug: "demo-creative-2", imageUrl: "/winning-ads/creative-2.png", score: 92 },
   { slug: "demo-creative-3", imageUrl: "/winning-ads/creative-3.png", score: 97 },
-];
-
-const howItWorks = [
-  { n: "01", title: "Upload", body: "Upload your image or video." },
-  { n: "02", title: "Analyze", body: "Creatively.ai evaluates the creative across key advertising factors." },
-  { n: "03", title: "Improve", body: "Understand what's working, what's not, and what to test next." },
-  { n: "04", title: "Measure", body: "Connect your advertising account and compare creative intelligence with actual performance." },
 ];
 
 const audiences = [
@@ -366,56 +357,6 @@ export default function LandingPage() {
         </p>
         <div className="mt-14">
           <DashboardShowcase />
-        </div>
-      </section>
-
-      {/* AI INSIGHTS INTO ACTION */}
-      <section id="insights" className="scroll-mt-24 border-t border-white/5 px-6 py-24">
-        <div className="mx-auto max-w-5xl">
-          <h2 className="text-center text-3xl font-semibold tracking-tight text-ink-primary sm:text-4xl">
-            AI insights organized into action.
-          </h2>
-          <div className="mt-12 grid gap-6 sm:grid-cols-3">
-            <div className="rounded-2xl border border-base-border bg-base-card p-6">
-              <TrendingUp className="text-accent-green" size={20} />
-              <h3 className="mt-4 font-medium text-ink-primary">Creatives to Scale</h3>
-              <p className="mt-2 text-sm text-ink-secondary">
-                Identify strong creatives worth pushing further.
-              </p>
-            </div>
-            <div className="rounded-2xl border border-base-border bg-base-card p-6">
-              <TrendingDown className="text-accent-red" size={20} />
-              <h3 className="mt-4 font-medium text-ink-primary">Creatives to Review</h3>
-              <p className="mt-2 text-sm text-ink-secondary">
-                Find underperforming creatives that may need attention.
-              </p>
-            </div>
-            <div className="rounded-2xl border border-base-border bg-base-card p-6">
-              <Sparkles className="text-brand-light" size={20} />
-              <h3 className="mt-4 font-medium text-ink-primary">Tests Worth Running</h3>
-              <p className="mt-2 text-sm text-ink-secondary">
-                Get AI-identified opportunities for your next creative iteration.
-              </p>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* HOW IT WORKS */}
-      <section id="how-it-works" className="scroll-mt-24 border-t border-white/5 px-6 py-24">
-        <div className="mx-auto max-w-6xl">
-          <h2 className="text-center text-3xl font-semibold tracking-tight text-ink-primary sm:text-4xl">
-            From upload to insight in four steps.
-          </h2>
-          <div className="mt-14 grid gap-10 sm:grid-cols-2 lg:grid-cols-4">
-            {howItWorks.map((s) => (
-              <div key={s.n}>
-                <span className="text-sm font-medium text-brand-light">{s.n}</span>
-                <h3 className="mt-3 text-lg font-medium text-ink-primary">{s.title}</h3>
-                <p className="mt-2 text-sm text-ink-secondary">{s.body}</p>
-              </div>
-            ))}
-          </div>
         </div>
       </section>
 

@@ -7,12 +7,11 @@ import { Logo } from "@/components/ui/Logo";
 import { ButtonLink } from "@/components/ui/Button";
 import { GetFreeReportButton } from "@/components/marketing/GetFreeReportButton";
 
-const SECTION_IDS = ["features", "winning-ads", "how-it-works", "pricing", "faq"];
+const SECTION_IDS = ["features", "winning-ads", "pricing", "faq"];
 
 const links = [
   { id: "features", label: "Features" },
   { id: "winning-ads", label: "Winning Ads" },
-  { id: "how-it-works", label: "How It Works" },
   { id: "pricing", label: "Pricing" },
 ];
 
