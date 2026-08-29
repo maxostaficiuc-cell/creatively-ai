@@ -11,7 +11,11 @@ import { RecentAnalysisTable } from "@/components/dashboard/RecentAnalysisTable"
 import { AccountStatusCard } from "@/components/dashboard/AccountStatusCard";
 import { CreativeThumb } from "@/components/dashboard/CreativeThumb";
 import { CreativeHealthCard } from "@/components/dashboard/CreativeHealthCard";
-import { computeCreativeHealth } from "@/lib/creativeHealth";
+import { NextMoveCard } from "@/components/dashboard/NextMoveCard";
+import { CreativePortfolioStats } from "@/components/dashboard/CreativePortfolioStats";
+import { RecentAnalysesGrid } from "@/components/dashboard/RecentAnalysesGrid";
+import { CreativePerformanceChart } from "@/components/dashboard/CreativePerformanceChart";
+import { computeCreativeHealth, getNextMoveRecommendation } from "@/lib/creativeHealth";
 import { EmptyState } from "@/components/ui/EmptyState";
 import { ButtonLink } from "@/components/ui/Button";
 import type { Creative, AdAccount } from "@/lib/types";
@@ -58,6 +62,17 @@ export default async function DashboardPage() {
 
   const list = creatives ?? [];
   const creativeHealth = computeCreativeHealth(list);
+  const nextMove = creativeHealth ? getNextMoveRecommendation(creativeHealth) : null;
+  const scoredCreatives = list.filter((c) => c.score !== null);
+  const portfolioStats = {
+    creativesAnalyzed: list.length,
+    averageScore:
+      scoredCreatives.length > 0
+        ? Math.round(scoredCreatives.reduce((sum, c) => sum + (c.score ?? 0), 0) / scoredCreatives.length)
+        : null,
+    winningCreatives: list.filter((c) => (c.score ?? 0) >= 80).length,
+    needsImprovement: list.filter((c) => (c.score ?? 0) < 60).length,
+  };
   const toScale = list.filter((c) => (c.score ?? 0) >= 80).length;
   const toReview = list.filter((c) => (c.score ?? 0) < 60).length;
   const topCreatives = [...list].sort((a, b) => (b.score ?? 0) - (a.score ?? 0)).slice(0, 5);
@@ -83,6 +98,10 @@ export default async function DashboardPage() {
     >
       <div className="space-y-6">
         <CreativeHealthCard health={creativeHealth} />
+        <NextMoveCard recommendation={nextMove} />
+        <CreativePortfolioStats stats={portfolioStats} />
+        <RecentAnalysesGrid creatives={list.slice(0, 6)} />
+        <CreativePerformanceChart creatives={list} />
 
         {metaAccount && metrics ? (
           <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 xl:grid-cols-4">
