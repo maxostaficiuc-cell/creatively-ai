@@ -1,13 +1,25 @@
 import { NextResponse } from "next/server";
-import { getWhop } from "@/lib/whop";
+import { createHmac, timingSafeEqual } from "crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { weeklyAllowanceFor } from "@/lib/types";
 import { ourPlanFromWhopPlanId } from "@/lib/whop-plans";
 
-// Real Whop webhook handling — verifies the signature, then updates the
-// paying user's plan and resets their weekly credits.
+// Real Whop webhook handling — verifies the signature per the Standard
+// Webhooks spec Whop uses, then updates the paying user's plan and resets
+// their weekly credits.
 //
-// Since checkout now happens via plain Whop-hosted checkout links (not an
+// IMPORTANT HISTORY: this previously called `getWhop().webhooks.unwrap(...)`
+// from @whop/sdk. As of Whop's current docs, `webhooks.unwrap` and the
+// `webhookKey` client option "belonged to the older SDKs — every current
+// SDK drops both." That method call was throwing on every single delivery
+// (caught by our try/catch, returned as a 401), which is exactly why every
+// webhook delivery was failing. This version verifies the signature
+// manually using Node's built-in crypto — no dependency on the SDK's
+// webhook helpers at all, so it can't break again the same way if that
+// package's API surface shifts again (it has, multiple times, during this
+// build).
+//
+// Since checkout happens via plain Whop-hosted checkout links (not an
 // API-created session), we don't have our own metadata.userId attached to
 // the purchase. Instead we match the buyer back to a Creatively.ai account
 // by email — Whop includes the buyer's email on every payment and
@@ -15,8 +27,58 @@ import { ourPlanFromWhopPlanId } from "@/lib/whop-plans";
 // email they signed up with for their plan to update automatically.
 export const runtime = "nodejs";
 
-type WhopEvent = { type: string; id: string; data: Record<string, unknown> };
+type WhopEvent = { id: string; type: string; data: Record<string, unknown> };
 type WhopUser = { email?: string };
+
+const MAX_TIMESTAMP_AGE_SECONDS = 5 * 60; // replay-attack protection, per Whop's own spec
+
+/**
+ * Verifies a Whop webhook per the Standard Webhooks spec:
+ * HMAC-SHA256 over "{webhook-id}.{webhook-timestamp}.{raw body}", using the
+ * ws_... secret as-is (not base64-decoded, not prefix-stripped — Whop's
+ * docs are explicit that the helper/HMAC key is the raw secret string).
+ * Returns the parsed event on success, or null if verification fails for
+ * any reason (missing headers, bad signature, stale timestamp).
+ */
+function verifyAndParseWhopWebhook(rawBody: string, headers: Headers, secret: string): WhopEvent | null {
+  const webhookId = headers.get("webhook-id");
+  const webhookTimestamp = headers.get("webhook-timestamp");
+  const webhookSignature = headers.get("webhook-signature");
+
+  if (!webhookId || !webhookTimestamp || !webhookSignature) return null;
+
+  const timestampSeconds = parseInt(webhookTimestamp, 10);
+  if (Number.isNaN(timestampSeconds)) return null;
+  if (Math.abs(Date.now() / 1000 - timestampSeconds) > MAX_TIMESTAMP_AGE_SECONDS) return null;
+
+  const signedContent = `${webhookId}.${webhookTimestamp}.${rawBody}`;
+  const expectedSignature = createHmac("sha256", secret).update(signedContent).digest("base64");
+
+  // Header can contain multiple space-separated "v1,<sig>" entries (key
+  // rotation) — a match against any of them is valid.
+  const providedSignatures = webhookSignature
+    .split(" ")
+    .map((entry) => entry.split(",")[1])
+    .filter((sig): sig is string => !!sig);
+
+  const isValid = providedSignatures.some((sig) => {
+    try {
+      const a = Buffer.from(sig, "base64");
+      const b = Buffer.from(expectedSignature, "base64");
+      return a.length === b.length && timingSafeEqual(a, b);
+    } catch {
+      return false;
+    }
+  });
+
+  if (!isValid) return null;
+
+  try {
+    return JSON.parse(rawBody) as WhopEvent;
+  } catch {
+    return null;
+  }
+}
 
 async function alreadyProcessed(id: string): Promise<boolean> {
   const supabase = createAdminClient();
@@ -26,8 +88,8 @@ async function alreadyProcessed(id: string): Promise<boolean> {
 
 async function markProcessed(id: string, type: string) {
   const supabase = createAdminClient();
-  // Ignore errors here — a duplicate-key error just means another
-  // delivery of the same event already recorded it, which is fine.
+  // A duplicate-key error here just means a concurrent retry already
+  // recorded this same event — harmless, not logged as a failure.
   await supabase.from("webhook_events").insert({ id, type });
 }
 
@@ -63,23 +125,33 @@ async function grantPlanByEmail(email: string, planId: string): Promise<boolean>
 }
 
 export async function POST(request: Request) {
-  const bodyText = await request.text();
-  const headers = Object.fromEntries(request.headers);
+  const receivedAt = new Date().toISOString();
 
-  let event: WhopEvent;
-  try {
-    // @whop/sdk ships new versions multiple times a day right now and its
-    // type declarations lag behind its own documented API — .webhooks.unwrap
-    // is the officially documented method, just not fully typed yet. Cast
-    // past that gap rather than fight a moving target.
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    event = (getWhop().webhooks as any).unwrap(bodyText, { headers }) as WhopEvent;
-  } catch (err) {
-    console.error("Whop webhook signature verification failed:", err);
+  if (!process.env.WHOP_WEBHOOK_SECRET) {
+    // Log-only detail, never exposed to the caller.
+    console.error(`[whop-webhook ${receivedAt}] WHOP_WEBHOOK_SECRET is not configured`);
+    return NextResponse.json({ error: "Webhook not configured" }, { status: 503 });
+  }
+
+  // Raw text, not parsed JSON — parsing first changes the exact bytes the
+  // signature was computed over, and verification would fail even for a
+  // genuinely valid delivery.
+  const rawBody = await request.text();
+
+  const event = verifyAndParseWhopWebhook(rawBody, request.headers, process.env.WHOP_WEBHOOK_SECRET);
+
+  if (!event) {
+    // Deliberately generic to the caller (never confirms *why* — missing
+    // header vs bad signature vs stale timestamp — since that detail is
+    // only useful to us, logged below, and not to a potential attacker).
+    console.error(`[whop-webhook ${receivedAt}] signature verification failed`);
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
   }
 
+  console.log(`[whop-webhook ${receivedAt}] verified event ${event.id} (${event.type})`);
+
   if (await alreadyProcessed(event.id)) {
+    console.log(`[whop-webhook ${receivedAt}] ${event.id} already processed — skipping (idempotent)`);
     return NextResponse.json({ ok: true, duplicate: true });
   }
 
@@ -91,23 +163,24 @@ export async function POST(request: Request) {
 
       if (email && ourPlan) {
         const matched = await grantPlanByEmail(email, ourPlan);
-        if (!matched) {
-          console.error(`Whop webhook: no Creatively.ai account found for email ${email}`, event.id);
-        }
+        console.log(
+          `[whop-webhook ${receivedAt}] ${event.id}: ${matched ? "granted" : "no matching account for"} plan ${ourPlan}`
+        );
       } else if (!ourPlan) {
-        console.error(`Whop webhook: unrecognized plan_id ${whopPlanId}`, event.id);
+        console.error(`[whop-webhook ${receivedAt}] ${event.id}: unrecognized plan_id ${whopPlanId}`);
       } else {
-        console.error("Whop webhook: no email on payload", event.id);
+        console.error(`[whop-webhook ${receivedAt}] ${event.id}: no email on payload`);
       }
     } else if (event.type === "membership.deactivated") {
       const email = readEmail(event.data);
       if (email) await grantPlanByEmail(email, "Starter");
+    } else {
+      console.log(`[whop-webhook ${receivedAt}] ${event.id}: no handler for event type ${event.type}, ignoring`);
     }
-    // payment.failed: nothing to do — the user's plan simply doesn't change.
 
     await markProcessed(event.id, event.type);
   } catch (err) {
-    console.error("Whop webhook handling failed:", err);
+    console.error(`[whop-webhook ${receivedAt}] ${event.id}: handler threw:`, err);
     return NextResponse.json({ error: "Handler failed" }, { status: 500 });
   }
 
