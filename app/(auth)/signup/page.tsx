@@ -1,13 +1,33 @@
 "use client";
 
-import { useState } from "react";
-import { useRouter } from "next/navigation";
+import { Suspense, useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
 import { Logo } from "@/components/ui/Logo";
 import { Button } from "@/components/ui/Button";
 import { createClient } from "@/lib/supabase/client";
 
+const VALID_PLANS = ["Starter", "Pro", "Business"];
+
 export default function SignupPage() {
+  return (
+    <Suspense fallback={null}>
+      <SignupForm />
+    </Suspense>
+  );
+}
+
+function SignupForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const requestedPlanParam = searchParams.get("plan");
+  const requestedPlan = VALID_PLANS.includes(requestedPlanParam || "") ? requestedPlanParam : null;
+  // Carries the plan the user actually clicked on the pricing page through
+  // to onboarding — including across the email verification round trip,
+  // via the callback route's existing ?next= support. This is ONLY used
+  // to pick which checkout link onboarding sends them to; it never grants
+  // access by itself.
+  const onboardingPath = requestedPlan ? `/onboarding?plan=${requestedPlan}` : "/onboarding";
+
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -26,7 +46,7 @@ export default function SignupPage() {
       password,
       options: {
         data: { full_name: fullName },
-        emailRedirectTo: `${window.location.origin}/auth/callback`,
+        emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(onboardingPath)}`,
       },
     });
 
@@ -43,7 +63,7 @@ export default function SignupPage() {
       return;
     }
 
-    router.push("/onboarding");
+    router.push(onboardingPath);
     router.refresh();
   }
 

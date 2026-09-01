@@ -116,9 +116,36 @@ async function grantPlanByEmail(email: string, planId: string): Promise<boolean>
 
   if (!profile) return false;
 
+  // This is the ONLY place in the codebase that sets subscription_status
+  // to 'active' — reachable only after this route has verified a real
+  // Whop webhook signature. Nothing client-facing (onboarding, signup,
+  // the checkout redirect page) is allowed to grant paid access.
   await supabase
     .from("profiles")
-    .update({ plan: planId, ai_credits: allowance, credits_reset_at: nextReset })
+    .update({
+      plan: planId,
+      subscription_status: "active",
+      ai_credits: allowance,
+      credits_reset_at: nextReset,
+    })
+    .eq("id", profile.id);
+
+  return true;
+}
+
+async function revokeByEmail(email: string, status: "cancelled" | "past_due"): Promise<boolean> {
+  const supabase = createAdminClient();
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("id")
+    .ilike("email", email)
+    .maybeSingle();
+
+  if (!profile) return false;
+
+  await supabase
+    .from("profiles")
+    .update({ subscription_status: status, ai_credits: 0 })
     .eq("id", profile.id);
 
   return true;
@@ -173,7 +200,19 @@ export async function POST(request: Request) {
       }
     } else if (event.type === "membership.deactivated") {
       const email = readEmail(event.data);
-      if (email) await grantPlanByEmail(email, "Starter");
+      if (email) {
+        const matched = await revokeByEmail(email, "cancelled");
+        console.log(`[whop-webhook ${receivedAt}] ${event.id}: ${matched ? "revoked" : "no matching account for"} access`);
+      }
+    } else if (event.type === "payment.failed") {
+      // No account change — an unpaid account was never granted access in
+      // the first place, so there's nothing to revoke. Logged so failed
+      // charges are visible without exposing payment details.
+      console.log(`[whop-webhook ${receivedAt}] ${event.id}: payment.failed, no account change`);
+    } else if (event.type === "payment.pending") {
+      // Same — access is only granted on a confirmed success event, never
+      // on pending.
+      console.log(`[whop-webhook ${receivedAt}] ${event.id}: payment.pending, no account change`);
     } else {
       console.log(`[whop-webhook ${receivedAt}] ${event.id}: no handler for event type ${event.type}, ignoring`);
     }

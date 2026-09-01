@@ -1,3 +1,5 @@
+export type SubscriptionStatus = "unpaid" | "active" | "cancelled" | "past_due";
+
 export type Profile = {
   id: string;
   full_name: string | null;
@@ -8,6 +10,7 @@ export type Profile = {
   main_goal: string | null;
   onboarding_completed: boolean;
   plan: string;
+  subscription_status: SubscriptionStatus;
   ai_credits: number;
   credits_reset_at: string;
   notifications_enabled: boolean;

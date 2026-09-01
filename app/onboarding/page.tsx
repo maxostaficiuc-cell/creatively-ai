@@ -1,6 +1,7 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
+import { useSearchParams } from "next/navigation";
 import { Logo } from "@/components/ui/Logo";
 import { Button } from "@/components/ui/Button";
 import { createClient } from "@/lib/supabase/client";
@@ -30,7 +31,26 @@ const goals = [
   "Improve ROAS",
 ];
 
+const VALID_PLANS = ["Starter", "Pro", "Business"];
+
 export default function OnboardingPage() {
+  return (
+    <Suspense fallback={null}>
+      <OnboardingForm />
+    </Suspense>
+  );
+}
+
+function OnboardingForm() {
+  const searchParams = useSearchParams();
+  // The plan the user actually clicked on the pricing page, carried
+  // through signup as ?plan=Business — used ONLY to pick which checkout
+  // link to send them to next. It is never written to their profile here;
+  // the profile's real plan/credits are set exclusively by the verified
+  // Whop webhook once payment actually succeeds.
+  const requestedPlanParam = searchParams.get("plan");
+  const requestedPlan = VALID_PLANS.includes(requestedPlanParam || "") ? requestedPlanParam! : "Starter";
+
   const [step, setStep] = useState(0);
   const [persona, setPersona] = useState<string | null>(null);
   const [platform, setPlatform] = useState<string | null>(null);
@@ -58,38 +78,54 @@ export default function OnboardingPage() {
     },
   ];
 
+  function goToCheckoutOrDashboard() {
+    // No free trial, but also — critically — no free access. This only
+    // sends the browser to Whop's checkout; nothing here marks the
+    // account as paid. If no checkout link is configured, land on the
+    // dashboard rather than getting stuck (the dashboard itself shows 0
+    // credits until a real payment webhook arrives).
+    //
+    // .replace() rather than setting .href — this swaps the current
+    // history entry instead of pushing a new one, so pressing Back from
+    // Whop's checkout doesn't land the user right back on this onboarding
+    // form.
+    const checkoutUrl = checkoutUrlFor(requestedPlan, "monthly");
+    window.location.replace(checkoutUrl || "/dashboard");
+  }
+
   async function finish(skip = false) {
     setSaving(true);
-    const supabase = createClient();
-    const {
-      data: { user },
-    } = await supabase.auth.getUser();
 
-    if (user) {
-      await supabase
-        .from("profiles")
-        .update({
-          persona: skip ? null : persona,
-          ad_platforms: skip || !platform ? null : [platform],
-          main_goal: skip ? null : goal,
-          onboarding_completed: true,
-          // No free trial — every new account starts on Starter and goes
-          // straight into a real checkout next, rather than getting free
-          // Pro-tier credits by default.
-          plan: "Starter",
-        })
-        .eq("id", user.id);
-    }
+    try {
+      const supabase = createClient();
+      const {
+        data: { user },
+      } = await supabase.auth.getUser();
 
-    // Send the new user straight into a real Whop checkout link for
-    // Starter — no free trial, no server round trip. If no checkout link
-    // is configured yet, fall back to the dashboard so onboarding never
-    // gets stuck.
-    const checkoutUrl = checkoutUrlFor("Starter", "monthly");
-    if (checkoutUrl) {
-      window.location.href = checkoutUrl;
-    } else {
-      window.location.href = "/dashboard";
+      if (user) {
+        // Deliberately does NOT touch plan, subscription_status, or
+        // ai_credits — onboarding answers have no bearing on billing.
+        const { error: updateError } = await supabase
+          .from("profiles")
+          .update({
+            persona: skip ? null : persona,
+            ad_platforms: skip || !platform ? null : [platform],
+            main_goal: skip ? null : goal,
+            onboarding_completed: true,
+          })
+          .eq("id", user.id);
+
+        if (updateError) {
+          console.error("Failed to save onboarding answers:", updateError.message);
+          // Non-fatal — still let the user continue to checkout rather
+          // than getting stuck on a save error for non-critical data.
+        }
+      }
+    } catch (err) {
+      console.error("Onboarding save failed:", err);
+      // Same reasoning — don't trap the user here over a network hiccup.
+    } finally {
+      goToCheckoutOrDashboard();
     }
   }
 
@@ -136,14 +172,14 @@ export default function OnboardingPage() {
             <button
               onClick={() => finish(true)}
               disabled={saving}
-              className="text-sm text-ink-muted hover:text-ink-secondary"
+              className="text-sm text-ink-muted hover:text-ink-secondary disabled:opacity-60"
             >
-              Skip for now
+              {saving ? "…" : "Skip for now"}
             </button>
 
             <div className="flex gap-3">
               {step > 0 && (
-                <Button variant="secondary" onClick={() => setStep(step - 1)}>
+                <Button variant="secondary" onClick={() => setStep(step - 1)} disabled={saving}>
                   Back
                 </Button>
               )}

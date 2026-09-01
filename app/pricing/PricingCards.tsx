@@ -101,7 +101,7 @@ export function PricingCards() {
                 </TalkToSalesButton>
               ) : (
                 <Link
-                  href="/signup"
+                  href={`/signup?plan=${plan.id}`}
                   className={`mt-7 flex w-full items-center justify-center rounded-xl px-5 py-3 text-sm font-medium transition-all ${
                     plan.highlight
                       ? "bg-gradient-to-b from-brand-light to-brand text-white shadow-glow hover:brightness-110"

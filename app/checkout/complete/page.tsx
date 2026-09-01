@@ -1,13 +1,15 @@
 import { redirect } from "next/navigation";
-import Link from "next/link";
-import { CheckCircle2, XCircle } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { CheckoutStatusPoller } from "./CheckoutStatusPoller";
 
-export default async function CheckoutCompletePage({
-  searchParams,
-}: {
-  searchParams: { status?: string };
-}) {
+// This page used to show "Thanks — payment received" unconditionally,
+// regardless of whether the payment actually succeeded — trusting the
+// redirect itself as proof. It never was. The redirect only tells us the
+// user finished (or left) the Whop checkout flow; it says nothing about
+// whether the payment succeeded. The only thing that can say that is the
+// verified Whop webhook writing subscription_status = 'active' to this
+// user's row, which is exactly what CheckoutStatusPoller waits for.
+export default async function CheckoutCompletePage() {
   const supabase = createClient();
   const {
     data: { user },
@@ -15,40 +17,17 @@ export default async function CheckoutCompletePage({
 
   if (!user) redirect("/login");
 
-  const failed = searchParams.status === "error";
+  const { data: profile } = await supabase
+    .from("profiles")
+    .select("subscription_status")
+    .eq("id", user.id)
+    .single();
+
+  const initiallyActive = profile?.subscription_status === "active";
 
   return (
     <div className="flex min-h-screen flex-col items-center justify-center bg-base-bg px-6 text-center">
-      <div
-        className={`mb-5 flex h-14 w-14 items-center justify-center rounded-full ${
-          failed ? "bg-accent-red/10 text-accent-red" : "bg-accent-green/10 text-accent-green"
-        }`}
-      >
-        {failed ? <XCircle size={26} /> : <CheckCircle2 size={26} />}
-      </div>
-
-      {failed ? (
-        <>
-          <h1 className="text-xl font-semibold text-ink-primary">Payment didn&apos;t go through</h1>
-          <p className="mt-2 max-w-sm text-sm text-ink-secondary">
-            No charge was made. You can try again anytime from Billing.
-          </p>
-        </>
-      ) : (
-        <>
-          <h1 className="text-xl font-semibold text-ink-primary">Thanks — payment received</h1>
-          <p className="mt-2 max-w-sm text-sm text-ink-secondary">
-            Your plan will update within a few seconds. Check your email for a receipt.
-          </p>
-        </>
-      )}
-
-      <Link
-        href="/billing"
-        className="mt-7 rounded-xl bg-gradient-to-b from-brand-light to-brand px-6 py-3 text-sm font-medium text-white shadow-glow hover:brightness-110"
-      >
-        Back to Billing
-      </Link>
+      <CheckoutStatusPoller initiallyActive={initiallyActive} />
     </div>
   );
 }
