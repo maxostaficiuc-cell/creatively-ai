@@ -85,12 +85,24 @@ function PlanSummaryCard({
         </span>
       </div>
 
-      <CreditProgress remaining={remaining} total={totalCredits} />
-      <p className="mt-2 text-xs text-ink-muted">
-        Credits reset weekly · Next reset:{" "}
-        {resetDate.toLocaleDateString("en-US", { day: "numeric", month: "short" })} at{" "}
-        {resetDate.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
-      </p>
+      {profile.subscription_status !== "active" ? (
+        <div className="mb-2 rounded-xl border border-orange-400/30 bg-orange-400/5 p-3">
+          <p className="text-xs font-medium text-orange-400">No active subscription</p>
+          <p className="mt-1 text-xs text-ink-secondary">
+            Your account doesn&apos;t have a confirmed payment yet, so credits are 0 — this isn&apos;t a
+            weekly reset, it&apos;s simply that no plan is active. Choose a plan below to get started.
+          </p>
+        </div>
+      ) : (
+        <>
+          <CreditProgress remaining={remaining} total={totalCredits} />
+          <p className="mt-2 text-xs text-ink-muted">
+            Credits reset weekly · Next reset:{" "}
+            {resetDate.toLocaleDateString("en-US", { day: "numeric", month: "short" })} at{" "}
+            {resetDate.toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" })}
+          </p>
+        </>
+      )}
 
       <div className="mt-4">
         <button

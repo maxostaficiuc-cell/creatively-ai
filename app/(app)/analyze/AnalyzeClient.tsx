@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { CreativeReportView } from "@/components/marketing/CreativeReportView";
+import { OutOfCreditsModal } from "@/components/dashboard/OutOfCreditsModal";
 import type { Creative } from "@/lib/types";
 import { CREDIT_COST_IMAGE, CREDIT_COST_VIDEO } from "@/lib/types";
 
@@ -31,6 +32,7 @@ export function AnalyzeClient({ credits }: { credits: number }) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [result, setResult] = useState<Creative | null>(null);
+  const [outOfCredits, setOutOfCredits] = useState(false);
 
   // Scanning-sequence state
   const [progress, setProgress] = useState(0);
@@ -41,6 +43,7 @@ export function AnalyzeClient({ credits }: { credits: number }) {
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
   const resultRef = useRef<Creative | null>(null);
   const errorRef = useRef<string | null>(null);
+  const insufficientCreditsRef = useRef(false);
 
   function clearTimers() {
     timers.current.forEach(clearTimeout);
@@ -86,8 +89,19 @@ export function AnalyzeClient({ credits }: { credits: number }) {
 
   async function startAnalysis() {
     if (!file) return;
+
+    const cost = file.type.startsWith("video/") ? CREDIT_COST_VIDEO : CREDIT_COST_IMAGE;
+    if (credits < cost) {
+      // Known-insufficient before even attempting the upload — skip the
+      // network round trip entirely. The server check further down is
+      // still the real, authoritative gate; this is just a faster no.
+      setOutOfCredits(true);
+      return;
+    }
+
     setError(null);
     errorRef.current = null;
+    insufficientCreditsRef.current = false;
 
     // Kick off the real analysis request in parallel with the visual sequence.
     const analysisPromise = (async () => {
@@ -98,6 +112,7 @@ export function AnalyzeClient({ credits }: { credits: number }) {
         const data = await res.json();
         if (!res.ok) {
           errorRef.current = data.error || "Analysis failed.";
+          if (res.status === 402) insufficientCreditsRef.current = true;
           return null;
         }
         return data.creative as Creative;
@@ -114,7 +129,11 @@ export function AnalyzeClient({ credits }: { credits: number }) {
       setPhase("scanning");
       const creative = await analysisPromise;
       if (!creative) {
-        setError(errorRef.current || "Analysis failed.");
+        if (insufficientCreditsRef.current) {
+          setOutOfCredits(true);
+        } else {
+          setError(errorRef.current || "Analysis failed.");
+        }
         setPhase("ready");
         return;
       }
@@ -144,7 +163,11 @@ export function AnalyzeClient({ credits }: { credits: number }) {
       const creative = await analysisPromise;
 
       if (!creative) {
-        setError(errorRef.current || "Analysis failed.");
+        if (insufficientCreditsRef.current) {
+          setOutOfCredits(true);
+        } else {
+          setError(errorRef.current || "Analysis failed.");
+        }
         setPhase("ready");
         return;
       }
@@ -342,6 +365,8 @@ export function AnalyzeClient({ credits }: { credits: number }) {
           </div>
         </div>
       )}
+
+      <OutOfCreditsModal open={outOfCredits} onClose={() => setOutOfCredits(false)} />
     </div>
   );
 }
