@@ -103,7 +103,22 @@ function readPlanId(data: Record<string, unknown>): string | null {
   return plan?.id ?? null;
 }
 
-async function grantPlanByEmail(email: string, planId: string): Promise<boolean> {
+/**
+ * The membership id (mem_...) is needed later to actually cancel via
+ * Whop's API. Payload shape differs slightly between event types — for
+ * membership.activated, `data` IS the membership object (id at the top
+ * level); for payment.succeeded it may be nested. Checked defensively
+ * rather than assuming one exact shape.
+ */
+function readMembershipId(data: Record<string, unknown>): string | null {
+  const nested = data.membership as { id?: string } | undefined;
+  if (nested?.id) return nested.id;
+  if (typeof data.membership_id === "string") return data.membership_id;
+  if (typeof data.id === "string" && data.id.startsWith("mem_")) return data.id;
+  return null;
+}
+
+async function grantPlanByEmail(email: string, planId: string, membershipId: string | null): Promise<boolean> {
   const supabase = createAdminClient();
   const allowance = weeklyAllowanceFor(planId);
   const nextReset = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
@@ -120,15 +135,19 @@ async function grantPlanByEmail(email: string, planId: string): Promise<boolean>
   // to 'active' — reachable only after this route has verified a real
   // Whop webhook signature. Nothing client-facing (onboarding, signup,
   // the checkout redirect page) is allowed to grant paid access.
-  await supabase
-    .from("profiles")
-    .update({
-      plan: planId,
-      subscription_status: "active",
-      ai_credits: allowance,
-      credits_reset_at: nextReset,
-    })
-    .eq("id", profile.id);
+  const update: Record<string, unknown> = {
+    plan: planId,
+    subscription_status: "active",
+    ai_credits: allowance,
+    credits_reset_at: nextReset,
+    // A fresh grant/renewal always clears any pending cancellation —
+    // covers both a brand-new subscription and a renewal after the user
+    // changed their mind and resubscribed.
+    cancel_at_period_end: false,
+  };
+  if (membershipId) update.whop_membership_id = membershipId;
+
+  await supabase.from("profiles").update(update).eq("id", profile.id);
 
   return true;
 }
@@ -145,7 +164,7 @@ async function revokeByEmail(email: string, status: "cancelled" | "past_due"): P
 
   await supabase
     .from("profiles")
-    .update({ subscription_status: status, ai_credits: 0 })
+    .update({ subscription_status: status, ai_credits: 0, cancel_at_period_end: false })
     .eq("id", profile.id);
 
   return true;
@@ -187,9 +206,10 @@ export async function POST(request: Request) {
       const email = readEmail(event.data);
       const whopPlanId = readPlanId(event.data);
       const ourPlan = whopPlanId ? ourPlanFromWhopPlanId(whopPlanId) : null;
+      const membershipId = readMembershipId(event.data);
 
       if (email && ourPlan) {
-        const matched = await grantPlanByEmail(email, ourPlan);
+        const matched = await grantPlanByEmail(email, ourPlan, membershipId);
         console.log(
           `[whop-webhook ${receivedAt}] ${event.id}: ${matched ? "granted" : "no matching account for"} plan ${ourPlan}`
         );

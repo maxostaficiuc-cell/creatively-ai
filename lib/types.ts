@@ -11,6 +11,8 @@ export type Profile = {
   onboarding_completed: boolean;
   plan: string;
   subscription_status: SubscriptionStatus;
+  whop_membership_id: string | null;
+  cancel_at_period_end: boolean;
   ai_credits: number;
   credits_reset_at: string;
   notifications_enabled: boolean;

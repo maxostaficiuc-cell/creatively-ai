@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { useRouter } from "next/navigation";
 import { Check, X, TrendingUp, CreditCard, AlertTriangle } from "lucide-react";
 import type { Profile } from "@/lib/types";
 import { CREDIT_COST_IMAGE, CREDIT_COST_VIDEO } from "@/lib/types";
@@ -95,6 +96,15 @@ function PlanSummaryCard({
         </div>
       ) : (
         <>
+          {profile.cancel_at_period_end && (
+            <div className="mb-4 rounded-xl border border-orange-400/30 bg-orange-400/5 p-3">
+              <p className="text-xs font-medium text-orange-400">Cancelling at period end</p>
+              <p className="mt-1 text-xs text-ink-secondary">
+                You&apos;ll keep full access and your remaining credits until your current billing
+                period ends. You won&apos;t be charged again after that.
+              </p>
+            </div>
+          )}
           <CreditProgress remaining={remaining} total={totalCredits} />
           <p className="mt-2 text-xs text-ink-muted">
             Credits reset weekly · Next reset:{" "}
@@ -323,9 +333,59 @@ function TopUpModal({ onClose }: { onClose: () => void }) {
 }
 
 function CancelModal({ onClose }: { onClose: () => void }) {
+  const router = useRouter();
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [success, setSuccess] = useState(false);
+
+  async function confirmCancel() {
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch("/api/billing/cancel", { method: "POST" });
+      const data = await res.json();
+      if (!res.ok) {
+        setError(data.error || "Something went wrong. Please try again.");
+        setLoading(false);
+        return;
+      }
+      setSuccess(true);
+      router.refresh();
+    } catch {
+      setError("Something went wrong. Please try again.");
+      setLoading(false);
+    }
+  }
+
+  if (success) {
+    return (
+      <>
+        <Backdrop onClose={onClose} />
+        <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
+          <div className="w-full max-w-sm rounded-2xl border border-base-border bg-base-card p-6 text-center shadow-2xl">
+            <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-accent-green/10 text-accent-green">
+              <Check size={18} />
+            </div>
+            <h3 className="mt-3 font-semibold text-ink-primary">Subscription set to cancel</h3>
+            <p className="mt-2 text-sm text-ink-secondary">
+              You&apos;ll keep full access until the end of your current billing period. You won&apos;t
+              be charged again after that.
+            </p>
+            <button
+              onClick={onClose}
+              className="mt-5 w-full rounded-xl bg-gradient-to-b from-brand-light to-brand py-2.5 text-sm font-medium text-white shadow-glow hover:brightness-110"
+            >
+              Done
+            </button>
+          </div>
+        </div>
+      </>
+    );
+  }
+
   return (
     <>
-      <Backdrop onClose={onClose} />
+      <Backdrop onClose={loading ? () => {} : onClose} />
       <div className="fixed inset-0 z-50 flex items-center justify-center px-4">
         <div className="w-full max-w-sm rounded-2xl border border-base-border bg-base-card p-6 shadow-2xl">
           <div className="mb-4 flex items-center gap-3">
@@ -338,18 +398,21 @@ function CancelModal({ onClose }: { onClose: () => void }) {
             Your plan will remain active until the end of your current billing period. You won&apos;t
             be charged again after that.
           </p>
+          {error && <p className="mb-4 text-sm text-accent-red">{error}</p>}
           <div className="flex gap-3">
             <button
               onClick={onClose}
-              className="flex-1 rounded-xl bg-gradient-to-b from-brand-light to-brand py-2.5 text-sm font-medium text-white shadow-glow hover:brightness-110"
+              disabled={loading}
+              className="flex-1 rounded-xl bg-gradient-to-b from-brand-light to-brand py-2.5 text-sm font-medium text-white shadow-glow hover:brightness-110 disabled:opacity-60"
             >
               Keep Plan
             </button>
             <button
-              onClick={onClose}
-              className="flex-1 rounded-xl border border-accent-red/40 py-2.5 text-sm text-accent-red hover:bg-accent-red/5"
+              onClick={confirmCancel}
+              disabled={loading}
+              className="flex-1 rounded-xl border border-accent-red/40 py-2.5 text-sm text-accent-red hover:bg-accent-red/5 disabled:opacity-60"
             >
-              Cancel Subscription
+              {loading ? "Cancelling…" : "Cancel Subscription"}
             </button>
           </div>
         </div>
