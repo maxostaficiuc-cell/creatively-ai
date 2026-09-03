@@ -1,5 +1,5 @@
 import { redirect } from "next/navigation";
-import { DollarSign, TrendingUp, MousePointerClick, Users, TrendingUp as ScaleIcon, TrendingDown as ReviewIcon, Sparkles, Sparkles as TestIcon, Upload } from "lucide-react";
+import { DollarSign, TrendingUp, MousePointerClick, Users, TrendingUp as ScaleIcon, TrendingDown as ReviewIcon, Sparkles, Sparkles as TestIcon, Upload, ArrowRight } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getFreshProfile } from "@/lib/profile";
 import { getConnectedAdAccount, fetchMetaInsights } from "@/lib/meta/client";
@@ -242,6 +242,23 @@ export default async function DashboardPage() {
             <AccountStatusCard accounts={accounts} />
           </div>
         </div>
+
+        <a
+          href="/contact"
+          className="group flex items-center justify-between rounded-2xl border border-base-border bg-base-card p-5 transition-colors hover:border-brand/30"
+        >
+          <div>
+            <p className="text-sm font-medium text-ink-primary">Need help?</p>
+            <p className="mt-1 text-xs text-ink-secondary">
+              Have a question or need assistance? Send us a message and we&apos;ll get back to you
+              as quickly as possible. We typically reply within 1 hour.
+            </p>
+          </div>
+          <span className="flex shrink-0 items-center gap-1.5 pl-4 text-sm text-brand-light">
+            Contact Support
+            <ArrowRight size={14} className="transition-transform group-hover:translate-x-0.5" />
+          </span>
+        </a>
       </div>
     </AppShell>
   );

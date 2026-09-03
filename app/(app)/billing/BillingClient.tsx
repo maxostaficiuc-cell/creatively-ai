@@ -415,6 +415,13 @@ function CancelModal({ onClose }: { onClose: () => void }) {
               {loading ? "Cancelling…" : "Cancel Subscription"}
             </button>
           </div>
+          <button
+            onClick={() => router.push("/contact?from=cancel")}
+            disabled={loading}
+            className="mt-4 w-full text-center text-xs text-ink-muted hover:text-ink-secondary disabled:opacity-60"
+          >
+            Need help instead? Contact us
+          </button>
         </div>
       </div>
     </>

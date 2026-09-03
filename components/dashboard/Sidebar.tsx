@@ -14,6 +14,7 @@ import {
   Link2,
   CreditCard,
   Settings,
+  Mail,
 } from "lucide-react";
 import { Logo } from "@/components/ui/Logo";
 import type { Profile } from "@/lib/types";
@@ -39,6 +40,8 @@ const accountLinks = [
   { href: "/billing", label: "Billing", icon: CreditCard },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
+
+const supportLinks = [{ href: "/contact", label: "Contact", icon: Mail }];
 
 function NavSection({
   title,
@@ -98,6 +101,7 @@ export function Sidebar({ profile }: { profile: Profile | null }) {
         <NavSection title="Ad Performance" links={perfLinks} pathname={pathname} />
         <NavSection title="Connect" links={connectLinks} pathname={pathname} />
         <NavSection title="Account" links={accountLinks} pathname={pathname} />
+        <NavSection title="Support" links={supportLinks} pathname={pathname} />
       </div>
 
       <div className="mt-4 space-y-4 border-t border-base-border pt-4">
