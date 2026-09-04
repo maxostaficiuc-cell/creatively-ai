@@ -150,14 +150,16 @@ Respond with ONLY a JSON object, no other text, matching EXACTLY this shape (all
 /**
  * Runs the real Claude vision analysis on an image, given its raw bytes.
  * Falls back to a clearly-labeled simulated report if no ANTHROPIC_API_KEY
- * is configured, or if the API call fails for any reason.
+ * is configured, or if the API call fails for any reason — and tells the
+ * caller WHICH of those it was, so the fallback message shown to the user
+ * is actually accurate instead of always blaming a missing key.
  */
 export async function runCreativeAnalysis(
   bytes: Uint8Array,
   mediaType: string
 ): Promise<{ result: CreativeReport; isSimulated: boolean }> {
   if (!process.env.ANTHROPIC_API_KEY) {
-    return { result: simulatedResult(), isSimulated: true };
+    return { result: simulatedResult("no_key"), isSimulated: true };
   }
 
   try {
@@ -188,7 +190,12 @@ export async function runCreativeAnalysis(
     });
 
     if (!anthropicRes.ok) {
-      throw new Error(`Anthropic API error: ${anthropicRes.status}`);
+      // The response body from Anthropic usually explains exactly why —
+      // insufficient credits, invalid key, rate limited, etc. Logged in
+      // full server-side (never shown to the visitor) so this is
+      // actually diagnosable instead of a generic "it failed."
+      const bodyText = await anthropicRes.text().catch(() => "");
+      throw new Error(`Anthropic API error ${anthropicRes.status}: ${bodyText.slice(0, 500)}`);
     }
 
     const data = await anthropicRes.json();
@@ -198,24 +205,31 @@ export async function runCreativeAnalysis(
     return { result, isSimulated: false };
   } catch (err) {
     console.error("AI analysis failed, falling back to simulated result:", err);
-    return { result: simulatedResult(), isSimulated: true };
+    return { result: simulatedResult("call_failed"), isSimulated: true };
   }
 }
 
 /** Same simulated-result shape, used for videos (not yet really analyzed) too. */
-export function simulatedResult(): CreativeReport {
+export function simulatedResult(reason: "no_key" | "call_failed" | "video" = "call_failed"): CreativeReport {
   const score = 30 + Math.floor(Math.random() * 60);
   const verdict_label: CreativeReport["verdict_label"] =
     score >= 90 ? "Excellent" : score >= 80 ? "Strong" : score >= 60 ? "Average" : score >= 40 ? "Weak" : "Very Weak";
 
   const placeholder = "Simulated — connect a real AI provider for genuine, personalized analysis.";
+  const whatToTest =
+    reason === "no_key"
+      ? "Add an ANTHROPIC_API_KEY environment variable to enable real AI-powered analysis."
+      : reason === "video"
+      ? "Upload an image instead for a real AI-powered analysis."
+      : "The AI provider is configured, but the last request failed — this is often an Anthropic account issue (like an unfunded balance) rather than a code problem. Check the server logs for the exact reason, or try again in a moment.";
+
   return {
     score,
     verdict_label,
     summary: placeholder,
-    whats_working: "This is a placeholder result because no AI provider is configured right now.",
+    whats_working: "This is a placeholder result — no real creative analysis has been performed on this file.",
     whats_not: "No real creative analysis has been performed on this file.",
-    what_to_test: "Add an ANTHROPIC_API_KEY environment variable to enable real AI-powered analysis.",
+    what_to_test: whatToTest,
     executive_summary: placeholder,
     biggest_strength: placeholder,
     biggest_weakness: placeholder,
