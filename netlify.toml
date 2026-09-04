@@ -1,0 +1,11 @@
+# This file didn't exist before, which means every serverless function on
+# this site has been running under Netlify's default 10-second synchronous
+# function timeout the whole time — including the Free Creative Report's
+# AI analysis call, which generates a large, detailed report and can
+# genuinely take longer than 10 seconds. That mismatch is the confirmed
+# root cause of "Something went wrong" on the free report flow: Netlify
+# kills the function and returns a 502 error page (not JSON), which the
+# frontend can't parse, so it falls back to its generic error message —
+# never anything specific to what actually happened.
+[functions]
+  timeout = 26
