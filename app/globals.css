@@ -131,16 +131,27 @@ body {
   animation: hero-anchor-pulse 2.4s ease-in-out infinite;
 }
 
-/* Mobile hero: compact cards emerge from the phone, once, in order */
-.m-card-reveal {
-  opacity: 0;
-  transform: translate3d(0, -14px, 0) scale(0.97);
-  transform-origin: 50% 0%;
-  transition: opacity 0.6s cubic-bezier(0.16, 1, 0.3, 1), transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
-}
-.m-card-reveal.is-visible {
-  opacity: 1;
-  transform: none;
+/* Mobile hero (< 1024px): the desktop scene, scaled down.
+   --hp-aspect / --scr-* come from HAND_PHONE_ASSET (lib/heroDemo.ts), set inline. */
+.m-scene {
+  --g: clamp(8px, 2.6vw, 20px);                               /* side gutter */
+  --sw: clamp(104px, 33vw, 188px);                            /* phone display width */
+  --photo-w: calc(var(--sw) / var(--scr-w));
+  --photo-h: calc(var(--photo-w) / var(--hp-aspect));
+  --sh: calc(var(--photo-h) * var(--scr-h));                  /* phone display height */
+  --screen-top: clamp(100px, 28vw, 150px);                    /* room for the green card above */
+  --photo-top: calc(var(--screen-top) - var(--photo-h) * var(--scr-top));
+  --bezel: calc(var(--sw) * 0.045);
+
+  /* green: upper left, above the phone */
+  --green-w: min(calc(50% - var(--g) + var(--sw) * 0.06), 240px);
+  /* red: right of the phone, overlapping only its bezel */
+  --red-w: min(calc(50% - var(--sw) / 2 - var(--g) + var(--bezel)), 220px);
+  --red-top: calc(var(--screen-top) + var(--sh) * 0.36);
+  /* purple: lower left, overlapping only the blurred strip under the ad */
+  --purple-top: calc(var(--screen-top) + var(--sh) * 0.955);
+  --purple-w: min(calc(50% - var(--g) + var(--sw) * 0.12), 250px);
+  --scene-tail: calc(var(--sw) * 0.18);                       /* a little hand below the purple card */
 }
 
 .hero-reveal {
@@ -155,5 +166,5 @@ body {
 
 @media (prefers-reduced-motion: reduce) {
   .hero-rise, .hero-anchor-pulse { animation: none !important; }
-  .hero-reveal, .m-card-reveal { opacity: 1; transform: none; transition: none; }
+  .hero-reveal { opacity: 1; transform: none; transition: none; }
 }

@@ -34,7 +34,9 @@ Missing files show a clearly labelled placeholder instead of breaking the page.
 ## Components (`components/hero/`)
 
 - `HeroScrollSequence.tsx` – desktop (≥ 1024px): pinned scroll sequence (~150vh).
-- `MobileHero.tsx` – phones/tablets: phone + compact cards on an animated "analysis thread".
+- `MobileHero.tsx` – phones/tablets (< 1024px): the same scene scaled down — green upper-left, red right,
+  purple lower-left, lines to the same points on the ad. Sizes live in `.m-scene` (app/globals.css).
+  Full explanations sit behind "Show full analysis".
 - `HandPhone.tsx` – hand photo layer + phone screen layer.
 - `PhoneScreenAd.tsx` – the creative inside the screen (Story or feed framing).
 - `AnalysisCard.tsx` – green / red / purple cards (`full` and `compact` variants).

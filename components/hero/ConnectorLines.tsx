@@ -11,6 +11,8 @@ export type ConnectorLine = {
   from: { x: number; y: number };
   /** end point on the ad image, in stage pixels */
   to: { x: number; y: number };
+  /** tangent direction at both ends: "x" (default, horizontal) or "y" (vertical) */
+  axis?: "x" | "y";
 };
 
 export type ConnectorLinesHandle = {
@@ -54,11 +56,20 @@ export const ConnectorLines = forwardRef<
     >
       {lines.map((line) => {
         const rgb = TONE[line.tone].rgb;
-        const dir = line.to.x > line.from.x ? 1 : -1;
-        const k = Math.min(140, Math.abs(line.to.x - line.from.x) * 0.55);
-        const d = `M ${line.from.x} ${line.from.y} C ${line.from.x + dir * k} ${line.from.y}, ${
-          line.to.x - dir * k
-        } ${line.to.y}, ${line.to.x} ${line.to.y}`;
+        let d: string;
+        if (line.axis === "y") {
+          const dir = line.to.y > line.from.y ? 1 : -1;
+          const k = Math.min(90, Math.abs(line.to.y - line.from.y) * 0.55);
+          d = `M ${line.from.x} ${line.from.y} C ${line.from.x} ${line.from.y + dir * k}, ${line.to.x} ${
+            line.to.y - dir * k
+          }, ${line.to.x} ${line.to.y}`;
+        } else {
+          const dir = line.to.x > line.from.x ? 1 : -1;
+          const k = Math.min(140, Math.abs(line.to.x - line.from.x) * 0.55);
+          d = `M ${line.from.x} ${line.from.y} C ${line.from.x + dir * k} ${line.from.y}, ${
+            line.to.x - dir * k
+          } ${line.to.y}, ${line.to.x} ${line.to.y}`;
+        }
         const register = (el: SVGElement | null) => {
           if (!el) return;
           const list = pathRefs.current.get(line.id) ?? [];
