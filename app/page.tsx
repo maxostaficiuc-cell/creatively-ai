@@ -12,6 +12,8 @@ import { PricingCards } from "@/app/pricing/PricingCards";
 import { ScoreCounter } from "@/components/marketing/ScoreCounter";
 import { ScoreRing } from "@/components/marketing/ScoreRing";
 import { DashboardShowcase } from "@/components/marketing/DashboardShowcase";
+import { HeroScrollSequence } from "@/components/hero/HeroScrollSequence";
+import { CapabilitiesSection } from "@/components/marketing/CapabilitiesSection";
 import { GetFreeReportButton } from "@/components/marketing/GetFreeReportButton";
 import { LiveActivityStats } from "@/components/marketing/LiveActivityStats";
 
@@ -86,45 +88,11 @@ export default function LandingPage() {
     <>
       <Nav />
 
-      {/* HERO */}
-      <section className="relative overflow-hidden px-6 pb-20 pt-24">
-        <div
-          className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[600px] opacity-40"
-          style={{
-            background:
-              "radial-gradient(700px circle at 50% 0%, rgba(139,92,246,0.22), transparent 70%)",
-          }}
-        />
-        <div className="mx-auto max-w-3xl text-center animate-fade-in-up">
-          <div className="mx-auto mb-6 inline-flex items-center gap-2 rounded-full border border-base-border bg-base-card px-4 py-1.5 text-xs text-ink-secondary">
-            <Sparkles size={13} className="text-brand-light" />
-            AI CREATIVE INTELLIGENCE FOR ADVERTISERS
-          </div>
-          <h1 className="text-4xl font-semibold leading-[1.1] tracking-tight text-ink-primary sm:text-6xl">
-            Know what&apos;s wrong with your ad before you spend money on it.
-          </h1>
-          <p className="mx-auto mt-6 max-w-xl text-lg text-ink-secondary">
-            Creatively.ai analyzes your advertising creative, identifies what&apos;s working,
-            exposes what&apos;s hurting performance, and tells you what to test next.
-          </p>
-          <div className="mt-9 flex flex-col items-center justify-center gap-4 sm:flex-row">
-            <GetFreeReportButton className="px-7 py-3.5 text-base">
-              Get Your Free Report <ArrowRight size={16} />
-            </GetFreeReportButton>
-            <ButtonLink href="#winning-ads" variant="secondary" className="px-7 py-3.5 text-base">
-              Explore Winning Ads
-            </ButtonLink>
-          </div>
-        </div>
+      {/* CINEMATIC HERO — hand + phone + scroll-driven example analysis */}
+      <HeroScrollSequence />
 
-        {/* HERO PRODUCT SHOWCASE */}
-        <div className="mt-20 animate-fade-in-up" style={{ animationDelay: "150ms" }}>
-          <DashboardShowcase
-            label="The Creatively.ai Workspace"
-            caption="Analyze creatives, understand performance, and turn your advertising data into your next decision."
-          />
-        </div>
-      </section>
+      {/* HAND-OFF SECTION */}
+      <CapabilitiesSection />
 
       {/* LIVE ACTIVITY — real aggregate data, not scripted numbers */}
       <section className="border-t border-white/5 px-6 py-16">

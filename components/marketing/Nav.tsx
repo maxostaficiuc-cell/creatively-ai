@@ -7,11 +7,12 @@ import { Logo } from "@/components/ui/Logo";
 import { ButtonLink } from "@/components/ui/Button";
 import { GetFreeReportButton } from "@/components/marketing/GetFreeReportButton";
 
-const SECTION_IDS = ["features", "winning-ads", "pricing", "faq"];
+const SECTION_IDS = ["features", "winning-ads", "how-it-works", "pricing", "faq"];
 
 const links = [
   { id: "features", label: "Features" },
   { id: "winning-ads", label: "Winning Ads" },
+  { id: "how-it-works", label: "How It Works" },
   { id: "pricing", label: "Pricing" },
 ];
 
@@ -94,7 +95,7 @@ export function Nav() {
   }, [onHomepage]);
 
   return (
-    <header className="sticky top-0 z-40 border-b border-white/5 bg-base-bg/80 backdrop-blur-md">
+    <header className="sticky top-0 z-40 border-b border-white/5 bg-[#08080B]/70 backdrop-blur-xl">
       <div className="mx-auto flex h-16 max-w-7xl items-center justify-between px-6">
         <div onClick={(e) => { if (onHomepage) { e.preventDefault(); goToTop(); } }}>
           <Logo />
@@ -116,7 +117,7 @@ export function Nav() {
 
         <div className="hidden items-center gap-3 md:flex">
           <ButtonLink href="/login" variant="ghost">
-            Login
+            Log In
           </ButtonLink>
           <GetFreeReportButton />
         </div>
@@ -144,7 +145,7 @@ export function Nav() {
             ))}
             <div className="mt-2 flex flex-col gap-3">
               <ButtonLink href="/login" variant="secondary">
-                Login
+                Log In
               </ButtonLink>
               <GetFreeReportButton className="w-full" />
             </div>

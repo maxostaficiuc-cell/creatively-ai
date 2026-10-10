@@ -7,7 +7,7 @@
 }
 
 body {
-  background-color: #0a0a0d;
+  background-color: #08080b;
   color: #f5f5f7;
 }
 
@@ -73,7 +73,7 @@ body {
   to { opacity: 1; transform: translateY(0); }
 }
 .animate-fade-in-up {
-  animation: fade-in-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  animation: fade-in-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
 @keyframes logo-loop {
@@ -85,4 +85,62 @@ body {
 }
 .animate-logo-loop {
   animation: logo-loop 6s ease-in-out infinite;
+}
+
+/* ── Cinematic hero ─────────────────────────────────────────────────────── */
+.hero-stage {
+  --hp-h: min(128vh, 1300px, 104vw);           /* rendered height of the hand photo */
+  --hp-w: calc(var(--hp-h) * 0.6667);          /* photo is 2:3 */
+  --sw: calc(var(--hp-w) * 0.376);             /* phone display width (HAND_PHONE_ASSET.screen.width) */
+  --screen-top: max(12vh, 88px);               /* where the display's top edge settles */
+  --hp-top: calc(var(--screen-top) - var(--hp-h) * 0.062);
+  --gap: clamp(36px, 4.2vw, 72px);
+  --card-inset: calc(50% + var(--sw) / 2 + var(--gap));
+  --card-w: clamp(268px, calc(50% - var(--sw) / 2 - var(--gap) - 32px), 400px);
+  --card-top-a: max(11vh, 84px);
+  --card-top-b: max(25vh, 176px);
+  --card-bottom-c: 4.5vh;
+}
+
+/* Shorter desktop screens (laptops): tighten the cards so all three fit together. */
+@media (min-width: 1024px) and (max-height: 820px) {
+  .hero-stage { --card-top-a: max(10vh, 80px); --card-bottom-c: 3.5vh; }
+  .hero-stage .hero-card-body { padding: 15px 18px 16px; }
+  .hero-stage .hero-card-list { margin-top: 10px; }
+  .hero-stage .hero-card-list > :not([hidden]) ~ :not([hidden]) { margin-top: 5px; }
+  .hero-stage .hero-card-item { font-size: 11.5px; line-height: 1.42; }
+}
+
+@keyframes hero-rise {
+  from { transform: translate3d(0, 60vh, 0); opacity: 0; }
+  35%  { opacity: 1; }
+  to   { transform: translate3d(0, 0, 0); opacity: 1; }
+}
+.hero-rise {
+  animation: hero-rise 1.6s cubic-bezier(0.16, 1, 0.3, 1) 0.25s both;
+}
+
+@keyframes hero-anchor-pulse {
+  0%, 100% { transform: scale(1); opacity: 0.9; }
+  50% { transform: scale(1.6); opacity: 0.25; }
+}
+.hero-anchor-pulse {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation: hero-anchor-pulse 2.4s ease-in-out infinite;
+}
+
+.hero-reveal {
+  opacity: 0;
+  transform: translate3d(0, 24px, 0) scale(0.98);
+  transition: opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1), transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.hero-reveal.is-visible {
+  opacity: 1;
+  transform: none;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .hero-rise, .hero-anchor-pulse { animation: none !important; }
+  .hero-reveal { opacity: 1; transform: none; transition: none; }
 }
