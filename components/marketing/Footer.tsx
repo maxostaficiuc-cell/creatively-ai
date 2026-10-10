@@ -32,7 +32,7 @@ const columns: { title: string; links: FooterLink[] }[] = [
     title: "Company",
     links: [
       { label: "About", href: "/about", kind: "page" },
-      { label: "Contact", href: "/contact", kind: "page" },
+      { label: "Contact", href: "mailto:trycreatively.ai@gmail.com", kind: "page" },
     ],
   },
   {
