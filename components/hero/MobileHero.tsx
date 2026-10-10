@@ -1,9 +1,9 @@
 "use client";
 
-import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
-import { ChevronDown } from "lucide-react";
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from "react";
 import { HandPhoto, PhoneScreenLayer } from "@/components/hero/HandPhone";
-import { AnalysisCard, TONE } from "@/components/hero/AnalysisCard";
+import { AnalysisCard } from "@/components/hero/AnalysisCard";
+import { FullAnalysisButton } from "@/components/hero/FullAnalysisButton";
 import { ConnectorLines, type ConnectorLine, type ConnectorLinesHandle } from "@/components/hero/ConnectorLines";
 import { HeroHeadline } from "@/components/hero/HeroHeadline";
 import { HeroAmbient } from "@/components/hero/HeroAmbient";
@@ -18,26 +18,26 @@ import type { DemoCreative } from "@/lib/demoCreative";
  * green card upper-left, red to the right, purple lower-left, glowing lines
  * from each card to the same point on the ad — just sized for a narrow screen
  * with CSS variables (see `.m-scene` in globals.css). Cards show their short
- * labels; the full explanations sit behind "Show full analysis" below.
+ * labels; the complete report opens from "Show full analysis" below.
  *
- * Animation mirrors desktop: the phone rises in, then the cards emerge from
- * behind the phone in order and their lines draw. Because there is no pinning
- * on mobile, the sequence plays once (time-based) when the scene scrolls into
- * view, so it can never be left half-finished.
+ * Animation mirrors desktop: the phone rises in, then — driven by the scroll
+ * position, and reversible — the cards emerge from behind the phone in order
+ * and their lines draw; scrolling back up retracts them.
  */
 
 const useIsoLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
 const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
 const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
 
-const SEQUENCE_MS = 1700;
+/** Smoothing time constant for scroll-linked progress (touch-friendly, no overshoot). */
+const SMOOTHING_MS = 90;
 const CARD_STARTS = [0, 0.2, 0.4];
 const CARD_DURATION = 0.42;
 const LINE_DELAY = 0.3;
 const LINE_DURATION = 0.28;
 const CARD_ROTATION = [-6, 6, -4];
-/** Let the phone finish rising before the cards start. */
-const MIN_DELAY_AFTER_MOUNT_MS = 1100;
+/** Let the phone finish rising in before the cards can appear. */
+const MIN_DELAY_AFTER_MOUNT_MS = 1600;
 
 type Measured = {
   width: number;
@@ -71,8 +71,6 @@ export function MobileHero({ creative, reduced }: { creative: DemoCreative; redu
   const measuredRef = useRef<Measured | null>(null);
   const progressRef = useRef(0);
   const [measured, setMeasured] = useState<Measured | null>(null);
-  const [detailsOpen, setDetailsOpen] = useState(false);
-  const detailsId = useId();
 
   // ── one progress value (0 → 1) drives cards + lines, transform/opacity only ──
   const apply = useCallback(
@@ -158,47 +156,59 @@ export function MobileHero({ creative, reduced }: { creative: DemoCreative; redu
     return () => ro.disconnect();
   }, [measure]);
 
-  // ── play the sequence once, when the scene is in view ──
+  // ── scroll-linked and reversible, like desktop ──
+  // Progress follows the scroll position: scrolling down reveals green → red →
+  // purple (lines drawing after each card); scrolling back up reverses it.
+  // A short critically-damped smoothing step keeps touch scrolling fluid.
   useEffect(() => {
     if (reduced) {
       apply(1);
       return;
     }
     const mountedAt = performance.now();
+    let target = 0;
+    let current = progressRef.current;
     let raf = 0;
-    let timer = 0;
-    let started = false;
-    const play = () => {
-      if (started) return;
-      started = true;
-      const wait = Math.max(0, MIN_DELAY_AFTER_MOUNT_MS - (performance.now() - mountedAt));
-      timer = window.setTimeout(() => {
-        const t0 = performance.now();
-        const tick = (now: number) => {
-          const t = clamp01((now - t0) / SEQUENCE_MS);
-          apply(t);
-          if (t < 1) raf = requestAnimationFrame(tick);
-        };
-        raf = requestAnimationFrame(tick);
-      }, wait);
+    let last = 0;
+    let riseTimer = 0;
+
+    const readTarget = () => {
+      const scene = sceneRef.current;
+      if (!scene) return 0;
+      // Hold the cards back until the phone has finished rising in.
+      if (performance.now() - mountedAt < MIN_DELAY_AFTER_MOUNT_MS) return 0;
+      const vh = window.innerHeight;
+      const sceneDocTop = scene.getBoundingClientRect().top + window.scrollY;
+      const start = Math.max(0, sceneDocTop - vh * 0.7);
+      // about two-thirds of a screen of scrolling plays the whole sequence
+      const range = Math.min(560, Math.max(300, vh * 0.6));
+      return clamp01((window.scrollY - start) / range);
     };
-    if (!("IntersectionObserver" in window)) {
-      apply(1);
-      return;
-    }
-    const io = new IntersectionObserver(
-      (entries) => {
-        if (entries.some((e) => e.isIntersecting)) {
-          io.disconnect();
-          play();
-        }
-      },
-      { threshold: 0.35 }
-    );
-    if (sceneRef.current) io.observe(sceneRef.current);
+
+    const step = (now: number) => {
+      const dt = last ? Math.min(64, now - last) : 16;
+      last = now;
+      const k = 1 - Math.exp(-dt / SMOOTHING_MS);
+      current += (target - current) * k;
+      if (Math.abs(target - current) < 0.0008) current = target;
+      apply(current);
+      raf = current === target ? 0 : requestAnimationFrame(step);
+      if (!raf) last = 0;
+    };
+
+    const update = () => {
+      target = readTarget();
+      if (!raf && target !== current) raf = requestAnimationFrame(step);
+    };
+
+    update();
+    riseTimer = window.setTimeout(update, MIN_DELAY_AFTER_MOUNT_MS + 20);
+    window.addEventListener("scroll", update, { passive: true });
+    window.addEventListener("resize", update);
     return () => {
-      io.disconnect();
-      clearTimeout(timer);
+      window.removeEventListener("scroll", update);
+      window.removeEventListener("resize", update);
+      clearTimeout(riseTimer);
       cancelAnimationFrame(raf);
     };
   }, [reduced, apply]);
@@ -299,40 +309,10 @@ export function MobileHero({ creative, reduced }: { creative: DemoCreative; redu
         )}
       </div>
 
-      {/* full explanations, one tap away */}
+      {/* the complete report, one tap away */}
       <div className="relative z-10 mx-auto mt-4 max-w-[560px] px-[var(--g,12px)] text-center">
-        <button
-          type="button"
-          onClick={() => setDetailsOpen((v) => !v)}
-          aria-expanded={detailsOpen}
-          aria-controls={detailsId}
-          className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-[12px] font-medium text-white/80 backdrop-blur transition-colors hover:border-brand/40 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/70"
-        >
-          {detailsOpen ? "Hide full analysis" : "Show full analysis"}
-          <ChevronDown size={14} className={`transition-transform duration-200 ${detailsOpen ? "rotate-180" : ""}`} />
-        </button>
+        <FullAnalysisButton creative={creative} />
         <p className="mx-auto mt-3 max-w-[320px] text-[11px] leading-snug text-white/40">{creative.analysis.disclaimer}</p>
-
-        <div id={detailsId} hidden={!detailsOpen} className="mx-4 mt-4 text-left">
-          <div className="rounded-[18px] border border-white/[0.08] bg-white/[0.03] p-4 backdrop-blur">
-            {cards.map((card) => {
-              const tone = TONE[card.tone];
-              return (
-                <section key={card.id} className="py-2 first:pt-0 last:pb-0">
-                  <h3 className={`text-[11px] font-semibold uppercase tracking-[0.14em] ${tone.text}`}>{card.title}</h3>
-                  <ul className="mt-2 space-y-2">
-                    {card.findings.map((f) => (
-                      <li key={f.label} className="text-[13px] leading-[1.45]">
-                        <span className="font-medium text-white">{f.label}</span>
-                        <span className="text-white/60"> — {f.detail}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </section>
-              );
-            })}
-          </div>
-        </div>
       </div>
 
       {/* without JavaScript the cards are simply shown in place */}

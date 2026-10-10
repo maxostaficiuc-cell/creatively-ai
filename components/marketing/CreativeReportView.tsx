@@ -19,29 +19,39 @@ import { ScoreRing } from "@/components/marketing/ScoreRing";
 import { ButtonLink } from "@/components/ui/Button";
 import type { CreativeReport } from "@/lib/analyzeCreative";
 
-const VERDICT_TONE: Record<CreativeReport["final_recommendation"]["verdict"], string> = {
+export const VERDICT_TONE: Record<CreativeReport["final_recommendation"]["verdict"], string> = {
   YES: "border-accent-green/40 text-accent-green bg-accent-green/10",
   "YES — WITH CHANGES": "border-brand/40 text-brand-light bg-brand/10",
   "TEST FIRST": "border-orange-400/40 text-orange-400 bg-orange-400/10",
   "NO — REWORK REQUIRED": "border-accent-red/40 text-accent-red bg-accent-red/10",
 };
 
-function Section({
+export function Section({
   title,
   icon,
   children,
   defaultOpen = true,
+  id,
+  open: controlledOpen,
+  onToggle,
 }: {
   title: string;
   icon: React.ReactNode;
   children: React.ReactNode;
   defaultOpen?: boolean;
+  /** Optional: anchor id (used by the full-analysis report's section navigation). */
+  id?: string;
+  /** Optional controlled mode. */
+  open?: boolean;
+  onToggle?: () => void;
 }) {
-  const [open, setOpen] = useState(defaultOpen);
+  const [uncontrolledOpen, setOpen] = useState(defaultOpen);
+  const open = controlledOpen ?? uncontrolledOpen;
   return (
-    <div className="rounded-2xl border border-base-border bg-base-card">
+    <div id={id} className="scroll-mt-4 rounded-2xl border border-base-border bg-base-card">
       <button
-        onClick={() => setOpen(!open)}
+        onClick={() => (onToggle ? onToggle() : setOpen(!open))}
+        aria-expanded={open}
         className="flex w-full items-center justify-between gap-3 p-5 text-left"
       >
         <span className="flex items-center gap-2.5 text-sm font-medium text-ink-primary">
