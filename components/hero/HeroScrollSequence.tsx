@@ -7,6 +7,7 @@ import { ConnectorLines, type ConnectorLine, type ConnectorLinesHandle } from "@
 import { HeroHeadline } from "@/components/hero/HeroHeadline";
 import { HeroAmbient } from "@/components/hero/HeroAmbient";
 import { MobileHero } from "@/components/hero/MobileHero";
+import { FullAnalysisButton } from "@/components/hero/FullAnalysisButton";
 import type { AdNaturalSize } from "@/components/hero/PhoneScreenAd";
 import { handPhoneCssVars } from "@/lib/heroDemo";
 import { HERO_CREATIVE, type DemoCreative } from "@/lib/demoCreative";
@@ -88,7 +89,7 @@ function DesktopHero({ creative, reduced }: { creative: DemoCreative; reduced: b
   const adRef = useRef<HTMLImageElement>(null);
   const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
   const linesRef = useRef<ConnectorLinesHandle>(null);
-  const disclaimerRef = useRef<HTMLParagraphElement>(null);
+  const disclaimerRef = useRef<HTMLDivElement>(null);
   const adSize = useRef<AdNaturalSize | null>(null);
   const measuredRef = useRef<Measured | null>(null);
   const progressRef = useRef(reduced ? 1 : 0);
@@ -139,7 +140,10 @@ function DesktopHero({ creative, reduced }: { creative: DemoCreative; reduced: b
       });
 
       if (disclaimerRef.current) {
-        disclaimerRef.current.style.opacity = String(clamp01((p - 0.5) / 0.2));
+        const o = clamp01((p - 0.5) / 0.2);
+        disclaimerRef.current.style.opacity = String(o);
+        // not focusable or clickable while hidden
+        disclaimerRef.current.style.visibility = o <= 0 ? "hidden" : "visible";
       }
     },
     [cards]
@@ -346,18 +350,19 @@ function DesktopHero({ creative, reduced }: { creative: DemoCreative; reduced: b
             />
           )}
 
-          <p
+          <div
             ref={disclaimerRef}
-            className="absolute bottom-[3vh] left-[var(--card-inset)] z-[36] max-w-[var(--card-w)] text-[11px] leading-snug text-white/40"
-            style={{ opacity: reduced ? 1 : 0 }}
+            className="hero-desktop-note absolute bottom-[3vh] left-[var(--card-inset)] z-[36] flex max-w-[var(--card-w)] flex-col items-start gap-2.5"
+            style={reduced ? undefined : { opacity: 0, visibility: "hidden" }}
           >
-            {creative.analysis.disclaimer}
-          </p>
+            <FullAnalysisButton creative={creative} />
+            <p className="text-[11px] leading-snug text-white/40">{creative.analysis.disclaimer}</p>
+          </div>
         </div>
 
         {/* without JavaScript the cards are shown in their final layout */}
         <noscript>
-          <style>{`.hero-desktop-card{opacity:1!important;visibility:visible!important}`}</style>
+          <style>{`.hero-desktop-card,.hero-desktop-note{opacity:1!important;visibility:visible!important}`}</style>
         </noscript>
 
         {/* soft fade into the next section */}
