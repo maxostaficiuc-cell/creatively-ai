@@ -3,6 +3,7 @@
 import { forwardRef, useEffect, useRef, useState } from "react";
 import { HAND_PHONE_ASSET } from "@/lib/heroDemo";
 import { PhoneScreenAd, type AdNaturalSize } from "@/components/hero/PhoneScreenAd";
+import type { DemoCreative } from "@/lib/demoCreative";
 
 /*
  * The hand + phone is built from two independent, same-sized layers that the
@@ -22,6 +23,11 @@ import { PhoneScreenAd, type AdNaturalSize } from "@/components/hero/PhoneScreen
 
 const aspectStyle = { aspectRatio: `${HAND_PHONE_ASSET.aspect}` };
 
+// Studio photos are rarely pure black right to the frame edge; feathering the
+// edges removes any visible rectangle where the photo meets the page.
+const FEATHER = "radial-gradient(ellipse 72% 78% at 50% 46%, #000 58%, transparent 100%)";
+const photoFeather: React.CSSProperties = { WebkitMaskImage: FEATHER, maskImage: FEATHER };
+
 export function HandPhoto({ className }: { className?: string }) {
   const [sourceIndex, setSourceIndex] = useState(0);
   const exhausted = sourceIndex >= HAND_PHONE_ASSET.sources.length;
@@ -35,7 +41,7 @@ export function HandPhoto({ className }: { className?: string }) {
   }, [sourceIndex]);
 
   return (
-    <div className={`relative select-none ${className || ""}`} style={aspectStyle}>
+    <div className={`relative select-none ${className || ""}`} style={{ ...aspectStyle, ...photoFeather }}>
       {exhausted ? (
         <MissingHandNotice />
       ) : (
@@ -59,8 +65,13 @@ export function HandPhoto({ className }: { className?: string }) {
 
 export const PhoneScreenLayer = forwardRef<
   HTMLImageElement,
-  { className?: string; onAdLoad?: (size: AdNaturalSize) => void; screenRef?: React.Ref<HTMLDivElement> }
->(function PhoneScreenLayer({ className, onAdLoad, screenRef }, adRef) {
+  {
+    image: DemoCreative["image"];
+    className?: string;
+    onAdLoad?: (size: AdNaturalSize) => void;
+    screenRef?: React.Ref<HTMLDivElement>;
+  }
+>(function PhoneScreenLayer({ image, className, onAdLoad, screenRef }, adRef) {
   const { screen } = HAND_PHONE_ASSET;
   return (
     <div className={`relative ${className || ""}`} style={aspectStyle}>
@@ -76,7 +87,7 @@ export const PhoneScreenLayer = forwardRef<
           boxShadow: "inset 0 0 0 1px rgba(255,255,255,0.04)",
         }}
       >
-        <PhoneScreenAd ref={adRef} onAdLoad={onAdLoad} />
+        <PhoneScreenAd ref={adRef} image={image} onAdLoad={onAdLoad} />
         {/* faint glass reflection so the display reads as glass, not a flat box */}
         <div
           aria-hidden
@@ -114,7 +125,7 @@ function MissingHandNotice() {
         style={{ top: `${screen.top + screen.height + 4}%` }}
       >
         <p className="text-[11px] font-medium text-white/65">Hand photo placeholder</p>
-        <p className="font-mono text-[10px] text-white/40">public/images/hero-hand-phone.png</p>
+        <p className="font-mono text-[10px] text-white/40">public/images/hero-hand-phone.jpg</p>
       </div>
     </div>
   );

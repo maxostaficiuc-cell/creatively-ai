@@ -2,7 +2,7 @@
 
 import { forwardRef, useImperativeHandle, useRef } from "react";
 import { TONE } from "@/components/hero/AnalysisCard";
-import type { AnalysisTone } from "@/lib/heroDemo";
+import type { AnalysisTone } from "@/lib/demoCreative";
 
 export type ConnectorLine = {
   id: string;

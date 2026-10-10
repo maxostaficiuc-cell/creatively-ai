@@ -1,40 +1,45 @@
-# Homepage hero — image files
+# Homepage hero — the demo creative
 
-The cinematic hero uses two image files. Both live in `public/images/`.
-Neither is embedded in the code, so you can swap either one without touching
-the animation.
+## One source of truth: `lib/demoCreative.ts`
 
-| File | What it is | Shown where |
-|---|---|---|
-| `public/images/hero-hand-phone.png` | Photoreal hand holding a phone, **black background**, 1024 × 1536 (2:3). `.jpg`, `.jpeg` or `.webp` also work — the first one found is used. | The hand + phone that rises from the bottom |
-| `public/images/creatively-demo-ad.png` | Your exact Everyday Dose ad, unchanged | Inside the phone screen (never cropped — `object-fit: contain`) |
+The ad shown in the phone **and** the three analysis cards come from a single
+object, `BUFFY_DEMO` (id `buffy-bedding-demo`), exported as `HERO_CREATIVE`.
+Desktop (`HeroScrollSequence`) and mobile (`MobileHero`) both receive that same
+object, so they can never show different ads or analysis for the wrong ad.
 
-If a file is missing, the site shows a clearly labelled placeholder in its place
-instead of breaking.
+To change the demo, edit or replace that object:
 
-## Everything you might want to tweak is in `lib/heroDemo.ts`
+- `image.src / width / height / alt` – the creative file and its real pixel size.
+- `analysis.cards` – What's great / What's not great / What to test. Each finding
+  has a short `label` and a one-sentence `detail`.
+- `analysis.cards[n].anchor` – where that card's line touches the ad on desktop,
+  as fractions of the image (x: 0 = left → 1 = right, y: 0 = top → 1 = bottom).
+  Anchors sit on empty background next to the element being discussed, so lines
+  never run across the ad's text.
+- `analysis.disclaimer` – shown next to the demo. The findings are visual creative
+  observations of the image, not campaign performance data.
 
-- `DEMO_AD_IMAGE.src` – path of the ad shown on the phone.
-- `HAND_PHONE_ASSET.screen` – where the phone's display sits inside the hand
-  photo (percentages). Only change these if you replace the hand photo with a
-  different one.
-- `heroAnalysis` – the three cards (What's great / What's not great / What to
-  test). These are hand-written, illustrative creative observations — not AI
-  output and not performance data.
-- `heroAnalysis[n].anchors` – where each card's glowing line lands on the ad,
-  as fractions of the ad image (`x: 0` = left edge, `x: 1` = right edge,
-  `y: 0` = top, `y: 1` = bottom). Nudge these once your real ad is in place so
-  the lines point at the price, gifts, labels, etc.
+## Image files (`public/images/`)
 
-## Components
+| File | What it is |
+|---|---|
+| `buffy-ad-creative.png` | The Buffy ad, exactly as supplied (338 × 600). Shown with `object-fit: contain` — never cropped or stretched. Portrait ads fill the phone like a Story; the letterbox is a blur of the same image. |
+| `hero-hand-phone.jpg` | Photoreal hand holding the phone, black background, 1024 × 1536. |
 
-- `components/hero/HeroScrollSequence.tsx` – desktop scroll choreography (pinned ~150vh)
-- `components/hero/MobileHero.tsx` – phones/tablets: stacked cards, simpler motion
-- `components/hero/HandPhone.tsx` – hand photo layer + phone screen layer
-- `components/hero/PhoneScreenAd.tsx` – the ad inside the screen + placeholder
-- `components/hero/AnalysisCard.tsx` – green / red / purple glass cards
-- `components/hero/ConnectorLines.tsx` – the glowing lines and anchor dots
-- `components/hero/HeroHeadline.tsx`, `HeroAmbient.tsx` – headline/CTAs, background light
-- `components/marketing/CapabilitiesSection.tsx` – "Your ads have potential" section (`#how-it-works`)
+Screen position of the phone inside the hand photo: `HAND_PHONE_ASSET.screen` in
+`lib/heroDemo.ts`. Only change it if you replace the hand photo.
 
-Respects `prefers-reduced-motion` (no pinning, everything shown in its final state).
+Missing files show a clearly labelled placeholder instead of breaking the page.
+
+## Components (`components/hero/`)
+
+- `HeroScrollSequence.tsx` – desktop (≥ 1024px): pinned scroll sequence (~150vh).
+- `MobileHero.tsx` – phones/tablets: phone + compact cards on an animated "analysis thread".
+- `HandPhone.tsx` – hand photo layer + phone screen layer.
+- `PhoneScreenAd.tsx` – the creative inside the screen (Story or feed framing).
+- `AnalysisCard.tsx` – green / red / purple cards (`full` and `compact` variants).
+- `ConnectorLines.tsx` – desktop connector lines and anchor dots.
+- `HeroHeadline.tsx`, `HeroAmbient.tsx` – headline/CTAs and background light.
+
+Respects `prefers-reduced-motion` (no pinning; everything shown in its final
+state) and works with JavaScript disabled (cards shown via `<noscript>` styles).

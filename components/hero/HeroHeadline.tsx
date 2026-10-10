@@ -8,11 +8,11 @@ export const HeroHeadline = forwardRef<HTMLDivElement, { className?: string; sty
   function HeroHeadline({ className, style }, ref) {
     return (
       <div ref={ref} className={`mx-auto max-w-[1080px] px-6 text-center ${className || ""}`} style={style}>
-        <p className="animate-fade-in-up text-[11px] font-medium uppercase tracking-[0.28em] text-brand-light/90">
+        <p className="animate-fade-in-up text-[10px] font-medium uppercase tracking-[0.2em] min-[360px]:tracking-[0.24em] text-brand-light/90 sm:text-[11px] sm:tracking-[0.28em]">
           AI creative analysis for advertisers
         </p>
         <h1
-          className="mt-5 animate-fade-in-up text-[clamp(34px,5.2vw,72px)] font-semibold uppercase leading-[1.02] tracking-[-0.025em] text-white"
+          className="mx-auto mt-4 max-w-[19ch] animate-fade-in-up text-balance text-[clamp(27px,8vw,42px)] font-semibold uppercase leading-[1.04] tracking-[-0.02em] text-white sm:mt-5 sm:max-w-none sm:text-[clamp(40px,5.2vw,72px)] sm:leading-[1.02] sm:tracking-[-0.025em]"
           style={{ animationDelay: "60ms" }}
         >
           Know what&apos;s wrong with your ad{" "}
@@ -21,22 +21,22 @@ export const HeroHeadline = forwardRef<HTMLDivElement, { className?: string; sty
           </span>
         </h1>
         <p
-          className="mx-auto mt-6 max-w-[560px] animate-fade-in-up text-[clamp(15px,1.25vw,18px)] leading-relaxed text-[#9A9AA5]"
+          className="mx-auto mt-4 max-w-[330px] animate-fade-in-up text-pretty text-[15px] leading-relaxed text-[#9A9AA5] sm:mt-6 sm:max-w-[560px] sm:text-[clamp(15px,1.25vw,18px)]"
           style={{ animationDelay: "120ms" }}
         >
           Upload your ad and discover what&apos;s working, what&apos;s holding it back, and exactly what to test next.
         </p>
         <div
-          className="mt-8 flex animate-fade-in-up flex-col items-center justify-center gap-3 sm:flex-row"
+          className="mx-auto mt-6 flex max-w-[360px] animate-fade-in-up flex-col items-stretch justify-center gap-2.5 sm:mt-8 sm:max-w-none sm:flex-row sm:items-center sm:gap-3"
           style={{ animationDelay: "180ms" }}
         >
-          <GetFreeReportButton className="w-full px-7 py-3.5 text-[13px] font-semibold uppercase tracking-[0.08em] sm:w-auto">
+          <GetFreeReportButton className="w-full px-7 py-3.5 text-[13px] font-semibold uppercase tracking-[0.08em] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/70 sm:w-auto">
             Get your free report <ArrowRight size={15} />
           </GetFreeReportButton>
           <ButtonLink
             href="#winning-ads"
             variant="secondary"
-            className="w-full border-white/10 bg-white/[0.04] px-7 py-3.5 text-[13px] font-semibold uppercase tracking-[0.08em] backdrop-blur sm:w-auto"
+            className="w-full border-white/10 bg-white/[0.04] px-7 py-3 text-[12.5px] font-semibold uppercase tracking-[0.08em] backdrop-blur focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/70 sm:w-auto sm:py-3.5 sm:text-[13px]"
           >
             Explore winning ads
           </ButtonLink>
