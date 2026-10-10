@@ -1,90 +1,344 @@
 "use client";
 
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useId, useLayoutEffect, useRef, useState } from "react";
+import { ChevronDown } from "lucide-react";
 import { HandPhoto, PhoneScreenLayer } from "@/components/hero/HandPhone";
-import { AnalysisCard } from "@/components/hero/AnalysisCard";
+import { AnalysisCard, TONE } from "@/components/hero/AnalysisCard";
+import { ConnectorLines, type ConnectorLine, type ConnectorLinesHandle } from "@/components/hero/ConnectorLines";
 import { HeroHeadline } from "@/components/hero/HeroHeadline";
 import { HeroAmbient } from "@/components/hero/HeroAmbient";
-import { HERO_DISCLAIMER, heroAnalysis } from "@/lib/heroDemo";
+import type { AdNaturalSize } from "@/components/hero/PhoneScreenAd";
+import { handPhoneCssVars } from "@/lib/heroDemo";
+import type { DemoCreative } from "@/lib/demoCreative";
 
-/**
- * Phones and tablets (< 1024px): no pinning. The hand and phone rise in on
- * load, then the three cards stack vertically and fade up as they scroll into
- * view. Same data, same components, simpler motion.
+/*
+ * Phones and tablets (< 1024px): the desktop scene, scaled down.
+ *
+ * Same pieces, same arrangement as desktop — hand + phone in the centre, the
+ * green card upper-left, red to the right, purple lower-left, glowing lines
+ * from each card to the same point on the ad — just sized for a narrow screen
+ * with CSS variables (see `.m-scene` in globals.css). Cards show their short
+ * labels; the full explanations sit behind "Show full analysis" below.
+ *
+ * Animation mirrors desktop: the phone rises in, then the cards emerge from
+ * behind the phone in order and their lines draw. Because there is no pinning
+ * on mobile, the sequence plays once (time-based) when the scene scrolls into
+ * view, so it can never be left half-finished.
  */
-export function MobileHero({ reduced }: { reduced: boolean }) {
-  const listRef = useRef<HTMLDivElement>(null);
+
+const useIsoLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
+const clamp01 = (v: number) => Math.min(1, Math.max(0, v));
+const easeOutCubic = (t: number) => 1 - Math.pow(1 - t, 3);
+
+const SEQUENCE_MS = 1700;
+const CARD_STARTS = [0, 0.2, 0.4];
+const CARD_DURATION = 0.42;
+const LINE_DELAY = 0.3;
+const LINE_DURATION = 0.28;
+const CARD_ROTATION = [-6, 6, -4];
+/** Let the phone finish rising before the cards start. */
+const MIN_DELAY_AFTER_MOUNT_MS = 1100;
+
+type Measured = {
+  width: number;
+  height: number;
+  lines: ConnectorLine[];
+  deltas: { dx: number; dy: number }[];
+};
+
+function offsetWithin(el: HTMLElement, root: HTMLElement) {
+  let x = 0;
+  let y = 0;
+  let node: HTMLElement | null = el;
+  while (node && node !== root) {
+    x += node.offsetLeft;
+    y += node.offsetTop;
+    node = node.offsetParent as HTMLElement | null;
+  }
+  return { x, y, w: el.offsetWidth, h: el.offsetHeight };
+}
+
+export function MobileHero({ creative, reduced }: { creative: DemoCreative; reduced: boolean }) {
+  const cards = creative.analysis.cards;
+  const [green, red, purple] = cards;
+
+  const sceneRef = useRef<HTMLDivElement>(null);
+  const screenRef = useRef<HTMLDivElement>(null);
+  const adRef = useRef<HTMLImageElement>(null);
+  const adSize = useRef<AdNaturalSize | null>(null);
+  const cardRefs = useRef<(HTMLDivElement | null)[]>([]);
+  const linesRef = useRef<ConnectorLinesHandle>(null);
+  const measuredRef = useRef<Measured | null>(null);
+  const progressRef = useRef(0);
+  const [measured, setMeasured] = useState<Measured | null>(null);
+  const [detailsOpen, setDetailsOpen] = useState(false);
+  const detailsId = useId();
+
+  // ── one progress value (0 → 1) drives cards + lines, transform/opacity only ──
+  const apply = useCallback(
+    (t: number) => {
+      progressRef.current = t;
+      const deltas = measuredRef.current?.deltas;
+      cards.forEach((card, i) => {
+        const el = cardRefs.current[i];
+        if (!el) return;
+        const e = easeOutCubic(clamp01((t - CARD_STARTS[i]) / CARD_DURATION));
+        const d = deltas?.[i] ?? { dx: 0, dy: 0 };
+        const k = (1 - e) * 0.9;
+        el.style.transform = `translate3d(${d.dx * k}px, ${d.dy * k}px, 0) scale(${0.7 + 0.3 * e}) rotate(${
+          (1 - e) * CARD_ROTATION[i]
+        }deg)`;
+        el.style.opacity = String(clamp01((e - 0.1) / 0.5));
+        el.style.visibility = e <= 0 ? "hidden" : "visible";
+        // behind the phone while emerging, in front once clear of it
+        el.style.zIndex = e > 0.55 ? "25" : "5";
+        linesRef.current?.setProgress(card.id, (t - CARD_STARTS[i] - LINE_DELAY) / LINE_DURATION);
+      });
+    },
+    [cards]
+  );
+
+  // ── measure final layout → connector endpoints + "emerge from the phone" offsets ──
+  const measure = useCallback(() => {
+    const scene = sceneRef.current;
+    const screen = screenRef.current;
+    if (!scene || !screen) return;
+    const s = offsetWithin(screen, scene);
+    const screenCx = s.x + s.w / 2;
+    const screenCy = s.y + s.h / 2;
+
+    let ad = { x: s.x, y: s.y, w: s.w, h: s.h };
+    const img = adRef.current;
+    const nat = adSize.current;
+    if (img && img.isConnected && nat?.width) {
+      const box = offsetWithin(img, scene);
+      const scale = Math.min(box.w / nat.width, box.h / nat.height);
+      const w = nat.width * scale;
+      const h = nat.height * scale;
+      ad = { x: box.x + (box.w - w) / 2, y: box.y + (box.h - h) / 2, w, h };
+    }
+    const anchor = (i: number) => ({ x: ad.x + cards[i].anchor.x * ad.w, y: ad.y + cards[i].anchor.y * ad.h });
+
+    const rects = cardRefs.current.map((el) => (el ? offsetWithin(el, scene) : null));
+    const deltas = rects.map((c) => (c ? { dx: screenCx - (c.x + c.w / 2), dy: screenCy - (c.y + c.h / 2) } : { dx: 0, dy: 0 }));
+
+    const lines: ConnectorLine[] = [];
+    const [g, r, p] = rects;
+    if (g) {
+      // green sits above the phone: drop from its lower edge to the logo
+      const to = anchor(0);
+      const x = Math.min(Math.max(to.x, g.x + 24), g.x + g.w - 24);
+      lines.push({ id: cards[0].id, tone: cards[0].tone, axis: "y", from: { x, y: g.y + g.h }, to });
+    }
+    if (r) {
+      // red sits right of the phone: rise from its upper edge to the end of the headline
+      lines.push({ id: cards[1].id, tone: cards[1].tone, axis: "y", from: { x: r.x + 18, y: r.y }, to: anchor(1) });
+    }
+    if (p) {
+      // purple sits below-left: rise from its upper edge, outside the screen, to the benefit list
+      const to = anchor(2);
+      const x = Math.min(Math.max(s.x - 16, p.x + 20), p.x + p.w - 20);
+      lines.push({ id: cards[2].id, tone: cards[2].tone, axis: "y", from: { x, y: p.y }, to });
+    }
+
+    const next = { width: scene.offsetWidth, height: scene.offsetHeight, lines, deltas };
+    measuredRef.current = next;
+    setMeasured(next);
+  }, [cards]);
+
+  useIsoLayoutEffect(() => {
+    apply(progressRef.current);
+  }, [measured, apply]);
 
   useEffect(() => {
-    const items = Array.from(listRef.current?.querySelectorAll<HTMLElement>(".hero-reveal") ?? []);
-    if (reduced || !("IntersectionObserver" in window)) {
-      items.forEach((el) => el.classList.add("is-visible"));
+    measure();
+    const ro = new ResizeObserver(() => measure());
+    if (sceneRef.current) ro.observe(sceneRef.current);
+    document.fonts?.ready.then(() => measure()).catch(() => {});
+    return () => ro.disconnect();
+  }, [measure]);
+
+  // ── play the sequence once, when the scene is in view ──
+  useEffect(() => {
+    if (reduced) {
+      apply(1);
+      return;
+    }
+    const mountedAt = performance.now();
+    let raf = 0;
+    let timer = 0;
+    let started = false;
+    const play = () => {
+      if (started) return;
+      started = true;
+      const wait = Math.max(0, MIN_DELAY_AFTER_MOUNT_MS - (performance.now() - mountedAt));
+      timer = window.setTimeout(() => {
+        const t0 = performance.now();
+        const tick = (now: number) => {
+          const t = clamp01((now - t0) / SEQUENCE_MS);
+          apply(t);
+          if (t < 1) raf = requestAnimationFrame(tick);
+        };
+        raf = requestAnimationFrame(tick);
+      }, wait);
+    };
+    if (!("IntersectionObserver" in window)) {
+      apply(1);
       return;
     }
     const io = new IntersectionObserver(
       (entries) => {
-        entries.forEach((e) => {
-          if (e.isIntersecting) {
-            e.target.classList.add("is-visible");
-            io.unobserve(e.target);
-          }
-        });
+        if (entries.some((e) => e.isIntersecting)) {
+          io.disconnect();
+          play();
+        }
       },
-      { rootMargin: "0px 0px -12% 0px", threshold: 0.15 }
+      { threshold: 0.35 }
     );
-    items.forEach((el) => io.observe(el));
-    return () => io.disconnect();
-  }, [reduced]);
+    if (sceneRef.current) io.observe(sceneRef.current);
+    return () => {
+      io.disconnect();
+      clearTimeout(timer);
+      cancelAnimationFrame(raf);
+    };
+  }, [reduced, apply]);
+
+  const hidden: React.CSSProperties = reduced ? {} : { opacity: 0, visibility: "hidden" };
 
   return (
     <section
       id="top-mobile"
-      aria-label="Creatively.ai — example ad analysis"
-      className="relative overflow-hidden bg-[#08080B] pb-20 pt-28 lg:hidden"
+      aria-label={`Example: visual analysis of a ${creative.brand} ad`}
+      className="relative overflow-hidden bg-[#08080B] pb-14 pt-[88px] lg:hidden"
     >
       <HeroAmbient />
 
       <HeroHeadline className="relative z-10" />
 
-      {/* hand + phone: the photo is cropped at the wrist and fades into the page */}
-      <div
-        className="relative mt-10 w-full overflow-hidden"
-        style={{
-          // photo is rendered wider than the screen so the phone itself reads large; crop at the wrist
-          height: "calc(var(--m-photo-w) * 1.02)",
-          ["--m-photo-w" as string]: "min(168vw, 780px)",
-          WebkitMaskImage: "linear-gradient(to bottom, black 80%, transparent 100%)",
-          maskImage: "linear-gradient(to bottom, black 80%, transparent 100%)",
-        }}
-      >
-        {/* backdrop inside the masked group so the photo's black blends into page colour + halo */}
+      {/* ── the scene: desktop composition, scaled for a narrow screen ── */}
+      <div ref={sceneRef} className="m-scene relative mx-auto mt-7 w-full max-w-[560px]" style={handPhoneCssVars() as React.CSSProperties}>
+        {/* hand photo — blended so its black background disappears; clipped to the scene and faded out */}
         <div
           aria-hidden
-          className="absolute inset-0 bg-[#08080B]"
-          style={{ backgroundImage: "radial-gradient(circle at 50% 42%, rgba(124,58,237,0.24), transparent 58%)" }}
-        />
-        <div
-          className={`absolute top-0 mix-blend-lighten ${reduced ? "" : "hero-rise"}`}
-          style={{ width: "var(--m-photo-w)", left: "calc(50% - var(--m-photo-w) / 2)" }}
+          className="pointer-events-none absolute inset-0 overflow-hidden mix-blend-lighten"
+          style={{
+            WebkitMaskImage: "linear-gradient(to bottom, black 78%, transparent 100%)",
+            maskImage: "linear-gradient(to bottom, black 78%, transparent 100%)",
+          }}
         >
-          <HandPhoto className="w-full" />
+          <div className="absolute" style={{ width: "var(--photo-w)", left: "calc(50% - var(--photo-w) / 2)", top: "var(--photo-top)" }}>
+            <div className={reduced ? "" : "hero-rise"}>
+              <HandPhoto className="w-full" />
+            </div>
+          </div>
         </div>
+
+        {/* phone display — the Buffy ad, never blended */}
         <div
-          className={`absolute top-0 ${reduced ? "" : "hero-rise"}`}
-          style={{ width: "var(--m-photo-w)", left: "calc(50% - var(--m-photo-w) / 2)" }}
+          className="pointer-events-none absolute z-[12]"
+          style={{ width: "var(--photo-w)", left: "calc(50% - var(--photo-w) / 2)", top: "var(--photo-top)" }}
         >
-          <PhoneScreenLayer className="w-full" />
+          <div className={reduced ? "" : "hero-rise"}>
+            <PhoneScreenLayer
+              ref={adRef}
+              screenRef={screenRef}
+              image={creative.image}
+              className="w-full"
+              onAdLoad={(size) => {
+                adSize.current = size;
+                measure();
+              }}
+            />
+          </div>
+        </div>
+
+        {/* green — upper left */}
+        <AnalysisCard
+          ref={(el) => {
+            cardRefs.current[0] = el;
+          }}
+          card={green}
+          variant="mini"
+          className="m-hero-card absolute will-change-transform"
+          style={{ ...hidden, left: "var(--g)", top: "0px", width: "var(--green-w)" }}
+        />
+        {/* red — right */}
+        <AnalysisCard
+          ref={(el) => {
+            cardRefs.current[1] = el;
+          }}
+          card={red}
+          variant="mini"
+          className="m-hero-card absolute will-change-transform"
+          style={{ ...hidden, right: "var(--g)", top: "var(--red-top)", width: "var(--red-w)" }}
+        />
+
+        {/* reserves the phone's height; purple then sits in flow below-left, so the scene height is exact */}
+        <div aria-hidden style={{ height: "var(--purple-top)" }} />
+
+        {/* purple — lower left */}
+        <AnalysisCard
+          ref={(el) => {
+            cardRefs.current[2] = el;
+          }}
+          card={purple}
+          variant="mini"
+          className="m-hero-card will-change-transform"
+          style={{ ...hidden, marginLeft: "var(--g)", width: "var(--purple-w)" }}
+        />
+        <div aria-hidden className="h-[var(--scene-tail)]" />
+
+        {measured && (
+          <ConnectorLines
+            ref={linesRef}
+            lines={measured.lines}
+            width={measured.width}
+            height={measured.height}
+            className="z-[30]"
+          />
+        )}
+      </div>
+
+      {/* full explanations, one tap away */}
+      <div className="relative z-10 mx-auto mt-4 max-w-[560px] px-[var(--g,12px)] text-center">
+        <button
+          type="button"
+          onClick={() => setDetailsOpen((v) => !v)}
+          aria-expanded={detailsOpen}
+          aria-controls={detailsId}
+          className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-white/[0.04] px-4 py-2 text-[12px] font-medium text-white/80 backdrop-blur transition-colors hover:border-brand/40 hover:text-white focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/70"
+        >
+          {detailsOpen ? "Hide full analysis" : "Show full analysis"}
+          <ChevronDown size={14} className={`transition-transform duration-200 ${detailsOpen ? "rotate-180" : ""}`} />
+        </button>
+        <p className="mx-auto mt-3 max-w-[320px] text-[11px] leading-snug text-white/40">{creative.analysis.disclaimer}</p>
+
+        <div id={detailsId} hidden={!detailsOpen} className="mx-4 mt-4 text-left">
+          <div className="rounded-[18px] border border-white/[0.08] bg-white/[0.03] p-4 backdrop-blur">
+            {cards.map((card) => {
+              const tone = TONE[card.tone];
+              return (
+                <section key={card.id} className="py-2 first:pt-0 last:pb-0">
+                  <h3 className={`text-[11px] font-semibold uppercase tracking-[0.14em] ${tone.text}`}>{card.title}</h3>
+                  <ul className="mt-2 space-y-2">
+                    {card.findings.map((f) => (
+                      <li key={f.label} className="text-[13px] leading-[1.45]">
+                        <span className="font-medium text-white">{f.label}</span>
+                        <span className="text-white/60"> — {f.detail}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </section>
+              );
+            })}
+          </div>
         </div>
       </div>
 
-      <div ref={listRef} className="relative z-10 mx-auto -mt-10 flex max-w-[460px] flex-col gap-4 px-5">
-        {heroAnalysis.map((card, i) => (
-          <div key={card.id} className="hero-reveal" style={{ transitionDelay: `${i * 60}ms` }}>
-            <AnalysisCard card={card} compact />
-          </div>
-        ))}
-        <p className="hero-reveal px-1 text-center text-[11px] leading-snug text-white/40">{HERO_DISCLAIMER}</p>
-      </div>
+      {/* without JavaScript the cards are simply shown in place */}
+      <noscript>
+        <style>{`.m-hero-card{opacity:1!important;visibility:visible!important}`}</style>
+      </noscript>
     </section>
   );
 }

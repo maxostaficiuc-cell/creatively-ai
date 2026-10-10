@@ -8,7 +8,8 @@ import { HeroHeadline } from "@/components/hero/HeroHeadline";
 import { HeroAmbient } from "@/components/hero/HeroAmbient";
 import { MobileHero } from "@/components/hero/MobileHero";
 import type { AdNaturalSize } from "@/components/hero/PhoneScreenAd";
-import { HERO_DISCLAIMER, heroAnalysis } from "@/lib/heroDemo";
+import { handPhoneCssVars } from "@/lib/heroDemo";
+import { HERO_CREATIVE, type DemoCreative } from "@/lib/demoCreative";
 
 // useLayoutEffect warns during SSR; this is the standard isomorphic shim.
 const useIsoLayoutEffect = typeof window !== "undefined" ? useLayoutEffect : useEffect;
@@ -53,7 +54,11 @@ function offsetWithin(el: HTMLElement, root: HTMLElement) {
   return { x, y, w: el.offsetWidth, h: el.offsetHeight };
 }
 
-export function HeroScrollSequence() {
+/**
+ * The homepage hero. Desktop and mobile both render from the SAME creative
+ * object — one image, one analysis — so they can never show different ads.
+ */
+export function HeroScrollSequence({ creative = HERO_CREATIVE }: { creative?: DemoCreative }) {
   const [reduced, setReduced] = useState(false);
 
   useEffect(() => {
@@ -66,13 +71,14 @@ export function HeroScrollSequence() {
 
   return (
     <>
-      <DesktopHero reduced={reduced} />
-      <MobileHero reduced={reduced} />
+      <DesktopHero creative={creative} reduced={reduced} />
+      <MobileHero creative={creative} reduced={reduced} />
     </>
   );
 }
 
-function DesktopHero({ reduced }: { reduced: boolean }) {
+function DesktopHero({ creative, reduced }: { creative: DemoCreative; reduced: boolean }) {
+  const cards = creative.analysis.cards;
   const sectionRef = useRef<HTMLElement>(null);
   const stageRef = useRef<HTMLDivElement>(null);
   const headlineRef = useRef<HTMLDivElement>(null);
@@ -105,8 +111,8 @@ function DesktopHero({ reduced }: { reduced: boolean }) {
 
       {
         const m = easeInOutCubic(clamp01(p / PHONE_END));
-        const settle = Math.max(0, p - PHONE_END) * 36; // gentle drift once settled — keeps it alive
-        const y = (1 - m) * vh * 0.56 - settle;
+        // Settles exactly at its layout position, so connector endpoints stay on target.
+        const y = (1 - m) * vh * 0.56;
         const scale = 0.93 + 0.07 * m;
         const rot = (1 - m) * -2.2;
         const transform = `translate3d(0, ${y}px, 0) scale(${scale}) rotate(${rot}deg)`;
@@ -115,7 +121,7 @@ function DesktopHero({ reduced }: { reduced: boolean }) {
       }
 
       const deltas = measuredRef.current?.deltas;
-      heroAnalysis.forEach((card, i) => {
+      cards.forEach((card, i) => {
         const el = cardRefs.current[i];
         if (!el) return;
         const t = easeOutCubic(clamp01((p - CARD_STARTS[i]) / CARD_DURATION));
@@ -136,7 +142,7 @@ function DesktopHero({ reduced }: { reduced: boolean }) {
         disclaimerRef.current.style.opacity = String(clamp01((p - 0.5) / 0.2));
       }
     },
-    []
+    [cards]
   );
 
   // ── measure final layout positions → connector endpoints + emerge deltas ──
@@ -167,7 +173,7 @@ function DesktopHero({ reduced }: { reduced: boolean }) {
 
     const lines: ConnectorLine[] = [];
     const deltas: Measured["deltas"] = [];
-    heroAnalysis.forEach((card, i) => {
+    cards.forEach((card, i) => {
       const el = cardRefs.current[i];
       if (!el) {
         deltas.push({ dx: 0, dy: 0 });
@@ -180,20 +186,18 @@ function DesktopHero({ reduced }: { reduced: boolean }) {
 
       const leftOfPhone = cardCx < screenCx;
       const from = { x: leftOfPhone ? c.x + c.w : c.x, y: c.y + 34 };
-      card.anchors.forEach((a, j) => {
-        lines.push({
-          id: j === 0 ? card.id : `${card.id}-${j}`,
-          tone: card.tone,
-          from,
-          to: { x: adBox.x + a.x * adBox.w, y: adBox.y + a.y * adBox.h },
-        });
+      lines.push({
+        id: card.id,
+        tone: card.tone,
+        from,
+        to: { x: adBox.x + card.anchor.x * adBox.w, y: adBox.y + card.anchor.y * adBox.h },
       });
     });
 
     const next = { width: stage.offsetWidth, height: stage.offsetHeight, lines, deltas };
     measuredRef.current = next;
     setMeasured(next);
-  }, []);
+  }, [cards]);
 
   // Re-apply after lines re-render so freshly mounted paths get the current state.
   useIsoLayoutEffect(() => {
@@ -237,19 +241,22 @@ function DesktopHero({ reduced }: { reduced: boolean }) {
     };
   }, [reduced, apply]);
 
-  const [green, red, purple] = heroAnalysis;
+  const [green, red, purple] = cards;
   const phoneBoxStyle: React.CSSProperties = {
     top: "var(--hp-top)",
     left: "calc(50% - var(--hp-w) / 2)",
     transformOrigin: "50% 30%",
   };
-  const cardBase = "absolute w-[var(--card-w)]";
+  const cardBase = "hero-desktop-card absolute w-[var(--card-w)]";
+  // Cards start hidden so they never flash in their final position before the
+  // sequence takes over; with motion reduced they are simply shown.
+  const cardInitial: React.CSSProperties = reduced ? {} : { opacity: 0, visibility: "hidden" };
 
   return (
     <section
       ref={sectionRef}
       id="top"
-      aria-label="Creatively.ai — example ad analysis"
+      aria-label={`Example: visual analysis of a ${creative.brand} ad`}
       className="relative hidden lg:block"
       style={{ height: reduced ? "auto" : "250vh" }}
     >
@@ -263,6 +270,7 @@ function DesktopHero({ reduced }: { reduced: boolean }) {
         <div
           ref={stageRef}
           className="hero-stage absolute inset-0"
+          style={handPhoneCssVars() as React.CSSProperties}
         >
           {!reduced && (
             <HeroHeadline
@@ -291,6 +299,7 @@ function DesktopHero({ reduced }: { reduced: boolean }) {
             <div className={reduced ? "" : "hero-rise"}>
               <PhoneScreenLayer
                 ref={adRef}
+                image={creative.image}
                 screenRef={screenRef}
                 className="w-full"
                 onAdLoad={(size) => {
@@ -308,7 +317,7 @@ function DesktopHero({ reduced }: { reduced: boolean }) {
             }}
             card={green}
             className={`${cardBase} will-change-transform`}
-            style={{ right: "var(--card-inset)", top: "var(--card-top-a)" }}
+            style={{ ...cardInitial, right: "var(--card-inset)", top: "var(--card-top-a)" }}
           />
           <AnalysisCard
             ref={(el) => {
@@ -316,7 +325,7 @@ function DesktopHero({ reduced }: { reduced: boolean }) {
             }}
             card={red}
             className={`${cardBase} will-change-transform`}
-            style={{ left: "var(--card-inset)", top: "var(--card-top-b)" }}
+            style={{ ...cardInitial, left: "var(--card-inset)", top: "var(--card-top-b)" }}
           />
           <AnalysisCard
             ref={(el) => {
@@ -324,7 +333,7 @@ function DesktopHero({ reduced }: { reduced: boolean }) {
             }}
             card={purple}
             className={`${cardBase} will-change-transform`}
-            style={{ right: "var(--card-inset)", bottom: "var(--card-bottom-c)" }}
+            style={{ ...cardInitial, right: "var(--card-inset)", bottom: "var(--card-bottom-c)" }}
           />
 
           {measured && (
@@ -342,9 +351,14 @@ function DesktopHero({ reduced }: { reduced: boolean }) {
             className="absolute bottom-[3vh] left-[var(--card-inset)] z-[36] max-w-[var(--card-w)] text-[11px] leading-snug text-white/40"
             style={{ opacity: reduced ? 1 : 0 }}
           >
-            {HERO_DISCLAIMER}
+            {creative.analysis.disclaimer}
           </p>
         </div>
+
+        {/* without JavaScript the cards are shown in their final layout */}
+        <noscript>
+          <style>{`.hero-desktop-card{opacity:1!important;visibility:visible!important}`}</style>
+        </noscript>
 
         {/* soft fade into the next section */}
         <div className="pointer-events-none absolute inset-x-0 bottom-0 z-20 h-28 bg-gradient-to-b from-transparent to-[#08080B]" />

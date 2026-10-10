@@ -101,7 +101,7 @@ export function Nav() {
           <Logo />
         </div>
 
-        <nav className="hidden items-center gap-8 md:flex">
+        <nav className="hidden items-center gap-8 lg:flex">
           {links.map((l) => (
             <button
               key={l.id}
@@ -115,7 +115,7 @@ export function Nav() {
           ))}
         </nav>
 
-        <div className="hidden items-center gap-3 md:flex">
+        <div className="hidden items-center gap-3 lg:flex">
           <ButtonLink href="/login" variant="ghost">
             Log In
           </ButtonLink>
@@ -123,7 +123,7 @@ export function Nav() {
         </div>
 
         <button
-          className="text-ink-primary md:hidden"
+          className="text-ink-primary lg:hidden"
           onClick={() => setOpen(!open)}
           aria-label="Toggle menu"
         >
@@ -132,7 +132,7 @@ export function Nav() {
       </div>
 
       {open && (
-        <div className="border-t border-white/5 px-6 py-4 md:hidden">
+        <div className="border-t border-white/5 px-6 py-4 lg:hidden">
           <nav className="flex flex-col gap-4">
             {links.map((l) => (
               <button
