@@ -13,7 +13,6 @@ import { ScoreCounter } from "@/components/marketing/ScoreCounter";
 import { ScoreRing } from "@/components/marketing/ScoreRing";
 import { DashboardShowcase } from "@/components/marketing/DashboardShowcase";
 import { HeroScrollSequence } from "@/components/hero/HeroScrollSequence";
-import { CapabilitiesSection } from "@/components/marketing/CapabilitiesSection";
 import { FeatureCarousel } from "@/components/marketing/FeatureCarousel";
 import { GetFreeReportButton } from "@/components/marketing/GetFreeReportButton";
 import { LiveActivityStats } from "@/components/marketing/LiveActivityStats";
@@ -92,9 +91,6 @@ export default function LandingPage() {
       {/* CINEMATIC HERO — hand + phone + scroll-driven example analysis */}
       <HeroScrollSequence />
 
-      {/* HAND-OFF SECTION */}
-      <CapabilitiesSection />
-
       {/* FEATURE CAROUSEL — four premium cards: what's working, ad accounts, what's holding it back, winning ads */}
       <FeatureCarousel />
 
@@ -103,30 +99,8 @@ export default function LandingPage() {
         <LiveActivityStats />
       </section>
 
-      {/* TRUST-BUILDING PRODUCT PROOF */}
-      <section id="features" className="scroll-mt-24 border-t border-white/5 px-6 py-24">
-        <div className="mx-auto max-w-5xl text-center">
-          <h2 className="text-3xl font-semibold tracking-tight text-ink-primary sm:text-4xl">
-            See exactly what you get.
-          </h2>
-          <p className="mx-auto mt-4 max-w-xl text-ink-secondary">
-            No vague promises. Your dashboard is where creative analysis, advertising performance,
-            and recommendations come together.
-          </p>
-          <div className="mt-12 grid gap-4 sm:grid-cols-4">
-            {["Creative Analysis", "Performance Overview", "Winning Creatives", "Creative Intelligence"].map(
-              (label) => (
-                <div key={label} className="rounded-xl border border-base-border bg-base-card p-5">
-                  <p className="text-sm font-medium text-ink-primary">{label}</p>
-                </div>
-              )
-            )}
-          </div>
-        </div>
-      </section>
-
-      {/* BEFORE YOU SPEND */}
-      <section className="border-t border-white/5 px-6 py-24">
+      {/* BEFORE YOU SPEND — also the nav's "How It Works" target (Without / With flow) */}
+      <section id="how-it-works" className="scroll-mt-24 border-t border-white/5 px-6 py-24">
         <div className="mx-auto max-w-5xl">
           <div className="text-center">
             <h2 className="mx-auto max-w-2xl text-3xl font-semibold tracking-tight text-ink-primary sm:text-4xl">
@@ -318,8 +292,8 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* PREMIUM DASHBOARD SHOWCASE */}
-      <section className="border-t border-white/5 px-6 py-24">
+      {/* PREMIUM DASHBOARD SHOWCASE — also the footer's "Integrations" target (campaign / ad set / ad views) */}
+      <section id="integrations" className="scroll-mt-24 border-t border-white/5 px-6 py-24">
         <p className="mx-auto max-w-2xl text-center text-3xl font-semibold tracking-tight text-ink-primary sm:text-4xl">
           This is the actual software you&apos;re getting.
         </p>
@@ -329,60 +303,6 @@ export default function LandingPage() {
         </p>
         <div className="mt-14">
           <DashboardShowcase />
-        </div>
-      </section>
-
-      {/* REAL ADVERTISING DATA / INTEGRATIONS */}
-      <section id="integrations" className="scroll-mt-24 border-t border-white/5 px-6 py-24">
-        <div className="mx-auto max-w-4xl text-center">
-          <h2 className="text-3xl font-semibold tracking-tight text-ink-primary sm:text-4xl">
-            Bring your real advertising data into the picture.
-          </h2>
-          <p className="mx-auto mt-4 max-w-xl text-ink-secondary">
-            Connect your advertising platforms and combine creative intelligence with actual
-            campaign performance.
-          </p>
-          <div className="mt-14 flex flex-wrap items-center justify-center gap-6">
-            <div className="animate-logo-loop flex items-center gap-2 rounded-full border border-brand/40 bg-base-card px-6 py-3 text-sm text-ink-primary">
-              Meta Ads
-            </div>
-            <div
-              className="animate-logo-loop flex items-center gap-2 rounded-full border border-base-border bg-base-card px-6 py-3 text-sm text-ink-muted opacity-60"
-              style={{ animationDelay: "1.5s" }}
-            >
-              TikTok Ads <span className="text-[10px] uppercase">Coming Soon</span>
-            </div>
-            <div
-              className="animate-logo-loop flex items-center gap-2 rounded-full border border-base-border bg-base-card px-6 py-3 text-sm text-ink-muted opacity-60"
-              style={{ animationDelay: "3s" }}
-            >
-              Google Ads <span className="text-[10px] uppercase">Coming Soon</span>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {/* PERFORMANCE INTELLIGENCE */}
-      <section className="border-t border-white/5 px-6 py-24">
-        <div className="mx-auto max-w-3xl text-center">
-          <h2 className="text-3xl font-semibold tracking-tight text-ink-primary sm:text-4xl">
-            See your creative and your performance in the same picture.
-          </h2>
-          <p className="mx-auto mt-4 max-w-xl text-ink-secondary">
-            Once your Meta Ads account is connected, Creatively.ai can combine creative
-            intelligence with real advertising data.
-          </p>
-          <div className="mt-10 flex flex-wrap items-center justify-center gap-3 text-sm text-ink-secondary">
-            {["Creative Score", "Spend", "CTR", "Revenue", "ROAS"].map((label, i) => (
-              <span key={label} className="flex items-center gap-3">
-                <span className="rounded-full border border-base-border bg-base-card px-4 py-2">
-                  {label}
-                </span>
-                {i < 4 && <span className="text-ink-muted">·</span>}
-              </span>
-            ))}
-          </div>
-          <p className="mt-8 text-lg font-medium text-ink-primary">Better creative decisions</p>
         </div>
       </section>
 

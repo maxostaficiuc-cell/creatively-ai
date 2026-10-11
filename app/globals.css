@@ -76,17 +76,6 @@ body {
   animation: fade-in-up 0.7s cubic-bezier(0.16, 1, 0.3, 1) both;
 }
 
-@keyframes logo-loop {
-  0% { transform: translateX(0); opacity: 1; }
-  45% { transform: translateX(-6px); opacity: 1; }
-  50% { opacity: 0; }
-  55% { transform: translateX(6px); opacity: 0; }
-  100% { transform: translateX(0); opacity: 1; }
-}
-.animate-logo-loop {
-  animation: logo-loop 6s ease-in-out infinite;
-}
-
 /* ── Cinematic hero ─────────────────────────────────────────────────────── */
 .hero-stage {
   /* --hp-aspect / --scr-* come from HAND_PHONE_ASSET (lib/heroDemo.ts), set inline */
@@ -152,16 +141,6 @@ body {
   --purple-top: calc(var(--screen-top) + var(--sh) * 0.955);
   --purple-w: min(calc(50% - var(--g) + var(--sw) * 0.12), 250px);
   --scene-tail: calc(var(--sw) * 0.18);                       /* a little hand below the purple card */
-}
-
-.hero-reveal {
-  opacity: 0;
-  transform: translate3d(0, 24px, 0) scale(0.98);
-  transition: opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1), transform 0.7s cubic-bezier(0.16, 1, 0.3, 1);
-}
-.hero-reveal.is-visible {
-  opacity: 1;
-  transform: none;
 }
 
 /* ── Feature carousel (components/marketing/FeatureCarousel.tsx) ──────────── */
@@ -287,5 +266,4 @@ body {
   .is-active .fc-draw, .is-active .fc-bar, .is-active .fc-gauge, .is-active .fc-wipe { animation: none !important; }
   .fc-shine { display: none; }
   .hero-rise, .hero-anchor-pulse { animation: none !important; }
-  .hero-reveal { opacity: 1; transform: none; transition: none; }
 }
