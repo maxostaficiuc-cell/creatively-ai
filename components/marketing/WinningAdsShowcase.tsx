@@ -233,9 +233,11 @@ export function WinningAdsShowcase({ items, demo }: { items: ShowcaseCreative[];
 
       {/* ── Compact benefits — one row of three at every width (sm+ is the desktop layout) ── */}
       <div className="relative mx-auto mt-10 grid max-w-4xl grid-cols-3 gap-2 px-3 text-center sm:mt-14 sm:gap-6 sm:px-6">
-        {BENEFITS.map((b) => (
+        {BENEFITS.map((b, i) => (
           <div
             key={b.title}
+            data-reveal
+            style={{ ["--d" as string]: i }}
             className="min-w-0 rounded-xl border border-white/[0.06] bg-white/[0.02] px-1.5 py-3.5 sm:rounded-none sm:border-0 sm:bg-transparent sm:p-0"
           >
             <b.icon size={16} className="mx-auto text-brand-light/80" aria-hidden />

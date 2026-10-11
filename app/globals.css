@@ -356,3 +356,497 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .ws-card { will-change: auto; }
 }
+
+/* ── How It Works timeline (components/marketing/HowItWorks.tsx) ──────────── */
+/* JS writes --hiw-p (line progress) on the track and --sp (0–1, scroll-scrubbed */
+/* and smoothed) on each step. Everything below derives from those, so every   */
+/* effect plays forward on the way down and reverses on the way back up.       */
+.hiw-track { --line-x: 11px; }
+@media (min-width: 640px) { .hiw-track { --line-x: 19px; } }
+
+.hiw-line {
+  position: absolute;
+  left: var(--line-x);
+  width: 2px;
+  transform: translateX(-50%);
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.07);
+}
+.hiw-line-fill {
+  position: absolute;
+  inset: 0;
+  border-radius: inherit;
+  transform-origin: top;
+  transform: scaleY(var(--hiw-p, 0));
+  background: linear-gradient(to bottom, #7c3aed, #a78bfa);
+  box-shadow: 0 0 10px rgba(139, 92, 246, 0.55);
+}
+.hiw-line-head {
+  position: absolute;
+  left: 50%;
+  top: calc(var(--hiw-p, 0) * 100%);
+  width: 6px;
+  height: 6px;
+  border-radius: 999px;
+  background: #ddd6fe;
+  transform: translate(-50%, -50%);
+  box-shadow: 0 0 0 3px rgba(139, 92, 246, 0.25), 0 0 14px rgba(167, 139, 250, 0.9);
+  opacity: calc(min(var(--hiw-p, 0) * 40, 1) * min((1 - var(--hiw-p, 0)) * 40, 1));
+}
+
+.hiw-step { position: relative; padding-left: calc(var(--line-x) + 26px); }
+@media (min-width: 640px) { .hiw-step { padding-left: calc(var(--line-x) + 44px); } }
+
+.hiw-node {
+  position: absolute;
+  left: var(--line-x);
+  top: 1px;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 999px;
+  transform: translateX(-50%);
+  border: 1.5px solid rgba(255, 255, 255, 0.18);
+  background: #0b0b10;
+  transition: background-color 0.35s ease, border-color 0.35s ease, box-shadow 0.45s ease;
+}
+.hiw-node-check { width: 9px; height: 9px; color: #c4b5fd; opacity: 0; transition: opacity 0.3s ease; }
+.hiw-step[data-state="active"] .hiw-node {
+  background: #8b5cf6;
+  border-color: #c4b5fd;
+  box-shadow: 0 0 0 5px rgba(139, 92, 246, 0.16), 0 0 22px rgba(139, 92, 246, 0.65);
+}
+.hiw-step[data-state="done"] .hiw-node { background: #17121f; border-color: rgba(139, 92, 246, 0.8); }
+.hiw-step[data-state="done"] .hiw-node-check { opacity: 1; }
+
+.hiw-step-grid { display: grid; gap: 28px; }
+@media (min-width: 1024px) {
+  .hiw-step-grid { grid-template-columns: minmax(0, 5fr) minmax(0, 6fr); gap: 64px; align-items: start; }
+}
+
+/* copy: readable almost immediately, then settles */
+.hiw-copy {
+  --r: clamp(0, var(--sp, 1) * 3.2, 1);
+  opacity: calc(0.3 + 0.7 * var(--r));
+  translate: 0 calc((1 - var(--r)) * 16px);
+}
+
+/* demo panel: rises in, then lights up while its step is active */
+.hiw-demo {
+  --r: clamp(0, var(--sp, 1) * 2.6, 1);
+  position: relative;
+  max-width: 560px;
+  opacity: var(--r);
+  translate: 0 calc((1 - var(--r)) * 26px);
+  scale: calc(0.975 + 0.025 * var(--r));
+}
+.hiw-demo::before {
+  content: "";
+  position: absolute;
+  inset: -12% -8%;
+  z-index: -1;
+  border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(139, 92, 246, 0.16), transparent);
+  opacity: 0;
+  transition: opacity 0.6s ease;
+  pointer-events: none;
+}
+.hiw-step[data-state="active"] .hiw-demo::before { opacity: 1; }
+
+.hiw-window {
+  container-type: inline-size;
+  overflow: hidden;
+  border-radius: 16px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: linear-gradient(180deg, #121219, #0b0b10);
+  box-shadow: 0 24px 60px -28px rgba(0, 0, 0, 0.9);
+  transition: border-color 0.5s ease, box-shadow 0.5s ease;
+}
+.hiw-step[data-state="active"] .hiw-window {
+  border-color: rgba(139, 92, 246, 0.32);
+  box-shadow: 0 24px 60px -28px rgba(0, 0, 0, 0.9), 0 0 44px -14px rgba(139, 92, 246, 0.45);
+}
+
+/* ── Step 1: upload (cursor drags the thumbnail into the drop zone) ── */
+.hiw-up {
+  --t1: clamp(0, var(--sp, 1) / 0.22, 1);           /* cursor → thumbnail */
+  --t2: clamp(0, (var(--sp, 1) - 0.22) / 0.3, 1);   /* drag into the zone */
+  --t3: clamp(0, (var(--sp, 1) - 0.55) / 0.22, 1);  /* upload progress */
+  --t4: clamp(0, (var(--sp, 1) - 0.8) / 0.12, 1);   /* preview + success */
+  --g: calc(clamp(0, (var(--t2) - 0.45) * 3, 1) * (1 - var(--t4)));  /* zone glow */
+  position: relative;
+  height: 60cqw;
+  font-size: clamp(10px, 2.6cqw, 13px);
+}
+.hiw-up-file-label {
+  position: absolute;
+  left: 3cqw;
+  top: 35.5cqw;
+  width: 21cqw;
+  text-align: center;
+  font-size: 0.82em;
+  color: rgba(255, 255, 255, 0.45);
+  opacity: calc(1 - var(--t2));
+}
+.hiw-up-drop {
+  position: absolute;
+  left: 30cqw;
+  top: 5cqw;
+  width: 64cqw;
+  height: 50cqw;
+  border-radius: 2.4cqw;
+  border: 1.5px dashed rgba(167, 139, 250, calc(0.2 + 0.65 * var(--g)));
+  background: rgba(139, 92, 246, calc(0.02 + 0.07 * var(--g)));
+  box-shadow: 0 0 calc(34px * var(--g)) rgba(139, 92, 246, 0.35), inset 0 0 calc(24px * var(--g)) rgba(139, 92, 246, 0.18);
+}
+.hiw-up-drop-hint {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 0.25em;
+  text-align: center;
+  color: rgba(255, 255, 255, 0.7);
+  opacity: calc(1 - clamp(0, var(--t2) * 2 - 0.6, 1));
+}
+.hiw-up-progress {
+  position: absolute;
+  left: 10%;
+  right: 10%;
+  bottom: 7%;
+  height: 4px;
+  overflow: hidden;
+  border-radius: 99px;
+  background: rgba(255, 255, 255, 0.08);
+  opacity: calc(clamp(0, var(--t3) * 6, 1) * (1 - var(--t4)));
+}
+.hiw-up-progress-bar {
+  height: 100%;
+  border-radius: inherit;
+  transform-origin: left;
+  transform: scaleX(var(--t3));
+  background: linear-gradient(90deg, #7c3aed, #a78bfa);
+}
+.hiw-up-done {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 5%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4em;
+  font-size: 0.85em;
+  font-weight: 500;
+  color: rgba(255, 255, 255, 0.85);
+  opacity: var(--t4);
+  translate: 0 calc((1 - var(--t4)) * 6px);
+}
+.hiw-up-thumb {
+  position: absolute;
+  left: 6cqw;
+  top: 7cqw;
+  z-index: 2;
+  width: 15cqw;
+  height: 26.6cqw;
+  border-radius: 1.4cqw;
+  object-fit: cover;
+  box-shadow: 0 calc(6px + 14px * var(--t2) * (1 - var(--t3))) 30px -10px rgba(0, 0, 0, 0.8);
+  translate: calc(48.5cqw * var(--t2)) calc(6cqw * var(--t2));
+  rotate: calc(-7deg * var(--t2) * (1 - var(--t2)) * 4);
+  scale: calc(1 + 0.3 * var(--t4));
+  opacity: calc(1 - 0.5 * var(--t3) + 0.5 * var(--t4));
+}
+.hiw-up-cursor {
+  position: absolute;
+  left: 0;
+  top: 0;
+  z-index: 3;
+  width: 4.4cqw;
+  height: 4.4cqw;
+  translate: calc((84 - 70.5 * var(--t1) + 48.5 * var(--t2)) * 1cqw) calc((50 - 29.7 * var(--t1) + 6 * var(--t2)) * 1cqw);
+  scale: calc(1 - 0.1 * clamp(0, var(--t2) * 10, 1) * (1 - var(--t3)));
+  opacity: calc(1 - var(--t3));
+}
+
+/* ── Step 2: analysis (scan line, markers, score, bars) ── */
+.hiw-an {
+  --s: clamp(0, var(--sp, 1) / 0.5, 1);             /* scan position */
+  display: grid;
+  grid-template-columns: 38cqw minmax(0, 1fr);
+  gap: 4cqw;
+  padding: 4cqw;
+  font-size: clamp(10px, 2.7cqw, 13px);
+}
+.hiw-an-media {
+  position: relative;
+  aspect-ratio: 338 / 600;
+  overflow: hidden;
+  border-radius: 1.8cqw;
+  background: #111;
+}
+.hiw-an-scan {
+  position: absolute;
+  inset: 0;
+  transform: translateY(calc(var(--s) * 100%));
+  opacity: calc(min(1, (1 - var(--s)) * 8) * min(1, var(--sp, 1) * 30));
+  pointer-events: none;
+}
+.hiw-an-scan::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  top: -1px;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, #c4b5fd 20%, #c4b5fd 80%, transparent);
+  box-shadow: 0 0 12px rgba(167, 139, 250, 0.9);
+}
+.hiw-an-scan::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 100%;
+  height: 22%;
+  background: linear-gradient(to bottom, transparent, rgba(139, 92, 246, 0.2));
+}
+.hiw-an-marker {
+  --m: clamp(0, (var(--s) - var(--y)) * 9, 1);
+  position: absolute;
+  display: flex;
+  align-items: center;
+  gap: 0.35em;
+  transform: translate(-0.36em, -50%);
+  opacity: var(--m);
+  scale: calc(0.85 + 0.15 * var(--m));
+}
+.hiw-an-dot {
+  width: 0.72em;
+  height: 0.72em;
+  flex: none;
+  border-radius: 99px;
+  background: #4ade80;
+  box-shadow: 0 0 0 0.22em rgba(74, 222, 128, 0.25);
+}
+.hiw-an-marker.is-red .hiw-an-dot { background: #f87171; box-shadow: 0 0 0 0.22em rgba(248, 113, 113, 0.25); }
+.hiw-an-label {
+  border-radius: 99px;
+  background: rgba(8, 8, 12, 0.78);
+  padding: 0.1em 0.5em;
+  font-size: 0.72em;
+  font-weight: 500;
+  color: #fff;
+  white-space: nowrap;
+}
+.hiw-an-side { display: flex; min-width: 0; flex-direction: column; gap: 0.7em; }
+.hiw-an-score {
+  --a: clamp(0, (var(--sp, 1) - 0.28) / 0.2, 1);
+  border-radius: 1.8cqw;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.02);
+  padding: 0.75em 0.85em;
+  opacity: var(--a);
+  translate: 0 calc((1 - var(--a)) * 10px);
+}
+.hiw-an-bars { display: flex; flex-direction: column; gap: 0.55em; }
+.hiw-bar { margin-top: 0.3em; height: 4px; overflow: hidden; border-radius: 99px; background: rgba(255, 255, 255, 0.07); }
+.hiw-bar-fill {
+  height: 100%;
+  border-radius: inherit;
+  transform-origin: left;
+  transform: scaleX(calc(var(--v) * clamp(0, (var(--sp, 1) - 0.38 - var(--i) * 0.07) / 0.25, 1)));
+  background: linear-gradient(90deg, #7c3aed, #a78bfa);
+}
+.hiw-an-insight {
+  --a: clamp(0, (var(--sp, 1) - 0.72) / 0.14, 1);
+  display: flex;
+  align-items: center;
+  gap: 0.45em;
+  border-radius: 99px;
+  padding: 0.35em 0.75em;
+  font-size: 0.78em;
+  font-weight: 500;
+  opacity: var(--a);
+  translate: calc((1 - var(--a)) * 10px) 0;
+}
+.hiw-an-insight.is-green { border: 1px solid rgba(74, 222, 128, 0.25); background: rgba(74, 222, 128, 0.06); color: #86efac; }
+.hiw-an-insight.is-red {
+  --a: clamp(0, (var(--sp, 1) - 0.8) / 0.14, 1);
+  border: 1px solid rgba(248, 113, 113, 0.25);
+  background: rgba(248, 113, 113, 0.06);
+  color: #fca5a5;
+}
+
+/* ── Step 3: improve (three insight cards, then a highlighted recommendation) ── */
+.hiw-im { display: flex; flex-direction: column; gap: 12px; }
+.hiw-im-card {
+  --c: clamp(0, (var(--sp, 1) - 0.1 - var(--i) * 0.17) / 0.22, 1);
+  border-radius: 14px;
+  border: 1px solid var(--tone-border);
+  background: linear-gradient(180deg, var(--tone-bg), rgba(255, 255, 255, 0.01));
+  padding: 14px 16px;
+  box-shadow: 0 18px 40px -26px rgba(0, 0, 0, 0.9);
+  opacity: var(--c);
+  translate: 0 calc((1 - var(--c)) * 22px);
+  scale: calc(0.97 + 0.03 * var(--c));
+}
+.hiw-im-card.is-green { --tone-border: rgba(74, 222, 128, 0.22); --tone-bg: rgba(74, 222, 128, 0.06); --tone: #86efac; }
+.hiw-im-card.is-red { --tone-border: rgba(248, 113, 113, 0.22); --tone-bg: rgba(248, 113, 113, 0.06); --tone: #fca5a5; }
+.hiw-im-card.is-violet { --tone-border: rgba(167, 139, 250, 0.28); --tone-bg: rgba(139, 92, 246, 0.08); --tone: #c4b5fd; }
+.hiw-im-title { font-size: 13px; font-weight: 600; color: var(--tone); }
+.hiw-im-item {
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  border-radius: 8px;
+  padding: 2px 6px;
+  margin-inline: -6px;
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+.hiw-im-item.is-highlight {
+  --h: clamp(0, (var(--sp, 1) - 0.82) / 0.12, 1);
+  background: rgba(139, 92, 246, calc(0.13 * var(--h)));
+  box-shadow: 0 0 0 1px rgba(167, 139, 250, calc(0.45 * var(--h))), 0 0 calc(22px * var(--h)) rgba(139, 92, 246, calc(0.35 * var(--h)));
+}
+
+/* ── Step 4: test (original + two concept variations) ── */
+.hiw-te { padding: 4cqw; font-size: clamp(10px, 2.7cqw, 13px); }
+.hiw-te-row { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 3cqw; }
+.hiw-te-tile {
+  --c: clamp(0, (var(--sp, 1) - 0.08 - var(--i) * 0.2) / 0.24, 1);
+  margin: 0;
+  opacity: var(--c);
+  translate: 0 calc((1 - var(--c)) * 18px);
+}
+.hiw-te-media {
+  position: relative;
+  aspect-ratio: 338 / 600;
+  overflow: hidden;
+  border-radius: 1.6cqw;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+.hiw-te-tile.is-a .hiw-te-media, .hiw-te-tile.is-b .hiw-te-media { border-color: rgba(167, 139, 250, 0.3); }
+.hiw-te-patch {
+  --o: clamp(0, (var(--sp, 1) - 0.7) / 0.15, 1);
+  position: absolute;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  color: #1e293b;
+  background: linear-gradient(180deg, #bcd1e7, #b2cae2);
+  box-shadow: 0 0 0 1px rgba(139, 92, 246, calc(0.85 * var(--o))), 0 0 calc(14px * var(--o)) rgba(139, 92, 246, 0.6);
+  border-radius: 0.6cqw;
+}
+.hiw-te-headline {
+  left: 5%;
+  right: 5%;
+  top: 18%;
+  height: 9.5%;
+  padding: 0 4%;
+  font-family: Georgia, "Times New Roman", serif;
+  font-size: 1.95cqw;
+  line-height: 1.15;
+}
+.hiw-te-benefit {
+  left: 5%;
+  top: 28%;
+  width: 40%;
+  height: 45%;
+  flex-direction: column;
+  gap: 0.4em;
+  font-size: 1.7cqw;
+  line-height: 1.2;
+  font-family: ui-sans-serif, system-ui, sans-serif;
+}
+.hiw-te-check {
+  display: inline-flex;
+  width: 1.7em;
+  height: 1.7em;
+  align-items: center;
+  justify-content: center;
+  border-radius: 99px;
+  border: 1px solid #1e293b;
+  font-size: 0.9em;
+}
+.hiw-te-compare {
+  --o: clamp(0, (var(--sp, 1) - 0.72) / 0.15, 1);
+  margin-top: 0.9em;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.4em;
+  opacity: var(--o);
+  translate: 0 calc((1 - var(--o)) * 8px);
+}
+.hiw-te-compare span {
+  border-radius: 99px;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  padding: 0.25em 0.7em;
+  font-size: 0.76em;
+  color: rgba(255, 255, 255, 0.55);
+}
+.hiw-te-compare span.is-changed { border-color: rgba(167, 139, 250, 0.35); color: #c4b5fd; background: rgba(139, 92, 246, 0.07); }
+.hiw-te-note { margin-top: 0.8em; text-align: center; font-size: 0.72em; line-height: 1.45; color: rgba(255, 255, 255, 0.4); }
+
+@media (prefers-reduced-motion: reduce) {
+  .hiw-node, .hiw-node-check, .hiw-window, .hiw-demo::before { transition: none; }
+}
+
+/* ── Homepage scroll reveals (components/marketing/ScrollReveal.tsx) ──────── */
+/* Only active once JS has run (html.reveal-ready); reduced motion skips it.   */
+.reveal-ready [data-reveal] {
+  opacity: 0;
+  translate: 0 18px;
+  transition:
+    opacity 0.7s cubic-bezier(0.16, 1, 0.3, 1),
+    translate 0.7s cubic-bezier(0.16, 1, 0.3, 1),
+    transform 0.3s ease,
+    border-color 0.3s ease,
+    box-shadow 0.3s ease,
+    background-color 0.3s ease;
+  transition-delay: calc(var(--d, 0) * 90ms), calc(var(--d, 0) * 90ms), 0s, 0s, 0s, 0s;
+}
+.reveal-ready [data-reveal].is-revealed { opacity: 1; translate: none; }
+
+/* score bars grow from zero once their card is revealed */
+.reveal-ready [data-reveal] [data-reveal-bar] {
+  transform-origin: left;
+  transform: scaleX(0);
+  transition: transform 0.9s cubic-bezier(0.16, 1, 0.3, 1) calc(0.25s + var(--d, 0) * 80ms);
+}
+.reveal-ready [data-reveal].is-revealed [data-reveal-bar] { transform: none; }
+
+/* a single soft light sweep across example creatives as they appear */
+.reveal-ready [data-reveal] [data-reveal-sweep]::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(105deg, transparent 35%, rgba(196, 181, 253, 0.16) 50%, transparent 65%);
+  translate: -110% 0;
+}
+.reveal-ready [data-reveal].is-revealed [data-reveal-sweep]::after {
+  translate: 110% 0;
+  transition: translate 1.4s cubic-bezier(0.45, 0, 0.2, 1) calc(0.3s + var(--d, 0) * 90ms);
+}
+
+/* featured pricing plan: a restrained, slow breathing glow */
+@keyframes plan-breathe {
+  0%, 100% { box-shadow: 0 0 40px -12px rgba(139, 92, 246, 0.45); }
+  50% { box-shadow: 0 0 56px -10px rgba(139, 92, 246, 0.6); }
+}
+#pricing .shadow-glow.border-brand\/60 { animation: plan-breathe 5s ease-in-out infinite; }
+#pricing .grid > div:hover { border-color: rgba(139, 92, 246, 0.45); }
+
+@media (prefers-reduced-motion: reduce) {
+  #pricing .shadow-glow.border-brand\/60 { animation: none; }
+}
