@@ -6,6 +6,8 @@ import { Menu, X } from "lucide-react";
 import { Logo } from "@/components/ui/Logo";
 import { ButtonLink } from "@/components/ui/Button";
 import { GetFreeReportButton } from "@/components/marketing/GetFreeReportButton";
+import { TrialButton } from "@/components/marketing/TrialButton";
+import { STARTER_TRIAL } from "@/lib/starterTrial";
 
 const SECTION_IDS = ["features", "winning-ads", "how-it-works", "pricing", "faq"];
 
@@ -128,8 +130,27 @@ export function Nav() {
             >
               Log In
             </ButtonLink>
-            <GetFreeReportButton className="!py-2.5" />
+            {STARTER_TRIAL.enabled ? (
+              <>
+                {/* free report stays, as a quieter secondary action next to the $1 trial */}
+                <GetFreeReportButton variant="secondary" className="!rounded-full !border-white/10 !bg-white/[0.03] !px-4 !py-2 hover:!border-brand/40">
+                  Free Report
+                </GetFreeReportButton>
+                <TrialButton placement="nav" size="sm" arrow={false} className="!h-10 !px-4">
+                  Try for $1
+                </TrialButton>
+              </>
+            ) : (
+              <GetFreeReportButton className="!py-2.5" />
+            )}
           </div>
+
+          {/* Mobile: compact $1 trial button between the logo and the menu */}
+          {STARTER_TRIAL.enabled && (
+            <TrialButton placement="nav-mobile" size="sm" arrow={false} className="ml-auto mr-1 !h-9 !px-3.5 !text-[13px] min-[360px]:!px-4 lg:hidden">
+              Try for $1
+            </TrialButton>
+          )}
 
           <button
             className="flex h-10 w-10 items-center justify-center rounded-full text-ink-primary transition-colors hover:bg-white/[0.06] focus-visible:outline focus-visible:outline-2 focus-visible:outline-white/60 lg:hidden"

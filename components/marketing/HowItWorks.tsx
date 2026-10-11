@@ -4,6 +4,7 @@ import { useEffect, useRef } from "react";
 import { Check, CheckCircle2, FlaskConical, ScanSearch, Sparkles, Upload } from "lucide-react";
 import { HERO_CREATIVE } from "@/lib/demoCreative";
 import { StepInfo } from "@/components/marketing/StepInfo";
+import { TrialCallout } from "@/components/marketing/TrialButton";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // "How Creatively.ai Works" — a four-step, scroll-driven timeline.
@@ -434,6 +435,13 @@ export function HowItWorks() {
           ))}
         </ol>
       </div>
+
+      <TrialCallout
+        className="relative mt-24 sm:mt-28"
+        title="Ready to improve your next creative?"
+        label="Start Your Trial — $1"
+        placement="how-it-works"
+      />
     </section>
   );
 }

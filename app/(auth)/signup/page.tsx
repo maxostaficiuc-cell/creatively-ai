@@ -26,7 +26,12 @@ function SignupForm() {
   // via the callback route's existing ?next= support. This is ONLY used
   // to pick which checkout link onboarding sends them to; it never grants
   // access by itself.
-  const onboardingPath = requestedPlan ? `/onboarding?plan=${requestedPlan}` : "/onboarding";
+  // ?offer=trial (the $1 Starter introductory offer) is carried the same way,
+  // and only for Starter — it changes which Whop checkout link is used.
+  const trialOffer = requestedPlan === "Starter" && searchParams.get("offer") === "trial";
+  const onboardingPath = requestedPlan
+    ? `/onboarding?plan=${requestedPlan}${trialOffer ? "&offer=trial" : ""}`
+    : "/onboarding";
 
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
@@ -141,7 +146,10 @@ function SignupForm() {
 
           <p className="mt-6 text-center text-sm text-ink-secondary">
             Already have an account?{" "}
-            <a href="/login" className="text-brand-light hover:underline">
+            <a
+              href={trialOffer ? `/login?next=${encodeURIComponent("/onboarding?plan=Starter&offer=trial")}` : "/login"}
+              className="text-brand-light hover:underline"
+            >
               Log in
             </a>
           </p>

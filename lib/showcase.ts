@@ -3,13 +3,13 @@
 // Safe to import from client components: no secrets, no server code.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { STARTER_TRIAL } from "@/lib/starterTrial";
+
 /** The CTA under the showcase headline. Change label / destination HERE only. */
-export const SHOWCASE_CTA = {
-  label: "Try now for $0.99",
-  // The $0.99 offer has no checkout flow yet, so the button goes to the pricing
-  // page. Point this at the real offer once it exists (e.g. "/signup?plan=trial").
-  href: "/pricing",
-};
+export const SHOWCASE_CTA = STARTER_TRIAL.enabled
+  ? { label: "Try now for $1", href: "/start-trial?from=showcase" }
+  : // No introductory offer is purchasable yet → no price in the label.
+    { label: "See plans & pricing", href: "/pricing" };
 
 /** Hard limit for the admin upload system. */
 export const SHOWCASE_MAX_ITEMS = 10;

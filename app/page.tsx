@@ -18,6 +18,8 @@ import { GetFreeReportButton } from "@/components/marketing/GetFreeReportButton"
 import { HowItWorks } from "@/components/marketing/HowItWorks";
 import { ScrollReveal } from "@/components/marketing/ScrollReveal";
 import { PlatformsTicker } from "@/components/marketing/PlatformsTicker";
+import { TrialButton, TrialCallout } from "@/components/marketing/TrialButton";
+import { STARTER_TRIAL, TRIAL_TERMS } from "@/lib/starterTrial";
 import { WinningAdsShowcase } from "@/components/marketing/WinningAdsShowcase";
 import { getShowcaseCreatives } from "@/lib/showcaseServer";
 
@@ -103,6 +105,11 @@ export default async function LandingPage() {
 
       {/* FEATURE CAROUSEL — four premium cards: what's working, ad accounts, what's holding it back, winning ads */}
       <FeatureCarousel />
+      {STARTER_TRIAL.enabled && (
+        <div className="bg-[#08080B] px-6 pb-20 sm:pb-24">
+          <TrialCallout title="Turn creative insights into your next test." label="Start for $1" placement="features" />
+        </div>
+      )}
 
       {/* HOW IT WORKS — scroll-driven four-step timeline (nav "How It Works" target) */}
       <HowItWorks />
@@ -131,6 +138,13 @@ export default async function LandingPage() {
               Get Your Free Report
             </GetFreeReportButton>
           </div>
+
+          <TrialCallout
+            className="mt-14"
+            title="See what your next ad could improve."
+            label="Try the Analyzer for $1"
+            placement="analyzer"
+          />
         </div>
       </section>
 
@@ -265,6 +279,13 @@ export default async function LandingPage() {
               </Link>
             ))}
           </div>
+
+          <TrialCallout
+            className="mt-16"
+            title="Explore what's possible with Creatively.ai."
+            label="Get Started for $1"
+            placement="winning-ads"
+          />
         </div>
       </section>
 
@@ -387,6 +408,34 @@ export default async function LandingPage() {
       </section>
 
       {/* FINAL CTA */}
+      {STARTER_TRIAL.enabled ? (
+        <section className="relative overflow-hidden border-t border-white/5 px-6 py-28 text-center">
+          <div
+            aria-hidden
+            className="pointer-events-none absolute left-1/2 top-1/2 h-[420px] w-[760px] max-w-[160vw] -translate-x-1/2 -translate-y-1/2 rounded-full opacity-80 blur-3xl"
+            style={{ background: "radial-gradient(closest-side, rgba(139,92,246,0.16), transparent 75%)" }}
+          />
+          <div data-reveal className="relative">
+            <h2 className="mx-auto max-w-2xl text-3xl font-semibold tracking-tight text-ink-primary sm:text-[44px] sm:leading-[1.1]">
+              Your next creative deserves a better plan.
+            </h2>
+            <p className="mx-auto mt-4 max-w-xl text-ink-secondary">
+              Find opportunities to improve your ads with actionable creative analysis.
+            </p>
+            <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
+              <TrialButton placement="final" size="lg">
+                Try 7 Days for $1
+              </TrialButton>
+              <GetFreeReportButton variant="secondary" className="!h-[52px] !rounded-full !px-6">
+                Get Your Free Report
+              </GetFreeReportButton>
+            </div>
+            <p className="mt-4 text-xs text-ink-muted">
+              Then ${STARTER_TRIAL.renewalPrice}/month. Review the terms before checkout.
+            </p>
+          </div>
+        </section>
+      ) : (
       <section className="border-t border-white/5 px-6 py-28 text-center">
         <h2 className="text-3xl font-semibold tracking-tight text-ink-primary sm:text-4xl">
           Know before you spend.
@@ -403,6 +452,7 @@ export default async function LandingPage() {
           </ButtonLink>
         </div>
       </section>
+      )}
 
       <Footer />
     </>

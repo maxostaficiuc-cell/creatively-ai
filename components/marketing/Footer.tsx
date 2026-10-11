@@ -3,6 +3,7 @@
 import { usePathname, useRouter } from "next/navigation";
 import Link from "next/link";
 import { Logo } from "@/components/ui/Logo";
+import { STARTER_TRIAL } from "@/lib/starterTrial";
 
 // Links come in two kinds: a real "page" (its own route, plain navigation)
 // or a "section" (an id on the homepage — needs the same smooth
@@ -19,6 +20,9 @@ const columns: { title: string; links: FooterLink[] }[] = [
       { label: "Winning Ads", id: "winning-ads", kind: "section" },
       { label: "Integrations", id: "integrations", kind: "section" },
       { label: "Pricing", id: "pricing", kind: "section" },
+      ...(STARTER_TRIAL.enabled
+        ? [{ label: "Try Starter for $1", href: "/start-trial?from=footer", kind: "page" as const }]
+        : []),
     ],
   },
   {
@@ -89,9 +93,16 @@ export function Footer() {
                     </li>
                   ) : (
                     <li key={l.label}>
-                      <Link href={l.href} className="text-sm text-ink-secondary hover:text-ink-primary">
-                        {l.label}
-                      </Link>
+                      {l.href.startsWith("/start-trial") ? (
+                        // route handler → full navigation, not a client transition
+                        <a href={l.href} data-cta="starter_trial" data-placement="footer" className="text-sm font-medium text-brand-light hover:text-white">
+                          {l.label}
+                        </a>
+                      ) : (
+                        <Link href={l.href} className="text-sm text-ink-secondary hover:text-ink-primary">
+                          {l.label}
+                        </Link>
+                      )}
                     </li>
                   )
                 )}
