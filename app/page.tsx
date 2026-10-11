@@ -14,6 +14,7 @@ import { ScoreRing } from "@/components/marketing/ScoreRing";
 import { DashboardShowcase } from "@/components/marketing/DashboardShowcase";
 import { HeroScrollSequence } from "@/components/hero/HeroScrollSequence";
 import { CapabilitiesSection } from "@/components/marketing/CapabilitiesSection";
+import { FeatureCarousel } from "@/components/marketing/FeatureCarousel";
 import { GetFreeReportButton } from "@/components/marketing/GetFreeReportButton";
 import { LiveActivityStats } from "@/components/marketing/LiveActivityStats";
 
@@ -93,6 +94,9 @@ export default function LandingPage() {
 
       {/* HAND-OFF SECTION */}
       <CapabilitiesSection />
+
+      {/* FEATURE CAROUSEL — four premium cards: what's working, ad accounts, what's holding it back, winning ads */}
+      <FeatureCarousel />
 
       {/* LIVE ACTIVITY — real aggregate data, not scripted numbers */}
       <section className="border-t border-white/5 px-6 py-16">
