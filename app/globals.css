@@ -949,3 +949,19 @@ body {
   .pt-track { animation-duration: 60s; }        /* substantially slower */
   .pt-number { transition: none; }
 }
+
+/* ── Starter $1 trial buttons (components/marketing/TrialButton.tsx) ──────── */
+.trial-btn {
+  background: linear-gradient(180deg, #9d7bfa, #7c3aed);
+  box-shadow: 0 0 0 1px rgba(196, 181, 253, 0.25) inset, 0 8px 24px -10px rgba(124, 58, 237, 0.75);
+  transition: translate 0.2s ease, box-shadow 0.25s ease, filter 0.2s ease;
+}
+.trial-btn:hover {
+  translate: 0 -1px;
+  filter: brightness(1.08);
+  box-shadow: 0 0 0 1px rgba(196, 181, 253, 0.35) inset, 0 12px 30px -10px rgba(124, 58, 237, 0.9);
+}
+.trial-btn:active { translate: 0 0; filter: brightness(0.96); }
+.trial-btn:focus-visible { outline: 2px solid #ddd6fe; outline-offset: 2px; }
+@media (prefers-reduced-motion: reduce) { .trial-btn { transition: none; } }
+.trial-card { box-shadow: 0 0 0 1px rgba(139, 92, 246, 0.12), 0 0 44px -18px rgba(139, 92, 246, 0.55); }

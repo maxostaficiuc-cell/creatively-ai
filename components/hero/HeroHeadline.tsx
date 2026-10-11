@@ -2,6 +2,8 @@ import { forwardRef } from "react";
 import { ArrowRight } from "lucide-react";
 import { ButtonLink } from "@/components/ui/Button";
 import { GetFreeReportButton } from "@/components/marketing/GetFreeReportButton";
+import { TrialButton } from "@/components/marketing/TrialButton";
+import { STARTER_TRIAL, TRIAL_TERMS } from "@/lib/starterTrial";
 
 /** Headline, supporting copy and the two hero CTAs. */
 export const HeroHeadline = forwardRef<HTMLDivElement, { className?: string; style?: React.CSSProperties }>(
@@ -30,9 +32,19 @@ export const HeroHeadline = forwardRef<HTMLDivElement, { className?: string; sty
           className="mx-auto mt-6 flex max-w-[360px] animate-fade-in-up flex-col items-stretch justify-center gap-2.5 sm:mt-8 sm:max-w-none sm:flex-row sm:items-center sm:gap-3"
           style={{ animationDelay: "180ms" }}
         >
-          <GetFreeReportButton className="w-full px-7 py-3.5 text-[13px] font-semibold uppercase tracking-[0.08em] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/70 sm:w-auto">
-            Get your free report <ArrowRight size={15} />
-          </GetFreeReportButton>
+          {STARTER_TRIAL.enabled ? (
+            <TrialButton
+              placement="hero"
+              size="lg"
+              className="w-full !h-auto py-3.5 text-[13px] uppercase tracking-[0.08em] sm:w-auto"
+            >
+              Try Creatively.ai for $1
+            </TrialButton>
+          ) : (
+            <GetFreeReportButton className="w-full px-7 py-3.5 text-[13px] font-semibold uppercase tracking-[0.08em] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/70 sm:w-auto">
+              Get your free report <ArrowRight size={15} />
+            </GetFreeReportButton>
+          )}
           <ButtonLink
             href="#winning-ads"
             variant="secondary"
@@ -41,6 +53,11 @@ export const HeroHeadline = forwardRef<HTMLDivElement, { className?: string; sty
             Explore winning ads
           </ButtonLink>
         </div>
+        {STARTER_TRIAL.enabled && (
+          <p className="mt-3 animate-fade-in-up text-xs text-[#8A8A95]" style={{ animationDelay: "220ms" }}>
+            {TRIAL_TERMS}
+          </p>
+        )}
       </div>
     );
   }

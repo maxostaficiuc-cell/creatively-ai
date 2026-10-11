@@ -45,11 +45,25 @@ const PLAN_ID_BY_PLAN: Record<OurPlan, Record<BillingInterval, string | undefine
   },
 };
 
-export function checkoutUrlFor(ourPlan: string, interval: BillingInterval = "monthly"): string | null {
+// Starter introductory offer ($1 for 7 days, then $9/month) — a separate Whop
+// plan with its own checkout link and plan_id. See lib/starterTrial.ts.
+const STARTER_TRIAL_CHECKOUT_URL = process.env.NEXT_PUBLIC_WHOP_CHECKOUT_URL_STARTER_TRIAL;
+const STARTER_TRIAL_PLAN_ID = process.env.WHOP_PLAN_ID_STARTER_TRIAL;
+
+export function checkoutUrlFor(
+  ourPlan: string,
+  interval: BillingInterval = "monthly",
+  offer: "trial" | null = null
+): string | null {
+  if (offer === "trial" && ourPlan === "Starter" && interval === "monthly" && STARTER_TRIAL_CHECKOUT_URL) {
+    return STARTER_TRIAL_CHECKOUT_URL;
+  }
   return CHECKOUT_URL_BY_PLAN[ourPlan as OurPlan]?.[interval] || null;
 }
 
 export function ourPlanFromWhopPlanId(whopPlanId: string): OurPlan | null {
+  // The $1 trial plan grants exactly the same Starter plan and credits.
+  if (STARTER_TRIAL_PLAN_ID && whopPlanId === STARTER_TRIAL_PLAN_ID) return "Starter";
   for (const [ourPlan, ids] of Object.entries(PLAN_ID_BY_PLAN)) {
     if (ids.monthly === whopPlanId || ids.annual === whopPlanId) return ourPlan as OurPlan;
   }

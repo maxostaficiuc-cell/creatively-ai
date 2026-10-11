@@ -1,7 +1,6 @@
 "use client";
 
 import { useEffect, useLayoutEffect as useReactLayoutEffect, useMemo, useRef, useState } from "react";
-import Link from "next/link";
 import { ArrowRight, Eye, FlaskConical, Search } from "lucide-react";
 import { SHOWCASE_CTA, type ShowcaseCreative } from "@/lib/showcase";
 
@@ -178,13 +177,15 @@ export function WinningAdsShowcase({ items, demo }: { items: ShowcaseCreative[];
           Explore advertising creatives, uncover new ideas, and discover what you could test in your
           next campaign.
         </p>
-        <Link
+        <a
           href={SHOWCASE_CTA.href}
+          data-cta="starter_trial"
+          data-placement="showcase"
           className="group mt-8 inline-flex items-center gap-2 rounded-full bg-gradient-to-r from-brand to-[#7C3AED] px-7 py-3.5 text-[15px] font-medium text-white shadow-[0_0_28px_rgba(139,92,246,0.35)] transition-all duration-300 hover:shadow-[0_0_40px_rgba(139,92,246,0.5)] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-light"
         >
           {SHOWCASE_CTA.label}
           <ArrowRight size={16} className="transition-transform duration-300 group-hover:translate-x-0.5" />
-        </Link>
+        </a>
       </div>
 
       {/* ── The self-running ring (decorative motion; not interactive) ── */}

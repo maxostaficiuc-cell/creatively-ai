@@ -6,6 +6,7 @@ import { Logo } from "@/components/ui/Logo";
 import { Button } from "@/components/ui/Button";
 import { createClient } from "@/lib/supabase/client";
 import { checkoutUrlFor } from "@/lib/whop-plans";
+import { STARTER_TRIAL, TRIAL_TERMS } from "@/lib/starterTrial";
 
 const personas = [
   "Agency",
@@ -50,6 +51,8 @@ function OnboardingForm() {
   // Whop webhook once payment actually succeeds.
   const requestedPlanParam = searchParams.get("plan");
   const requestedPlan = VALID_PLANS.includes(requestedPlanParam || "") ? requestedPlanParam! : "Starter";
+  // $1 Starter introductory offer, carried from the trial buttons via signup.
+  const trialOffer = requestedPlan === "Starter" && searchParams.get("offer") === "trial" && STARTER_TRIAL.enabled;
 
   const [step, setStep] = useState(0);
   const [persona, setPersona] = useState<string | null>(null);
@@ -89,7 +92,7 @@ function OnboardingForm() {
     // history entry instead of pushing a new one, so pressing Back from
     // Whop's checkout doesn't land the user right back on this onboarding
     // form.
-    const checkoutUrl = checkoutUrlFor(requestedPlan, "monthly");
+    const checkoutUrl = checkoutUrlFor(requestedPlan, "monthly", trialOffer ? "trial" : null);
     window.location.replace(checkoutUrl || "/dashboard");
   }
 
@@ -167,6 +170,14 @@ function OnboardingForm() {
               </button>
             ))}
           </div>
+
+          {trialOffer && (
+            <p className="mt-6 rounded-xl border border-brand/25 bg-brand/[0.06] px-4 py-3 text-xs leading-relaxed text-ink-secondary">
+              <span className="font-medium text-ink-primary">Starter trial:</span> {TRIAL_TERMS} You&apos;ll pay $
+              {STARTER_TRIAL.introPrice} today at checkout; the subscription renews at ${STARTER_TRIAL.renewalPrice}/month
+              after {STARTER_TRIAL.days} days unless you cancel before then.
+            </p>
+          )}
 
           <div className="mt-8 flex items-center justify-between">
             <button

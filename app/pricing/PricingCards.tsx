@@ -5,6 +5,8 @@ import Link from "next/link";
 import { Check, Sparkles } from "lucide-react";
 import { PLANS, ANNUAL_DISCOUNT_LABEL } from "@/lib/pricing";
 import { TalkToSalesButton } from "@/components/marketing/TalkToSalesButton";
+import { TrialButton } from "@/components/marketing/TrialButton";
+import { STARTER_TRIAL } from "@/lib/starterTrial";
 
 export function PricingCards() {
   const [annual, setAnnual] = useState(false);
@@ -50,6 +52,9 @@ export function PricingCards() {
             ? `$${plan.annualPrice}`
             : `$${plan.monthlyPrice}`;
           const displayPeriod = isEnterprise ? "" : annual ? "/year" : "/month";
+          // $1-for-7-days introductory offer: Starter, monthly billing, and only
+          // when the matching Whop plan is configured (see lib/starterTrial.ts).
+          const trial = STARTER_TRIAL.enabled && plan.id === "Starter" && !annual;
 
           return (
             <div
@@ -57,9 +62,16 @@ export function PricingCards() {
               className={`relative flex flex-col rounded-2xl border p-7 transition-all ${
                 plan.highlight
                   ? "border-brand/60 bg-base-card shadow-glow"
+                  : trial
+                  ? "trial-card border-brand/40 bg-base-card"
                   : "border-base-border bg-base-card"
               }`}
             >
+              {trial && (
+                <span className="absolute -top-3 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-full border border-brand/40 bg-[#17121f] px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-brand-light">
+                  Intro offer · new subscribers
+                </span>
+              )}
               {plan.badge && (
                 <span className="absolute -top-3 left-1/2 -translate-x-1/2 rounded-full bg-brand px-3 py-1 text-[11px] font-semibold uppercase tracking-wide text-white shadow-glow">
                   {plan.badge}
@@ -73,6 +85,20 @@ export function PricingCards() {
               <h3 className="text-lg font-medium text-ink-primary">{plan.name}</h3>
               <p className="mt-1.5 text-sm text-ink-secondary">{plan.tagline}</p>
 
+              {trial ? (
+                <div className="mt-6">
+                  <p className="text-sm text-ink-muted">
+                    <span className="line-through decoration-ink-muted/70">${STARTER_TRIAL.renewalPrice}/month</span>
+                  </p>
+                  <div className="mt-1 flex animate-fade-in-up items-baseline gap-2">
+                    <span className="text-5xl font-bold tracking-tight text-white">${STARTER_TRIAL.introPrice}</span>
+                    <span className="text-sm font-medium text-brand-light">for your first {STARTER_TRIAL.days} days</span>
+                  </div>
+                  <p className="mt-2.5 text-sm leading-snug text-ink-secondary">
+                    Then ${STARTER_TRIAL.renewalPrice}/month, billed monthly after the introductory period.
+                  </p>
+                </div>
+              ) : (
               <div className="mt-6 flex items-baseline gap-1">
                 <span
                   className={`font-bold tracking-tight ${
@@ -83,6 +109,7 @@ export function PricingCards() {
                 </span>
                 {displayPeriod && <span className="text-sm text-ink-muted">{displayPeriod}</span>}
               </div>
+              )}
               {!isEnterprise && plan.weeklyCredits && (
                 <p className="mt-1 text-xs text-ink-muted">
                   {plan.weeklyCredits.toLocaleString()} AI credits / week · {plan.fourWeekCredits} / 4 weeks
@@ -99,6 +126,15 @@ export function PricingCards() {
                 >
                   {plan.cta}
                 </TalkToSalesButton>
+              ) : trial ? (
+                <div className="mt-7 animate-fade-in-up" style={{ animationDelay: "120ms" }}>
+                  <TrialButton placement="pricing" arrow={false} className="w-full !rounded-xl">
+                    Start 7-Day Trial — ${STARTER_TRIAL.introPrice}
+                  </TrialButton>
+                  <p className="mt-2.5 text-center text-xs leading-snug text-ink-muted">
+                    Get started for ${STARTER_TRIAL.introPrice}. Cancel before renewal if it&apos;s not right for you.
+                  </p>
+                </div>
               ) : (
                 <Link
                   href={`/signup?plan=${plan.id}`}
