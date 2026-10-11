@@ -27,7 +27,7 @@ export function Button({
   return (
     <button
       className={clsx(
-        "inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-medium transition-all duration-200",
+        "inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-medium transition-all duration-200 hover:-translate-y-px active:translate-y-0 active:brightness-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-light disabled:pointer-events-none disabled:opacity-50",
         styles[variant],
         className
       )}
@@ -48,7 +48,7 @@ export function ButtonLink({
     <Link
       href={href}
       className={clsx(
-        "inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-medium transition-all duration-200",
+        "inline-flex items-center justify-center gap-2 rounded-xl px-5 py-3 text-sm font-medium transition-all duration-200 hover:-translate-y-px active:translate-y-0 active:brightness-95 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-brand-light disabled:pointer-events-none disabled:opacity-50",
         styles[variant],
         className
       )}

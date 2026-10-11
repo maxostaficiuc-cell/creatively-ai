@@ -15,7 +15,8 @@ import { DashboardShowcase } from "@/components/marketing/DashboardShowcase";
 import { HeroScrollSequence } from "@/components/hero/HeroScrollSequence";
 import { FeatureCarousel } from "@/components/marketing/FeatureCarousel";
 import { GetFreeReportButton } from "@/components/marketing/GetFreeReportButton";
-import { LiveActivityStats } from "@/components/marketing/LiveActivityStats";
+import { HowItWorks } from "@/components/marketing/HowItWorks";
+import { ScrollReveal } from "@/components/marketing/ScrollReveal";
 import { WinningAdsShowcase } from "@/components/marketing/WinningAdsShowcase";
 import { getShowcaseCreatives } from "@/lib/showcaseServer";
 
@@ -94,6 +95,7 @@ export default async function LandingPage() {
   return (
     <>
       <Nav />
+      <ScrollReveal />
 
       {/* CINEMATIC HERO — hand + phone + scroll-driven example analysis */}
       <HeroScrollSequence />
@@ -101,56 +103,8 @@ export default async function LandingPage() {
       {/* FEATURE CAROUSEL — four premium cards: what's working, ad accounts, what's holding it back, winning ads */}
       <FeatureCarousel />
 
-      {/* LIVE ACTIVITY — real aggregate data, not scripted numbers */}
-      <section className="border-t border-white/5 px-6 py-16">
-        <LiveActivityStats />
-      </section>
-
-      {/* BEFORE YOU SPEND — also the nav's "How It Works" target (Without / With flow) */}
-      <section id="how-it-works" className="scroll-mt-24 border-t border-white/5 px-6 py-24">
-        <div className="mx-auto max-w-5xl">
-          <div className="text-center">
-            <h2 className="mx-auto max-w-2xl text-3xl font-semibold tracking-tight text-ink-primary sm:text-4xl">
-              Don&apos;t wait until you&apos;ve spent money to discover your creative was the
-              problem.
-            </h2>
-            <p className="mx-auto mt-4 max-w-xl text-ink-secondary">
-              Most advertisers know when an ad is underperforming. The difficult part is knowing
-              what to change before wasting more budget.
-            </p>
-          </div>
-          <div className="mt-14 grid gap-8 sm:grid-cols-2">
-            <div className="rounded-2xl border border-base-border bg-base-card p-7">
-              <p className="text-xs font-medium uppercase tracking-wide text-ink-muted">
-                Without Creatively.ai
-              </p>
-              <ul className="mt-5 space-y-3">
-                {["Launch", "Spend", "Wait", "Guess what's wrong", "Change something", "Repeat"].map((s) => (
-                  <li key={s} className="flex items-center gap-2 text-sm text-ink-secondary">
-                    <span className="h-1.5 w-1.5 rounded-full bg-ink-muted" /> {s}
-                  </li>
-                ))}
-              </ul>
-            </div>
-            <div className="group relative rounded-2xl border border-brand/40 bg-base-card p-7 shadow-glow transition-transform duration-300 ease-out hover:-translate-y-1">
-              <div
-                className="pointer-events-none absolute -inset-4 -z-10 rounded-[28px] opacity-60 blur-2xl animate-pulse"
-                style={{ background: "radial-gradient(closest-side, rgba(139,92,246,0.28), transparent)" }}
-              />
-              <p className="text-xs font-medium uppercase tracking-wide text-brand-light">
-                With Creatively.ai
-              </p>
-              <ul className="mt-5 space-y-3">
-                {["Upload", "Analyze", "Understand", "Improve", "Test", "Measure"].map((s) => (
-                  <li key={s} className="flex items-center gap-2 text-sm text-ink-primary">
-                    <Check size={14} className="text-accent-green" /> {s}
-                  </li>
-                ))}
-              </ul>
-            </div>
-          </div>
-        </div>
-      </section>
+      {/* HOW IT WORKS — scroll-driven four-step timeline (nav "How It Works" target) */}
+      <HowItWorks />
 
       {/* CREATIVE ANALYSIS CENTERPIECE */}
       <section id="creative-analysis" className="scroll-mt-24 border-t border-white/5 px-6 py-24">
@@ -164,7 +118,7 @@ export default async function LandingPage() {
             </p>
           </div>
 
-          <div className="mt-14 rounded-2xl border border-dashed border-base-border bg-base-surface/40 p-14 text-center">
+          <div data-reveal className="mt-14 rounded-2xl border border-dashed border-base-border bg-base-surface/40 p-14 text-center transition-colors duration-300 hover:border-brand/40">
             <p className="text-sm text-ink-secondary">
               Upload your ad and get a full creative intelligence report — score, strengths,
               priority fixes, and exactly what to test next.
@@ -189,7 +143,7 @@ export default async function LandingPage() {
             </p>
           </div>
 
-          <div className="mt-12 rounded-2xl border border-base-border bg-base-card p-8">
+          <div data-reveal className="mt-12 rounded-2xl border border-base-border bg-base-card p-8">
             <div className="flex items-center justify-between">
               <p className="text-sm text-ink-secondary">Creative Score</p>
               <p className="text-2xl font-semibold text-ink-primary">
@@ -198,7 +152,7 @@ export default async function LandingPage() {
               </p>
             </div>
             <div className="mt-6 space-y-4">
-              {scoreBreakdown.map((s) => (
+              {scoreBreakdown.map((s, i) => (
                 <div key={s.label}>
                   <div className="mb-1.5 flex items-center justify-between text-xs">
                     <span className="text-ink-secondary">{s.label}</span>
@@ -206,8 +160,9 @@ export default async function LandingPage() {
                   </div>
                   <div className="h-1.5 w-full overflow-hidden rounded-full bg-base-border">
                     <div
+                      data-reveal-bar
                       className="h-full rounded-full bg-gradient-to-r from-brand to-brand-light"
-                      style={{ width: `${s.value}%` }}
+                      style={{ width: `${s.value}%`, ["--d" as string]: i }}
                     />
                   </div>
                 </div>
@@ -233,7 +188,7 @@ export default async function LandingPage() {
             </p>
           </div>
           <div className="mt-12 grid gap-6 sm:grid-cols-3">
-            {honestExamples.map((ex) => {
+            {honestExamples.map((ex, i) => {
               const toneClass =
                 ex.tone === "green"
                   ? "border-accent-green/40 text-accent-green"
@@ -241,7 +196,12 @@ export default async function LandingPage() {
                   ? "border-orange-400/40 text-orange-400"
                   : "border-accent-red/40 text-accent-red";
               return (
-                <div key={ex.score} className="rounded-2xl border border-base-border bg-base-card p-7 text-center">
+                <div
+                  key={ex.score}
+                  data-reveal
+                  style={{ ["--d" as string]: i }}
+                  className="rounded-2xl border border-base-border bg-base-card p-7 text-center transition-[border-color,translate] duration-300 hover:-translate-y-0.5 hover:border-white/15"
+                >
                   <span className={`mx-auto flex h-16 w-16 items-center justify-center rounded-full border text-xl font-semibold ${toneClass}`}>
                     <ScoreCounter value={ex.score} />
                   </span>
@@ -269,13 +229,15 @@ export default async function LandingPage() {
             </p>
           </div>
           <div className="mt-12 grid gap-6 sm:grid-cols-3">
-            {winningAds.map((ad) => (
+            {winningAds.map((ad, i) => (
               <Link
                 key={ad.slug}
+                data-reveal
+                style={{ ["--d" as string]: i }}
                 href={`/report/${ad.slug}`}
                 className="group block cursor-pointer overflow-hidden rounded-2xl border border-base-border bg-base-card transition-all duration-300 hover:-translate-y-1 hover:border-brand/40 hover:shadow-glow"
               >
-                <div className="overflow-hidden bg-black">
+                <div data-reveal-sweep className="relative overflow-hidden bg-black">
                   <img
                     src={ad.imageUrl}
                     alt=""
@@ -311,7 +273,7 @@ export default async function LandingPage() {
           Overview, Analyze Creative, Winning Ads, My Creatives, Campaigns, Ad Sets, Ads,
           Insights — one workspace, no separate tools to stitch together.
         </p>
-        <div className="mt-14">
+        <div data-reveal className="mt-14">
           <DashboardShowcase />
         </div>
       </section>
@@ -323,7 +285,7 @@ export default async function LandingPage() {
             Most analytics tools tell you what happened. Creatively.ai helps you understand why.
           </h2>
           <div className="mt-14 grid gap-8 sm:grid-cols-2">
-            <div className="rounded-2xl border border-base-border bg-base-card p-7">
+            <div data-reveal className="rounded-2xl border border-base-border bg-base-card p-7">
               <p className="text-xs font-medium uppercase tracking-wide text-ink-muted">
                 Traditional Ad Analytics
               </p>
@@ -333,7 +295,7 @@ export default async function LandingPage() {
                 ))}
               </ul>
             </div>
-            <div className="rounded-2xl border border-brand/40 bg-base-card p-7 shadow-glow">
+            <div data-reveal style={{ ["--d" as string]: 1 }} className="rounded-2xl border border-brand/40 bg-base-card p-7 shadow-glow">
               <p className="text-xs font-medium uppercase tracking-wide text-brand-light">
                 Creatively.ai
               </p>
@@ -358,8 +320,13 @@ export default async function LandingPage() {
       </section>
 
       {/* PRICING */}
-      <section id="pricing" className="scroll-mt-24 border-t border-white/5 px-6 py-24">
-        <div className="mx-auto max-w-3xl text-center">
+      <section id="pricing" className="relative scroll-mt-24 overflow-hidden border-t border-white/5 px-6 py-24">
+        <div
+          aria-hidden
+          className="pointer-events-none absolute left-1/2 top-24 h-[480px] w-[900px] max-w-[160vw] -translate-x-1/2 rounded-full opacity-70 blur-3xl"
+          style={{ background: "radial-gradient(closest-side, rgba(139,92,246,0.09), transparent 75%)" }}
+        />
+        <div className="relative mx-auto max-w-3xl text-center">
           <p className="text-sm font-medium uppercase tracking-wide text-brand-light">Pricing</p>
           <h2 className="mt-3 text-3xl font-semibold tracking-tight text-ink-primary sm:text-4xl">
             Simple plans that scale with your creative intelligence.
@@ -369,7 +336,7 @@ export default async function LandingPage() {
             when your advertising operation demands it.
           </p>
         </div>
-        <div className="mx-auto mt-14 max-w-6xl">
+        <div className="relative mx-auto mt-14 max-w-6xl">
           <PricingCards />
         </div>
       </section>
@@ -381,8 +348,8 @@ export default async function LandingPage() {
             Built for people who spend money on ads.
           </h2>
           <div className="mt-12 grid gap-8 sm:grid-cols-3">
-            {audiences.map((a) => (
-              <div key={a.title} className="text-center">
+            {audiences.map((a, i) => (
+              <div key={a.title} data-reveal style={{ ["--d" as string]: i }} className="text-center">
                 <h3 className="font-medium text-ink-primary">{a.title}</h3>
                 <p className="mt-2 text-sm text-ink-secondary">{a.body}</p>
               </div>
@@ -398,8 +365,13 @@ export default async function LandingPage() {
             Frequently asked questions
           </h2>
           <div className="mt-12 space-y-4">
-            {faqs.map((f) => (
-              <details key={f.q} className="group rounded-xl border border-base-border bg-base-card p-5">
+            {faqs.map((f, i) => (
+              <details
+                key={f.q}
+                data-reveal
+                style={{ ["--d" as string]: Math.min(i, 4) * 0.6 }}
+                className="group rounded-xl border border-base-border bg-base-card p-5 transition-colors duration-200 hover:border-white/15 open:border-brand/30"
+              >
                 <summary className="cursor-pointer list-none text-sm font-medium text-ink-primary marker:content-['']">
                   {f.q}
                 </summary>
