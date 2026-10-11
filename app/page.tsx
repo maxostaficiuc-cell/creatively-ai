@@ -17,6 +17,7 @@ import { FeatureCarousel } from "@/components/marketing/FeatureCarousel";
 import { GetFreeReportButton } from "@/components/marketing/GetFreeReportButton";
 import { HowItWorks } from "@/components/marketing/HowItWorks";
 import { ScrollReveal } from "@/components/marketing/ScrollReveal";
+import { PlatformsTicker } from "@/components/marketing/PlatformsTicker";
 import { WinningAdsShowcase } from "@/components/marketing/WinningAdsShowcase";
 import { getShowcaseCreatives } from "@/lib/showcaseServer";
 
@@ -105,6 +106,9 @@ export default async function LandingPage() {
 
       {/* HOW IT WORKS — scroll-driven four-step timeline (nav "How It Works" target) */}
       <HowItWorks />
+
+      {/* AD PLATFORMS TICKER + LIVE ANALYSES COUNT (real number from /api/public-stats) */}
+      <PlatformsTicker />
 
       {/* CREATIVE ANALYSIS CENTERPIECE */}
       <section id="creative-analysis" className="scroll-mt-24 border-t border-white/5 px-6 py-24">
