@@ -275,6 +275,17 @@ body {
   --ws-w: clamp(70px, 16.5vw, 248px);           /* card width — drives everything */
   --ws-h: calc(var(--ws-w) * 1.5);            /* tall portrait card, like the reference */
 }
+/* Phones: bigger 4:5 cards (≈150–175px wide) so the ads are readable.       */
+/* The JS motion measures the card, so curve, speed and spacing follow.      */
+@media (max-width: 639px) {
+  .ws-section {
+    --ws-w: clamp(146px, 40vw, 175px);
+    --ws-h: calc(var(--ws-w) * 1.25);
+    --ws-pitch: 1.05;                         /* phones only: tighter spacing … */
+    --ws-depth: 0.22;                         /* … and a gentler curve, so a neighbour */
+    --ws-tilt: 24;                            /* always peeks in at each edge         */
+  }
+}
 .ws-stage {
   height: calc(var(--ws-h) * 1.34);
   perspective: calc(var(--ws-w) * 4.6);       /* scales with the cards → same depth look */
