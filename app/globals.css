@@ -164,7 +164,21 @@ body {
   transform: none;
 }
 
+/* "Inside every report" carousel */
+.tour-section { --tour-card-w: clamp(300px, 86vw, 580px); }
+.tour-track {
+  padding-inline: calc(50% - var(--tour-card-w) / 2);
+  scrollbar-width: none;
+  -webkit-overflow-scrolling: touch;
+}
+.tour-track::-webkit-scrollbar { display: none; }
+.tour-card {
+  width: var(--tour-card-w);
+  transition: transform 0.6s cubic-bezier(0.22, 1, 0.36, 1), opacity 0.45s ease;
+}
+
 @media (prefers-reduced-motion: reduce) {
+  .tour-card { transition: none; }
   .hero-rise, .hero-anchor-pulse { animation: none !important; }
   .hero-reveal { opacity: 1; transform: none; transition: none; }
 }
