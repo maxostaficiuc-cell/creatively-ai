@@ -16,6 +16,12 @@ import { HeroScrollSequence } from "@/components/hero/HeroScrollSequence";
 import { FeatureCarousel } from "@/components/marketing/FeatureCarousel";
 import { GetFreeReportButton } from "@/components/marketing/GetFreeReportButton";
 import { LiveActivityStats } from "@/components/marketing/LiveActivityStats";
+import { WinningAdsShowcase } from "@/components/marketing/WinningAdsShowcase";
+import { getShowcaseCreatives } from "@/lib/showcaseServer";
+
+// Re-check the showcase table every 5 minutes so admin uploads appear
+// on the public homepage without a redeploy.
+export const revalidate = 300;
 
 const scoreBreakdown = [
   { label: "Hook", value: 91 },
@@ -83,7 +89,8 @@ const faqs = [
   },
 ];
 
-export default function LandingPage() {
+export default async function LandingPage() {
+  const showcase = await getShowcaseCreatives();
   return (
     <>
       <Nav />
@@ -246,6 +253,9 @@ export default function LandingPage() {
           <p className="mt-8 text-center text-xs text-ink-muted">Example AI evaluations</p>
         </div>
       </section>
+
+      {/* KNOW WHAT MAKES AN AD WORK — cinematic rotating showcase */}
+      <WinningAdsShowcase items={showcase.items} demo={showcase.demo} />
 
       {/* WINNING ADS LIBRARY */}
       <section id="winning-ads" className="scroll-mt-24 border-t border-white/5 px-6 py-24">
