@@ -155,10 +155,10 @@ function LiveCounter() {
 
 export function PlatformsTicker() {
   return (
-    <section aria-label="Ad platforms and live analyses" className="pt-section relative overflow-hidden border-t border-white/5 px-5 py-14 sm:px-6 sm:py-16">
-      <div className="mx-auto grid max-w-6xl items-center gap-10 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] lg:gap-16">
+    <section aria-label="Ad platforms and live analyses" className="pt-section relative overflow-hidden border-t border-white/5 px-5 py-9 sm:px-6 sm:py-16">
+      <div className="mx-auto grid max-w-6xl grid-cols-[minmax(0,1fr)_auto] items-center gap-5 lg:grid-cols-[minmax(0,1.35fr)_minmax(0,1fr)] lg:gap-16">
         <div data-reveal className="min-w-0">
-          <p className="mb-5 text-center text-[11px] font-medium uppercase tracking-[0.24em] text-ink-muted lg:text-left">
+          <p className="mb-5 hidden text-left text-[11px] font-medium uppercase tracking-[0.24em] text-ink-muted lg:block">
             Analyze ad creatives made for
           </p>
           <div className="pt-marquee">
