@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { getShowcaseAdmin } from "@/lib/showcaseServer";
+import { analyzeWithClaude } from "@/lib/analyzeCreative";
 
 // Admin-only AI health check: https://trycreatively.space/api/admin/ai-check
 // Sends one tiny request to Anthropic (a few tokens — costs a tiny fraction
@@ -31,7 +32,8 @@ ${lines.map((l) => `<p style="margin:8px 0;color:#c4c4cc">${l}</p>`).join("")}
 
 const esc = (s: string) => s.replace(/[&<>"]/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" })[c]!);
 
-export async function GET() {
+export async function GET(request: Request) {
+  const full = new URL(request.url).searchParams.get("full") === "1";
   const admin = await getShowcaseAdmin();
   if (!admin.ok) {
     return NextResponse.json(
@@ -58,10 +60,30 @@ export async function GET() {
       body: JSON.stringify({ model, max_tokens: 5, messages: [{ role: "user", content: "Reply with OK." }] }),
       signal: AbortSignal.timeout(15000),
     });
+    if (res.ok && full) {
+      // Full test: one real analysis of the sample ad, exactly like a customer's.
+      const site = (process.env.SITE_URL || process.env.URL || new URL(request.url).origin).replace(/\/+$/, "");
+      try {
+        const img = await fetch(`${site}/images/buffy-ad-creative.png`);
+        if (!img.ok) throw new Error(`couldn't load the sample image (${img.status})`);
+        const bytes = new Uint8Array(await img.arrayBuffer());
+        const t0 = Date.now();
+        const report = await analyzeWithClaude(bytes, "image/png");
+        return page("Full analysis works ✓", true, [
+          `A real analysis of the sample ad finished in ${((Date.now() - t0) / 1000).toFixed(1)}s with score <b>${report.score}/100</b>.`,
+          "Customers' analyses will now be real. Old reports stay “Simulated” — run a new one.",
+        ]);
+      } catch (e) {
+        return page("Key works, but the full analysis failed", false, [
+          `<b>Reason:</b> ${esc(e instanceof Error ? e.message : String(e))}`,
+          "Send this line to your developer — it pinpoints the problem.",
+        ]);
+      }
+    }
     if (res.ok) {
       return page("AI is working ✓", true, [
         `Model <b>${esc(model)}</b> answered. Real analyses will run.`,
-        "If a report still says “Simulated”, it was created before this fix — run a new analysis.",
+        `For a complete end-to-end test, open <a style="color:#a78bfa" href="?full=1">?full=1</a> (runs one real analysis of the sample ad, about a cent).`,
       ]);
     }
     const text = await res.text().catch(() => "");
