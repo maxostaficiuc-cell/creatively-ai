@@ -8,6 +8,7 @@ import { ButtonLink } from "@/components/ui/Button";
 import { getDeviceFingerprint } from "@/lib/deviceFingerprint";
 import { TrialButton } from "@/components/marketing/TrialButton";
 import { STARTER_TRIAL } from "@/lib/starterTrial";
+import { prepareImageForUpload } from "@/lib/imagePrep";
 
 type Phase = "form" | "analyzing" | "already-used" | "video-blocked";
 
@@ -100,14 +101,21 @@ export function FreeReportModal({ onClose }: { onClose: () => void }) {
 
     try {
       const formData = new FormData();
-      formData.append("file", fileRef.current);
+      // Big images are resized first: smaller upload, faster analysis.
+      formData.append("file", await prepareImageForUpload(fileRef.current));
       formData.append("name", name.trim());
       formData.append("email", email.trim());
       formData.append("device", getDeviceFingerprint());
       formData.append("emailConsent", emailConsent ? "true" : "false");
 
       const res = await fetch("/api/free-report", { method: "POST", body: formData });
-      const data = await res.json();
+      // A non-JSON reply comes from the hosting platform (size or time limit).
+      const data = await res.json().catch(() => ({
+        error:
+          res.status === 413
+            ? "This image is too large. Please upload a smaller file."
+            : "The analysis took too long to finish. Please try again.",
+      }));
       setAnalysisDone(true);
 
       if (!res.ok) {

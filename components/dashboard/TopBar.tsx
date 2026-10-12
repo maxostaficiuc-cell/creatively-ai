@@ -6,6 +6,7 @@ import { useState } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { Profile } from "@/lib/types";
 import { weeklyAllowanceFor } from "@/lib/types";
+import { CreditCount, CreditDelta } from "@/components/dashboard/CreditsContext";
 
 export function TopBar({
   profile,
@@ -42,12 +43,13 @@ export function TopBar({
       </div>
 
       <div className="flex items-center gap-3">
-        <div className="flex items-center gap-2 rounded-xl border border-base-border bg-base-card px-3.5 py-2">
+        <div className="relative flex items-center gap-2 rounded-xl border border-base-border bg-base-card px-3.5 py-2">
+          <CreditDelta className="left-0 top-[calc(100%+6px)] sm:left-auto sm:right-[calc(100%+8px)] sm:top-[calc(50%-9px)]" />
           <Zap size={15} className="text-accent-green" />
           <div>
             <p className="text-xs leading-none text-ink-secondary">AI Credits</p>
             <p className="mt-1 text-xs font-medium text-ink-primary">
-              {(profile?.ai_credits ?? 0).toLocaleString()} / {weeklyAllowanceFor(profile?.plan ?? "Pro").toLocaleString()}
+              <CreditCount fallback={profile?.ai_credits ?? 0} announce /> / {weeklyAllowanceFor(profile?.plan ?? "Pro").toLocaleString()}
             </p>
           </div>
         </div>

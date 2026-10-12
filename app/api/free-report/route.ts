@@ -14,7 +14,7 @@ import { sendLoopsEvent } from "@/lib/loops";
 import { verifyTurnstileToken } from "@/lib/turnstile";
 
 export const runtime = "nodejs";
-export const maxDuration = 60;
+export const maxDuration = 30;
 
 const MAX_BYTES = 8 * 1024 * 1024; // 8MB
 const COOKIE_NAME = "cai_frt";
@@ -59,6 +59,7 @@ function fail(
 }
 
 export async function POST(request: Request) {
+  const t0 = Date.now(); // Netlify stops this function at 30s; the AI gets a budget inside that
   // Fail loud and specific, not with a raw crash, if required config is
   // missing — per the explicit requirement not to silently pretend this
   // works when it can't.
@@ -185,7 +186,7 @@ export async function POST(request: Request) {
 
     let analysis;
     try {
-      analysis = await runCreativeAnalysis(bytes, file.type);
+      analysis = await runCreativeAnalysis(bytes, file.type, { deadline: t0 + 23_000 });
     } catch (err) {
       // runCreativeAnalysis already catches AI failures internally and
       // returns a simulated result — reaching this catch means something

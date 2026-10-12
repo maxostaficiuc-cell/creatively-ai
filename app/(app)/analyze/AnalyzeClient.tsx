@@ -1,82 +1,91 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
-import {
-  Upload,
-  CheckCircle2,
-  XCircle,
-  TrendingUp,
-  ScanLine,
-  Zap,
-} from "lucide-react";
+import { Upload, CheckCircle2, XCircle, TrendingUp, ScanLine, Zap, RotateCcw, AlertTriangle } from "lucide-react";
 import { Button } from "@/components/ui/Button";
 import { CreativeReportView } from "@/components/marketing/CreativeReportView";
 import { OutOfCreditsModal } from "@/components/dashboard/OutOfCreditsModal";
+import { useCredits } from "@/components/dashboard/CreditsContext";
 import type { Creative } from "@/lib/types";
-import { CREDIT_COST_IMAGE, CREDIT_COST_VIDEO } from "@/lib/types";
+import { CREDIT_COST_IMAGE } from "@/lib/types";
+import { ANALYZE_ERRORS, type AnalyzeErrorBody, type AnalyzeErrorCode } from "@/lib/analyzeErrors";
+import { prepareImageForUpload } from "@/lib/imagePrep";
 
 type Phase = "idle" | "ready" | "scanning" | "results";
+type Stage = "preparing" | "analyzing" | "done";
 
-// Discrete progress steps the bar animates through while scanning, matching
-// a cinematic, non-linear pace rather than a flat linear fill.
-const PROGRESS_STEPS = [0, 15, 31, 48, 72, 89, 100];
+type FailState = {
+  code: AnalyzeErrorCode;
+  title: string;
+  message: string;
+  retryable: boolean;
+  /** false = server confirmed no charge; null = not confirmed */
+  charged: boolean | null;
+};
+type Success = { charged: number; remaining: number | null; replay: boolean };
 
-export function AnalyzeClient({ credits }: { credits: number }) {
+const newRequestId = () =>
+  typeof crypto !== "undefined" && "randomUUID" in crypto
+    ? crypto.randomUUID()
+    : `${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 12)}`;
+
+const wait = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+export function AnalyzeClient({ credits: initialCredits }: { credits: number }) {
   const router = useRouter();
   const inputRef = useRef<HTMLInputElement>(null);
+  const creditsCtx = useCredits();
+  const credits = creditsCtx?.balance ?? initialCredits;
 
   const [phase, setPhase] = useState<Phase>("idle");
   const [dragOver, setDragOver] = useState(false);
   const [file, setFile] = useState<File | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const [fail, setFail] = useState<FailState | null>(null);
   const [result, setResult] = useState<Creative | null>(null);
+  const [success, setSuccess] = useState<Success | null>(null);
   const [outOfCredits, setOutOfCredits] = useState(false);
 
-  // Scanning-sequence state
-  const [progress, setProgress] = useState(0);
-  const [scanComplete, setScanComplete] = useState(false);
+  // Scanning visuals (decorative) + honest status
+  const [stage, setStage] = useState<Stage>("preparing");
+  const [elapsed, setElapsed] = useState(0);
   const [anchors, setAnchors] = useState([false, false, false]);
-  const [finalizing, setFinalizing] = useState(false);
 
   const timers = useRef<ReturnType<typeof setTimeout>[]>([]);
-  const resultRef = useRef<Creative | null>(null);
-  const errorRef = useRef<string | null>(null);
-  const insufficientCreditsRef = useRef(false);
+  const busy = useRef(false);
+  /** Reused when the previous attempt's outcome is unknown, so a retry can't charge twice. */
+  const requestIdRef = useRef<string | null>(null);
+  /** Upload-ready version of the file (resized once, reused on retry). */
+  const preparedRef = useRef<{ src: File; out: File } | null>(null);
 
   function clearTimers() {
-    timers.current.forEach(clearTimeout);
+    timers.current.forEach((t) => clearTimeout(t));
     timers.current = [];
   }
-
-  function schedule(fn: () => void, ms: number) {
-    timers.current.push(setTimeout(fn, ms));
-  }
-
   useEffect(() => () => clearTimers(), []);
 
   function resetAll() {
     clearTimers();
+    busy.current = false;
+    requestIdRef.current = null;
+    preparedRef.current = null;
     setPhase("idle");
     setFile(null);
     setPreviewUrl(null);
-    setError(null);
+    setFail(null);
     setResult(null);
-    setProgress(0);
-    setScanComplete(false);
+    setSuccess(null);
     setAnchors([false, false, false]);
-    setFinalizing(false);
-    resultRef.current = null;
-    errorRef.current = null;
+    setStage("preparing");
+    setElapsed(0);
   }
 
   function pickFile(f: File) {
     resetAll();
     setFile(f);
-    if (f.type.startsWith("image/")) {
-      setPreviewUrl(URL.createObjectURL(f));
-    }
+    if (f.type.startsWith("image/")) setPreviewUrl(URL.createObjectURL(f));
     setPhase("ready");
   }
 
@@ -87,102 +96,148 @@ export function AnalyzeClient({ credits }: { credits: number }) {
     if (f) pickFile(f);
   }
 
-  async function startAnalysis() {
-    if (!file) return;
+  const isVideoFile = !!file?.type.startsWith("video/");
+  // Videos get a labelled preview result and are not charged.
+  const cost = isVideoFile ? 0 : CREDIT_COST_IMAGE;
 
-    const cost = file.type.startsWith("video/") ? CREDIT_COST_VIDEO : CREDIT_COST_IMAGE;
+  /** One HTTP attempt. Never throws; always resolves to a typed outcome. */
+  async function send(upload: File, requestId: string): Promise<
+    | { ok: true; creative: Creative; charged: number; remaining: number | null; transactionId: string | null; replay: boolean }
+    | { ok: false; body: AnalyzeErrorBody | null; status: number; indeterminate: boolean }
+  > {
+    const form = new FormData();
+    form.append("file", upload);
+    form.append("requestId", requestId);
+    let res: Response;
+    try {
+      res = await fetch("/api/analyze", { method: "POST", body: form, signal: AbortSignal.timeout?.(60_000) });
+    } catch {
+      // Connection dropped or timed out: the server may still have finished.
+      return { ok: false, body: null, status: 0, indeterminate: true };
+    }
+    const text = await res.text().catch(() => "");
+    let data: Record<string, unknown> | null = null;
+    try {
+      data = JSON.parse(text);
+    } catch {
+      data = null;
+    }
+    if (res.ok && data && data.creative) {
+      return {
+        ok: true,
+        creative: data.creative as Creative,
+        charged: Number(data.charged ?? 0),
+        remaining: typeof data.remainingCredits === "number" ? data.remainingCredits : null,
+        transactionId: (data.transactionId as string) ?? null,
+        replay: !!data.replay,
+      };
+    }
+    if (data && typeof data.code === "string") return { ok: false, body: data as AnalyzeErrorBody, status: res.status, indeterminate: false };
+    // A non-JSON answer comes from the hosting platform, not our code
+    // (request too large, function limit). Outcome unknown unless it's a 413.
+    return { ok: false, body: null, status: res.status, indeterminate: res.status !== 413 };
+  }
+
+  async function startAnalysis() {
+    if (!file || busy.current) return; // no double submits
     if (credits < cost) {
-      // Known-insufficient before even attempting the upload — skip the
-      // network round trip entirely. The server check further down is
-      // still the real, authoritative gate; this is just a faster no.
       setOutOfCredits(true);
       return;
     }
+    busy.current = true;
+    setFail(null);
+    setSuccess(null);
+    clearTimers();
+    setPhase("scanning");
+    setStage("preparing");
+    setElapsed(0);
+    setAnchors([false, false, false]);
+    const started = Date.now();
+    const tick = () => {
+      setElapsed(Math.floor((Date.now() - started) / 1000));
+      timers.current.push(setTimeout(tick, 1000));
+    };
+    timers.current.push(setTimeout(tick, 1000));
+    timers.current.push(setTimeout(() => setAnchors([true, false, false]), 1200));
+    timers.current.push(setTimeout(() => setAnchors([true, true, false]), 2400));
+    timers.current.push(setTimeout(() => setAnchors([true, true, true]), 3600));
 
-    setError(null);
-    errorRef.current = null;
-    insufficientCreditsRef.current = false;
+    // Resize once; a retry reuses the same upload.
+    if (!preparedRef.current || preparedRef.current.src !== file) {
+      preparedRef.current = { src: file, out: await prepareImageForUpload(file) };
+    }
+    const upload = preparedRef.current.out;
+    setStage("analyzing");
 
-    // Kick off the real analysis request in parallel with the visual sequence.
-    const analysisPromise = (async () => {
-      try {
-        const formData = new FormData();
-        formData.append("file", file);
-        const res = await fetch("/api/analyze", { method: "POST", body: formData });
-        const data = await res.json();
-        if (!res.ok) {
-          errorRef.current = data.error || "Analysis failed.";
-          if (res.status === 402) insufficientCreditsRef.current = true;
-          return null;
-        }
-        return data.creative as Creative;
-      } catch {
-        errorRef.current = "Something went wrong uploading your file. Please try again.";
-        return null;
+    const requestId = requestIdRef.current ?? newRequestId();
+    requestIdRef.current = requestId;
+
+    let outcome = await send(upload, requestId);
+    // Recover instead of duplicating: the same request may still be finishing,
+    // or the provider asked us to wait a moment. Bounded, same request id.
+    for (let i = 0; i < 4 && !outcome.ok; i++) {
+      const code = outcome.body?.code;
+      const shortWait = code === "rate_limited" && (outcome.body?.retryAfter ?? 3) <= 10;
+      if (code === "in_progress" || shortWait) {
+        await wait(code === "in_progress" ? 5000 : Math.max(1500, (outcome.body?.retryAfter ?? 3) * 1000));
+        outcome = await send(upload, requestId);
+        continue;
       }
-    })();
-
-    const isVideo = file.type.startsWith("video/");
-
-    if (isVideo) {
-      // Video gets a simpler loading state — no image scanning beam.
-      setPhase("scanning");
-      const creative = await analysisPromise;
-      if (!creative) {
-        if (insufficientCreditsRef.current) {
-          setOutOfCredits(true);
-        } else {
-          setError(errorRef.current || "Analysis failed.");
-        }
-        setPhase("ready");
-        return;
+      if (outcome.indeterminate && i === 0) {
+        await wait(2000);
+        outcome = await send(upload, requestId);
+        continue;
       }
-      setResult(creative);
-      resultRef.current = creative;
+      break;
+    }
+
+    clearTimers();
+    busy.current = false;
+
+    if (outcome.ok) {
+      setStage("done");
+      requestIdRef.current = null;
+      if (!outcome.replay && outcome.charged > 0 && outcome.remaining !== null) {
+        // Server-confirmed charge: update both credit displays and animate.
+        creditsCtx?.confirmCharge(outcome.transactionId ?? requestId, outcome.charged, outcome.remaining);
+      }
+      setSuccess({ charged: outcome.replay ? 0 : outcome.charged, remaining: outcome.remaining, replay: outcome.replay });
+      setResult(outcome.creative);
       setPhase("results");
-      router.refresh();
+      router.refresh(); // re-read the balance from the database everywhere
       return;
     }
 
-    setPhase("scanning");
-
-    // Progress bar ticks across the scanning window (0.8s - 3.0s)
-    const stepGap = 2200 / (PROGRESS_STEPS.length - 1);
-    PROGRESS_STEPS.forEach((val, i) => {
-      schedule(() => setProgress(val), 800 + i * stepGap);
+    const body = outcome.body;
+    if (body?.code === "insufficient_credits" || body?.code === "plan_inactive") {
+      requestIdRef.current = null;
+      setPhase("ready");
+      setOutOfCredits(true);
+      router.refresh();
+      return;
+    }
+    // Without a JSON body the reply came from the network or the hosting platform.
+    const code: AnalyzeErrorCode =
+      body?.code ??
+      (outcome.status === 413
+        ? "file_too_large"
+        : outcome.status === 0
+          ? "upload_failed"
+          : outcome.status >= 500
+            ? "ai_timeout"
+            : "server_error");
+    const def = ANALYZE_ERRORS[code];
+    // A definite failure gets a fresh id next time; an unknown outcome keeps it.
+    if (!outcome.indeterminate) requestIdRef.current = null;
+    setFail({
+      code,
+      title: def.title,
+      message: body?.error ?? def.message,
+      retryable: body?.retryable ?? def.retryable,
+      charged: body ? body.charged : null,
     });
-
-    // Anchor pulses while the beam travels
-    schedule(() => setAnchors([true, false, false]), 1200);
-    schedule(() => setAnchors([true, true, false]), 1800);
-    schedule(() => setAnchors([true, true, true]), 2400);
-
-    // Scan completes, wait for real data, then reveal results
-    schedule(async () => {
-      setScanComplete(true);
-      const creative = await analysisPromise;
-
-      if (!creative) {
-        if (insufficientCreditsRef.current) {
-          setOutOfCredits(true);
-        } else {
-          setError(errorRef.current || "Analysis failed.");
-        }
-        setPhase("ready");
-        return;
-      }
-
-      setResult(creative);
-      resultRef.current = creative;
-      setFinalizing(false);
-      setPhase("results");
-    }, 3000);
-
-    // If the API is slower than the scan animation, show a brief
-    // "finalizing" state rather than an awkward frozen 100%.
-    schedule(() => {
-      if (!resultRef.current && !errorRef.current) setFinalizing(true);
-    }, 3400);
+    setPhase("ready");
+    if (body?.charged !== false) router.refresh();
   }
 
   function analyzeAnother() {
@@ -190,25 +245,35 @@ export function AnalyzeClient({ credits }: { credits: number }) {
     inputRef.current?.click();
   }
 
-  const isVideoFile = file?.type.startsWith("video/");
-
   return (
     <div className="mx-auto max-w-6xl space-y-6">
       {phase !== "results" && (
         <div className="rounded-2xl border border-base-border bg-base-card p-6 text-center text-sm text-ink-secondary">
-          You have <span className="font-medium text-ink-primary">{credits.toLocaleString()}</span> AI credits.
-          Images cost {CREDIT_COST_IMAGE} credits, videos cost {CREDIT_COST_VIDEO}.
+          You have <span className="font-medium text-ink-primary">{credits.toLocaleString()}</span> AI credits.{" "}
+          {file && phase === "ready" ? (
+            isVideoFile ? (
+              <>Video analysis is in preview and isn&apos;t charged.</>
+            ) : (
+              <>
+                This image analysis uses <span className="font-medium text-ink-primary">{CREDIT_COST_IMAGE} credits</span>, charged only
+                when your report is ready.
+              </>
+            )
+          ) : (
+            <>Image analysis: {CREDIT_COST_IMAGE} credits, charged only when your report is ready.</>
+          )}
         </div>
       )}
 
       <input
         ref={inputRef}
         type="file"
-        accept="image/*,video/*"
+        accept="image/jpeg,image/png,image/webp,image/gif,image/*,video/mp4,video/quicktime,video/webm"
         className="hidden"
         onChange={(e) => {
           const f = e.target.files?.[0];
           if (f) pickFile(f);
+          e.target.value = "";
         }}
       />
 
@@ -232,6 +297,7 @@ export function AnalyzeClient({ credits }: { credits: number }) {
             <br />
             or click to upload
           </p>
+          <p className="text-xs text-ink-muted">JPG, PNG, WebP or GIF. Large images are resized automatically.</p>
         </div>
       )}
 
@@ -248,28 +314,31 @@ export function AnalyzeClient({ credits }: { credits: number }) {
             )}
           </div>
           <div className="flex gap-3">
-            <Button variant="secondary" className="flex-1" onClick={resetAll}>
+            <Button variant="secondary" className="flex-1" onClick={() => inputRef.current?.click()}>
               Choose different file
             </Button>
-            <Button className="flex-1" onClick={startAnalysis}>
-              Analyze Creative <ScanLine size={16} />
+            <Button className="flex-1" onClick={startAnalysis} disabled={busy.current}>
+              {fail?.retryable ? (
+                <>
+                  {fail.code === "upload_failed" || fail.code === "storage_failed" ? "Retry upload" : "Retry analysis"} <RotateCcw size={15} />
+                </>
+              ) : (
+                <>
+                  Analyze Creative <ScanLine size={16} />
+                </>
+              )}
             </Button>
           </div>
         </div>
       )}
 
-      {/* SCANNING — the cinematic sequence */}
+      {fail && phase === "ready" && <FailCard fail={fail} />}
+
+      {/* SCANNING */}
       {phase === "scanning" && (
         <div className="grid grid-cols-1 gap-6 lg:grid-cols-5">
           <div className="lg:col-span-3">
-            <ScannerPanel
-              previewUrl={previewUrl}
-              isVideo={!!isVideoFile}
-              progress={progress}
-              scanComplete={scanComplete}
-              finalizing={finalizing}
-              anchors={anchors}
-            />
+            <ScannerPanel previewUrl={previewUrl} isVideo={isVideoFile} stage={stage} elapsed={elapsed} anchors={anchors} />
           </div>
           {!isVideoFile && (
             <div className="hidden lg:col-span-2 lg:flex lg:flex-col lg:justify-center lg:gap-4">
@@ -281,15 +350,33 @@ export function AnalyzeClient({ credits }: { credits: number }) {
         </div>
       )}
 
-      {error && (
-        <div className="rounded-xl border border-accent-red/30 bg-accent-red/5 p-4 text-sm text-accent-red">
-          {error}
-        </div>
-      )}
-
       {/* RESULTS — full creative intelligence report */}
       {phase === "results" && result && (
         <div className="space-y-6">
+          {success && (
+            <p className="flex flex-wrap items-center gap-x-2 gap-y-1 text-xs text-ink-secondary" role="status">
+              <CheckCircle2 size={14} className="text-accent-green" aria-hidden />
+              <span className="text-ink-primary">Analysis complete</span>
+              {success.charged > 0 && (
+                <>
+                  <span aria-hidden>·</span>
+                  <span>{success.charged} credits used</span>
+                </>
+              )}
+              {success.replay && (
+                <>
+                  <span aria-hidden>·</span>
+                  <span>already saved, no new charge</span>
+                </>
+              )}
+              {success.remaining !== null && (
+                <>
+                  <span aria-hidden>·</span>
+                  <span>{success.remaining.toLocaleString()} credits remaining</span>
+                </>
+              )}
+            </p>
+          )}
           {result.report ? (
             <CreativeReportView
               report={result.report}
@@ -379,18 +466,23 @@ export function AnalyzeClient({ credits }: { credits: number }) {
 function ScannerPanel({
   previewUrl,
   isVideo,
-  progress,
-  scanComplete,
-  finalizing,
+  stage,
+  elapsed,
   anchors,
 }: {
   previewUrl: string | null;
   isVideo: boolean;
-  progress: number;
-  scanComplete: boolean;
-  finalizing: boolean;
+  stage: Stage;
+  elapsed: number;
   anchors: boolean[];
 }) {
+  const scanComplete = stage === "done";
+  const status =
+    stage === "preparing"
+      ? "Preparing your image…"
+      : elapsed < 20
+        ? "Reading the creative and writing your report…"
+        : "Still working, almost there…";
   return (
     <div className="rounded-2xl border border-base-border bg-base-surface p-5 animate-fade-scale-in">
       <div className="mb-4 flex items-center gap-3">
@@ -402,11 +494,9 @@ function ScannerPanel({
           {scanComplete ? <CheckCircle2 size={16} /> : <ScanLine size={16} />}
         </div>
         <div>
-          <p className="text-sm font-medium text-ink-primary">
-            {scanComplete ? "Analysis complete" : "ANALYZING CREATIVE"}
-          </p>
-          <p className="text-xs text-ink-secondary">
-            {scanComplete ? (finalizing ? "Finalizing…" : "Preparing insights…") : "Scanning image…"}
+          <p className="text-sm font-medium text-ink-primary">{scanComplete ? "Analysis complete" : "ANALYZING CREATIVE"}</p>
+          <p className="text-xs text-ink-secondary" aria-live="polite">
+            {scanComplete ? "Opening your report…" : status}
           </p>
         </div>
       </div>
@@ -458,18 +548,19 @@ function ScannerPanel({
         )}
       </div>
 
-      {!isVideo && (
-        <div className="mt-4 flex items-center gap-3">
-          <span className="text-xs text-ink-secondary">{scanComplete ? "Analysis complete" : "Analyzing…"}</span>
-          <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-base-border">
-            <div
-              className="h-full rounded-full bg-gradient-to-r from-brand to-accent-green transition-all duration-500 ease-out"
-              style={{ width: `${progress}%` }}
-            />
-          </div>
-          <span className="w-9 shrink-0 text-right text-xs text-ink-secondary">{progress}%</span>
+      {/* No percentage: we can't know how far along the AI is, so we show time, not a made-up number. */}
+      <div className="mt-4 flex items-center gap-3">
+        <div className="relative h-1.5 flex-1 overflow-hidden rounded-full bg-base-border">
+          {scanComplete ? (
+            <div className="h-full w-full rounded-full bg-gradient-to-r from-brand to-accent-green" />
+          ) : (
+            <div className="analyze-indeterminate absolute inset-y-0 w-1/3 rounded-full bg-gradient-to-r from-transparent via-brand to-transparent" />
+          )}
         </div>
-      )}
+        <span className="shrink-0 text-xs tabular-nums text-ink-secondary">
+          {scanComplete ? "Done" : `${elapsed}s · usually 15–25s`}
+        </span>
+      </div>
     </div>
   );
 }
@@ -550,4 +641,38 @@ function ResultCard({
 function PlaceholderCardStub({ tone }: { tone: keyof typeof TONE_STYLES }) {
   const t = TONE_STYLES[tone];
   return <div className={`h-20 rounded-2xl border ${t.border} bg-base-card/40 opacity-40`} />;
+}
+
+function FailCard({ fail }: { fail: FailState }) {
+  const isAnalysis = ANALYZE_ERRORS[fail.code].kind === "analysis";
+  return (
+    <div role="alert" className="mx-auto max-w-md rounded-xl border border-accent-red/30 bg-accent-red/[0.06] p-4">
+      <p className="flex items-center gap-2 text-sm font-semibold text-[#FCA5A5]">
+        <AlertTriangle size={15} aria-hidden /> {fail.title}
+      </p>
+      <p className="mt-1.5 text-sm leading-relaxed text-ink-secondary">{fail.message}</p>
+      {fail.charged === false && (
+        <p className="mt-2 text-xs text-ink-muted">Your credits have not been charged.</p>
+      )}
+      {fail.charged === null && (
+        <p className="mt-2 text-xs text-ink-muted">
+          If credits were held for this attempt, they return automatically within a few minutes.
+        </p>
+      )}
+      {fail.code === "session_expired" ? (
+        <Link href="/login" className="mt-3 inline-flex text-xs font-medium text-brand-light hover:underline">
+          Log in again →
+        </Link>
+      ) : (
+        isAnalysis && (
+          <p className="mt-3 text-xs text-ink-muted">
+            Keeps happening?{" "}
+            <Link href="/contact" className="font-medium text-brand-light hover:underline">
+              Contact support
+            </Link>
+          </p>
+        )
+      )}
+    </div>
+  );
 }

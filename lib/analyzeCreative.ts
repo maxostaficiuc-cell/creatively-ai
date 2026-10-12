@@ -205,9 +205,13 @@ const VOICE = `VOICE — you are a senior performance creative strategist writin
 - If text is unreadable or cropped, say so instead of guessing.
 - Stay within the word limits. Shorter is better.`;
 
-const DIAGNOSIS_PROMPT = `${VOICE}
+// Five focused calls run in parallel. One big call took most of the 30s
+// serverless limit on its own; smaller calls finish in a fraction of that and
+// a failure in an optional part no longer sinks the whole report.
 
-TASK — diagnose this single ad image (Meta, TikTok or Google placements). Most ads are average; use the whole scale.
+const CORE_PROMPT = `${VOICE}
+
+TASK — give the headline verdict on this single ad image (Meta, TikTok or Google placements). Most ads are average; use the whole scale.
 SCORE BANDS: 90-100 Excellent · 80-89 Strong · 60-79 Average · 40-59 Weak · 0-39 Very Weak.
 
 Return ONLY a JSON object, no other text:
@@ -217,16 +221,28 @@ Return ONLY a JSON object, no other text:
   "format": "<format and aspect ratio you can see, e.g. 'Static image, 4:5 portrait'>",
   "placement_guess": "<placements the format suits, e.g. 'Meta Feed, Instagram Feed'>",
   "verdict": "<one sentence, max 28 words: the main strength and the main problem>",
-  "priority_action": "<the single most important change, imperative, max 16 words>",
   "summary_points": {
     "message": "<what the ad is saying, max 18 words>",
     "audience": "<who it appears to target, an inference, max 16 words>",
     "strongest": "<strongest element, max 16 words>",
     "weakest": "<biggest weakness, max 16 words>",
     "opportunity": "<main opportunity, max 18 words>",
-    "next_action": "<recommended next action, max 16 words>"
+    "next_action": "<the step after fixing the creative, e.g. what to test, max 16 words>"
   },
-  "executive_summary": "<3 sentences, max 65 words, no repetition of the verdict wording>",
+  "executive_summary": "<3 sentences, max 60 words, no repetition of the verdict wording>",
+  "hook": {"text": "<exact headline, or 'No clear headline'>", "type": "<e.g. lifestyle promise, question, price-led>", "clarity": "<High|Medium|Low>", "specificity": "<High|Medium|Low>", "emotional_angle": "<max 8 words>", "strength": "<max 16 words>", "limitation": "<max 16 words>"},
+  "expected_impact": "<qualitative, max 26 words, no numbers>",
+  "campaign_readiness": "<short phrase, e.g. 'Ready to test', 'Fix the offer first'>",
+  "final_recommendation": {"verdict": <"YES"|"YES — WITH CHANGES"|"TEST FIRST"|"NO — REWORK REQUIRED">, "reason": "<max 26 words>"},
+  "creative_readiness_score": <integer 0-100>
+}`;
+
+const FINDINGS_PROMPT = `${VOICE}
+
+TASK — point to the specific elements of this single ad image that help or hurt it, then list what works and what to fix.
+
+Return ONLY a JSON object, no other text:
+{
   "annotations": [
     {"id": "a1", "label": "<Headline|Product|Offer|Price|CTA|Logo|Proof|Supporting text|Visual>", "x": <0-1 centre x>, "y": <0-1 centre y>, "w": <0-1 width>, "h": <0-1 height>, "tone": "<positive|negative|neutral>", "note": "<what it does well or badly, max 20 words>"}
   ],
@@ -236,27 +252,40 @@ Return ONLY a JSON object, no other text:
   "fix_items": [
     {"issue": "<max 8 words>", "where": "<where in the ad>", "why": "<why it matters, max 20 words>", "fix": "<what to change, max 20 words>", "example": "<concrete copy or layout example, max 16 words>", "priority": "<High|Medium|Low>", "effort": "<Quick|Moderate|Substantial>", "impact": "<expected effect as a hypothesis, max 14 words>", "annotation": "<annotation id or null>"}
   ],
-  "signal_scores": [ {"label": "<label>", "score": <integer 0-10, or null if the image gives no evidence>, "reason": "<evidence-based reason, max 16 words>", "improve": "<how to raise it, max 12 words>"} ],
-  "positive_factors": [<2-4 strings, max 14 words each: what lifts the score>],
-  "negative_factors": [<2-4 strings, max 14 words each: what holds it back>],
-  "hook": {"text": "<exact headline, or 'No clear headline'>", "type": "<e.g. lifestyle promise, question, price-led>", "clarity": "<High|Medium|Low>", "specificity": "<High|Medium|Low>", "emotional_angle": "<max 8 words>", "strength": "<max 16 words>", "limitation": "<max 16 words>"},
-  "expected_impact": "<qualitative, max 28 words, no numbers>",
-  "campaign_readiness": "<short phrase, e.g. 'Ready to test', 'Fix the offer first'>",
-  "final_recommendation": {"verdict": <"YES"|"YES — WITH CHANGES"|"TEST FIRST"|"NO — REWORK REQUIRED">, "reason": "<max 28 words>"},
-  "creative_readiness_score": <integer 0-100>
+  "positive_factors": [<2-4 strings, max 14 words each: what lifts the quality>],
+  "negative_factors": [<2-4 strings, max 14 words each: what holds it back>]
 }
-RULES: annotations 3-6, only for elements you can clearly see; boxes are approximate and must sit over the element. strength_items 2-4. fix_items 3-5, highest priority first. signal_scores must contain exactly these labels in this order: ${SIGNAL_LABELS.join(", ")}. "Creative Fatigue Risk": 10 = fresh, 0 = looks overused.`;
+RULES: annotations 3-6, only for elements you can clearly see; boxes are approximate and must sit over the element (x, y = centre; 0,0 is top-left). strength_items 2-4. fix_items 3-5, most important first.`;
 
-const STRATEGY_PROMPT = `${VOICE}
+const SIGNALS_PROMPT = `${VOICE}
 
-TASK — write the creative strategy for this ad image: what to test next and who it is for. Every idea must fit this exact product, offer and brand. Do not repeat generic best practice.
+TASK — score this single ad image on each signal from 0 to 10. Most ads sit between 4 and 8; use the whole scale.
+
+Return ONLY a JSON object, no other text:
+{
+  "signal_scores": [ {"label": "<label>", "score": <integer 0-10, or null if the image gives no evidence>, "reason": "<evidence-based reason, max 14 words>", "improve": "<how to raise it, max 10 words>"} ]
+}
+RULES: signal_scores must contain exactly these labels in this order: ${SIGNAL_LABELS.join(", ")}. "Creative Fatigue Risk": 10 = looks fresh, 0 = looks overused. Use null only when the signal truly cannot be judged from the image (for example, no offer at all for "Offer Strength").`;
+
+const IDEAS_PROMPT = `${VOICE}
+
+TASK — new hooks, angles and concrete edits for this ad image. Every idea must fit this exact product, offer and brand. No generic best practice.
 
 Return ONLY a JSON object, no other text:
 {
   "hook_ideas": [ {"category": "<Emotional|Curiosity|Direct response|Problem-aware|Benefit-driven>", "hook": "<new headline, max 12 words>", "why": "<why it is worth testing, max 16 words>", "changes": "<what it changes vs the current headline, max 10 words>"} ],
   "ad_angles": [ {"name": "<e.g. Price-led, Convenience-led>", "message": "<central message, max 14 words>", "hook": "<max 12 words>", "offer": "<how to present the offer, max 14 words>", "visual": "<visual direction, max 16 words>", "cta": "<max 4 words>", "hypothesis": "<max 16 words>"} ],
-  "improvements": [ {"area": "<Headline|Visual|Offer|CTA|Proof|Mobile|Branding>", "before": "<what it is now, max 12 words>", "after": "<the specific change, max 16 words>"} ],
-  "variations": [ {"name": "<Variation A|Variation B|Variation C>", "focus": "<Hook|Benefit|Visual|Offer>", "headline": "<proposed headline, max 12 words>", "changes": "<what changes, max 20 words>", "why": "<max 16 words>", "hypothesis": "<max 14 words>", "keep": "<what stays the same, max 12 words>", "layout": "<layout direction a designer can follow, max 24 words>"} ],
+  "improvements": [ {"area": "<Headline|Visual|Offer|CTA|Proof|Mobile|Branding>", "before": "<what it is now, max 12 words>", "after": "<the specific change, max 16 words>"} ]
+}
+RULES: hook_ideas 4-6, only categories that fit. ad_angles 3. improvements 4-6.`;
+
+const PLAN_PROMPT = `${VOICE}
+
+TASK — plan what to make and test next for this ad image, and who it is for. Every idea must fit this exact product, offer and brand.
+
+Return ONLY a JSON object, no other text:
+{
+  "variations": [ {"name": "<Variation A|Variation B|Variation C>", "focus": "<Hook|Benefit|Visual|Offer>", "headline": "<proposed headline, max 12 words>", "changes": "<what changes, max 20 words>", "why": "<max 16 words>", "hypothesis": "<max 14 words>", "keep": "<what stays the same, max 12 words>", "layout": "<layout direction a designer can follow, max 22 words>"} ],
   "audiences": [ {"type": "<Primary|Secondary>", "name": "<max 7 words>", "overview": "<max 20 words>", "motivations": [<2-3, max 7 words each>], "pain_points": [<2-3>], "objections": [<1-2>], "awareness": "<Unaware|Problem aware|Solution aware|Product aware|Most aware, plus a short reason>", "messaging": "<what to say to them, max 14 words>", "angle": "<best angle, max 8 words>", "evidence": "<what in the image suggests this, max 16 words>"} ],
   "campaign": {
     "objective": {"rec": "<max 8 words>", "why": "<max 18 words; if the business goal is unknown, phrase it as conditional>"},
@@ -267,101 +296,242 @@ Return ONLY a JSON object, no other text:
   },
   "tests": [ {"name": "<Test A: short name>", "variable_isolated": "<the one variable>", "hypothesis": "<max 18 words>", "change": "<max 12 words>", "keep": "<max 12 words>", "primary_metric": "<max 6 words>", "secondary_metrics": "<max 8 words>", "interpret": "<how to read the result, max 18 words>"} ]
 }
-RULES: hook_ideas 4-6, only categories that fit. ad_angles 3. improvements 4-6. variations exactly 3 (A hook-focused, B benefit-focused, C visual or offer-focused). audiences 2 (one Primary, one Secondary); these are inferences from the image, not real targeting data. tests 3. No budgets or test durations.`;
+RULES: variations exactly 3 (A hook-focused, B benefit-focused, C visual or offer-focused). audiences 2 (one Primary, one Secondary); these are inferences from the image, not real targeting data. tests 3. No budgets or test durations.`;
 
-// ── Claude call ──────────────────────────────────────────────────────────────
+// ── Errors ───────────────────────────────────────────────────────────────────
+
+export type AnalysisErrorCode =
+  | "ai_not_configured" // no API key on the server
+  | "ai_auth" // key rejected / no permission / unknown model
+  | "ai_quota" // provider account out of credit
+  | "ai_rate_limited" // provider rate limit, try again shortly
+  | "ai_unavailable" // provider overloaded or 5xx
+  | "ai_timeout" // did not finish inside the time budget
+  | "ai_rejected_image" // provider could not read the image
+  | "ai_bad_response" // response was cut off or not valid JSON
+  | "ai_failed"; // anything else
+
+export class AnalysisError extends Error {
+  constructor(
+    public code: AnalysisErrorCode,
+    message: string,
+    public retryable = false,
+    public retryAfterSec: number | null = null
+  ) {
+    super(message);
+    this.name = "AnalysisError";
+  }
+}
+
+const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
+
+/** Classifies a non-2xx Anthropic response. Only the server log sees the body. */
+function classify(status: number, body: string, retryAfter: string | null, tag: string): AnalysisError {
+  let type = "";
+  let message = body.slice(0, 300);
+  try {
+    const j = JSON.parse(body);
+    type = j?.error?.type ?? "";
+    message = j?.error?.message ?? message;
+  } catch {
+    /* not JSON */
+  }
+  const ra = retryAfter && Number.isFinite(Number(retryAfter)) ? Number(retryAfter) : null;
+  const detail = `Anthropic ${status} ${type} (${tag}): ${message}`;
+  if (status === 429 || type === "rate_limit_error") return new AnalysisError("ai_rate_limited", detail, true, ra);
+  if (status === 529 || type === "overloaded_error" || status >= 500) return new AnalysisError("ai_unavailable", detail, true, ra);
+  if (status === 401 || status === 403 || status === 404 || type === "authentication_error" || type === "permission_error" || type === "not_found_error")
+    return new AnalysisError("ai_auth", detail);
+  if (/credit balance|billing|quota/i.test(message)) return new AnalysisError("ai_quota", detail);
+  if (/image/i.test(message)) return new AnalysisError("ai_rejected_image", detail);
+  if (status === 413) return new AnalysisError("ai_rejected_image", detail);
+  return new AnalysisError("ai_failed", detail);
+}
+
+type CallOpts = { deadline: number; maxTokens: number; tag: string };
 
 /**
- * Runs the real Claude vision analysis on an image, given its raw bytes.
- * Falls back to a clearly-labeled simulated report if no ANTHROPIC_API_KEY
- * is configured, or if the API call fails for any reason — and tells the
- * caller WHICH of those it was.
+ * One Claude vision call that must return a JSON object. Never runs past
+ * `deadline` (epoch ms). Retries once on rate limits, overload and malformed
+ * output when there is enough time left for a second attempt.
+ */
+async function callClaudeJSON(base64: string, mediaType: string, prompt: string, { deadline, maxTokens, tag }: CallOpts) {
+  const minForRetry = 6000 + maxTokens * 4; // rough ms a fresh attempt needs
+  let attempt = 0;
+  for (;;) {
+    attempt++;
+    const remaining = deadline - Date.now();
+    if (remaining < 1500) throw new AnalysisError("ai_timeout", `No time left for ${tag}`, true);
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), remaining);
+    let err: AnalysisError;
+    try {
+      const res = await fetch("https://api.anthropic.com/v1/messages", {
+        method: "POST",
+        signal: ctrl.signal,
+        headers: {
+          "content-type": "application/json",
+          "x-api-key": process.env.ANTHROPIC_API_KEY!,
+          "anthropic-version": "2023-06-01",
+        },
+        body: JSON.stringify({
+          // Current Haiku model. Override without a code change via ANTHROPIC_MODEL.
+          model: process.env.ANTHROPIC_MODEL || "claude-haiku-5-5",
+          max_tokens: maxTokens,
+          messages: [
+            {
+              role: "user",
+              content: [
+                { type: "image", source: { type: "base64", media_type: mediaType || "image/jpeg", data: base64 } },
+                { type: "text", text: prompt },
+              ],
+            },
+          ],
+        }),
+      });
+      if (!res.ok) {
+        err = classify(res.status, await res.text().catch(() => ""), res.headers.get("retry-after"), tag);
+      } else {
+        const data = await res.json();
+        const text: string = (data.content ?? [])
+          .filter((b: { type?: string }) => b.type === "text")
+          .map((b: { text?: string }) => b.text ?? "")
+          .join("");
+        const start = text.indexOf("{");
+        const end = text.lastIndexOf("}");
+        if (data.stop_reason === "max_tokens") {
+          err = new AnalysisError("ai_bad_response", `${tag} was cut off at max_tokens (${text.length} chars)`, true);
+        } else if (start === -1 || end <= start) {
+          err = new AnalysisError("ai_bad_response", `${tag} contained no JSON object (${text.length} chars)`, true);
+        } else {
+          try {
+            return JSON.parse(text.slice(start, end + 1)) as Record<string, unknown>;
+          } catch (e) {
+            err = new AnalysisError("ai_bad_response", `${tag} returned invalid JSON: ${e instanceof Error ? e.message : e}`, true);
+          }
+        }
+      }
+    } catch (e) {
+      if (e instanceof AnalysisError) throw e;
+      err = ctrl.signal.aborted
+        ? new AnalysisError("ai_timeout", `${tag} did not finish inside the time budget`, true)
+        : new AnalysisError("ai_unavailable", `${tag} network error: ${e instanceof Error ? e.message : e}`, true);
+    } finally {
+      clearTimeout(timer);
+    }
+
+    // Decide whether one more attempt is safe and can still finish in time.
+    const wait = err.retryAfterSec != null ? err.retryAfterSec * 1000 : 800;
+    const canRetry =
+      attempt < 2 && err.retryable && err.code !== "ai_timeout" && deadline - Date.now() - wait > minForRetry;
+    if (!canRetry) throw err;
+    console.warn(JSON.stringify({ evt: "ai_retry", tag, code: err.code, waitMs: wait }));
+    await sleep(wait);
+  }
+}
+
+// ── Image checks ─────────────────────────────────────────────────────────────
+
+/** Formats the vision model accepts, detected from the file's bytes (not its name). */
+export function sniffImageType(b: Uint8Array): "image/jpeg" | "image/png" | "image/gif" | "image/webp" | null {
+  if (b.length < 12) return null;
+  if (b[0] === 0xff && b[1] === 0xd8 && b[2] === 0xff) return "image/jpeg";
+  if (b[0] === 0x89 && b[1] === 0x50 && b[2] === 0x4e && b[3] === 0x47) return "image/png";
+  if (b[0] === 0x47 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x38) return "image/gif";
+  if (b[0] === 0x52 && b[1] === 0x49 && b[2] === 0x46 && b[3] === 0x46 && b[8] === 0x57 && b[9] === 0x45 && b[10] === 0x42 && b[11] === 0x50)
+    return "image/webp";
+  return null;
+}
+
+/** The vision API's per-image limit. */
+export const MAX_AI_IMAGE_BYTES = 5 * 1024 * 1024;
+
+// ── Analysis ─────────────────────────────────────────────────────────────────
+
+export type AnalysisMeta = { ms: number; parts: Record<string, "ok" | AnalysisErrorCode> };
+
+/**
+ * Runs the real analysis on an image, given its raw bytes, and never throws.
+ * On failure it returns a clearly-labelled simulated report plus the reason,
+ * so callers can refuse to charge or save it.
  */
 export async function runCreativeAnalysis(
   bytes: Uint8Array,
-  mediaType: string
-): Promise<{ result: CreativeReport; isSimulated: boolean }> {
+  mediaType: string,
+  opts: { deadline?: number } = {}
+): Promise<{ result: CreativeReport; isSimulated: boolean; error?: AnalysisError; meta?: AnalysisMeta }> {
   if (!process.env.ANTHROPIC_API_KEY) {
-    return { result: simulatedResult("no_key"), isSimulated: true };
+    return {
+      result: simulatedResult("no_key"),
+      isSimulated: true,
+      error: new AnalysisError("ai_not_configured", "ANTHROPIC_API_KEY is not set"),
+    };
   }
-
   try {
-    const result = await analyzeWithClaude(bytes, mediaType);
-    return { result, isSimulated: false };
+    const { report, meta } = await analyzeWithClaudeMeta(bytes, mediaType, opts);
+    return { result: report, isSimulated: false, meta };
   } catch (err) {
-    console.error("AI analysis failed, falling back to simulated result:", err);
-    return { result: simulatedResult("call_failed"), isSimulated: true };
+    const e = err instanceof AnalysisError ? err : new AnalysisError("ai_failed", String(err));
+    console.error(JSON.stringify({ evt: "ai_failed", code: e.code, retryable: e.retryable, detail: e.message.slice(0, 400) }));
+    return { result: simulatedResult("call_failed"), isSimulated: true, error: e };
   }
 }
 
-async function callClaudeJSON(base64: string, mediaType: string, prompt: string, maxTokens: number, tag: string) {
-  const res = await fetch("https://api.anthropic.com/v1/messages", {
-    method: "POST",
-    headers: {
-      "content-type": "application/json",
-      "x-api-key": process.env.ANTHROPIC_API_KEY!,
-      "anthropic-version": "2023-06-01",
-    },
-    body: JSON.stringify({
-      // Current Haiku model. Override without a code change via ANTHROPIC_MODEL.
-      model: process.env.ANTHROPIC_MODEL || "claude-haiku-5-5",
-      max_tokens: maxTokens,
-      messages: [
-        {
-          role: "user",
-          content: [
-            { type: "image", source: { type: "base64", media_type: mediaType || "image/jpeg", data: base64 } },
-            { type: "text", text: prompt },
-          ],
-        },
-      ],
-    }),
-  });
-
-  if (!res.ok) {
-    // Anthropic's body explains why (no credit, invalid key, rate limit…).
-    // Logged server-side only; never shown to visitors.
-    const bodyText = await res.text().catch(() => "");
-    throw new Error(`Anthropic API error ${res.status} (${tag}): ${bodyText.slice(0, 500)}`);
-  }
-
-  const data = await res.json();
-  const text: string = (data.content ?? [])
-    .filter((b: { type?: string }) => b.type === "text")
-    .map((b: { text?: string }) => b.text ?? "")
-    .join("");
-  if (data.stop_reason === "max_tokens") {
-    throw new Error(`AI response (${tag}) was cut off at max_tokens (${text.length} chars)`);
-  }
-  const start = text.indexOf("{");
-  const end = text.lastIndexOf("}");
-  if (start === -1 || end <= start) {
-    throw new Error(`AI response (${tag}) contained no JSON object (stop_reason=${data.stop_reason}, ${text.length} chars)`);
-  }
-  try {
-    return JSON.parse(text.slice(start, end + 1)) as Record<string, unknown>;
-  } catch (e) {
-    throw new Error(`AI returned invalid JSON (${tag}, ${text.length} chars): ${e instanceof Error ? e.message : e}`);
-  }
+/** Same as analyzeWithClaudeMeta but returns only the report (used by the admin AI check). */
+export async function analyzeWithClaude(bytes: Uint8Array, mediaType: string, opts: { deadline?: number } = {}) {
+  return (await analyzeWithClaudeMeta(bytes, mediaType, opts)).report;
 }
 
 /**
- * The real Claude analysis. THROWS with a precise reason if the diagnosis
- * fails (used by the admin AI check). If only the strategy half fails, the
- * report is still returned — the strategy sections are simply left out.
+ * The real Claude analysis. THROWS an AnalysisError if the core verdict or the
+ * findings fail. Signals and strategy are optional: if one of them fails or
+ * runs out of time, the report is returned without that part.
  */
-export async function analyzeWithClaude(bytes: Uint8Array, mediaType: string): Promise<CreativeReport> {
-  if (!process.env.ANTHROPIC_API_KEY) throw new Error("ANTHROPIC_API_KEY is not set");
+export async function analyzeWithClaudeMeta(
+  bytes: Uint8Array,
+  mediaType: string,
+  { deadline = Date.now() + 23_000 }: { deadline?: number } = {}
+): Promise<{ report: CreativeReport; meta: AnalysisMeta }> {
+  if (!process.env.ANTHROPIC_API_KEY) throw new AnalysisError("ai_not_configured", "ANTHROPIC_API_KEY is not set");
+  const t0 = Date.now();
   const base64 = Buffer.from(bytes).toString("base64");
+  const mt = sniffImageType(bytes) ?? mediaType;
 
-  const [diag, strat] = await Promise.allSettled([
-    callClaudeJSON(base64, mediaType, DIAGNOSIS_PROMPT, 4500, "diagnosis"),
-    callClaudeJSON(base64, mediaType, STRATEGY_PROMPT, 4500, "strategy"),
-  ]);
-  if (diag.status === "rejected") throw diag.reason;
-  if (strat.status === "rejected") console.error("AI strategy half failed (report continues without it):", strat.reason);
+  const jobs = {
+    core: callClaudeJSON(base64, mt, CORE_PROMPT, { deadline, maxTokens: 1400, tag: "core" }),
+    findings: callClaudeJSON(base64, mt, FINDINGS_PROMPT, { deadline, maxTokens: 2000, tag: "findings" }),
+    signals: callClaudeJSON(base64, mt, SIGNALS_PROMPT, { deadline, maxTokens: 1100, tag: "signals" }),
+    ideas: callClaudeJSON(base64, mt, IDEAS_PROMPT, { deadline, maxTokens: 1600, tag: "ideas" }),
+    plan: callClaudeJSON(base64, mt, PLAN_PROMPT, { deadline, maxTokens: 2000, tag: "plan" }),
+  };
+  const names = Object.keys(jobs) as (keyof typeof jobs)[];
+  const settled = await Promise.allSettled(names.map((n) => jobs[n]));
+  const out: Partial<Record<keyof typeof jobs, Record<string, unknown>>> = {};
+  const parts: AnalysisMeta["parts"] = {};
+  settled.forEach((s, i) => {
+    const n = names[i];
+    if (s.status === "fulfilled") {
+      out[n] = s.value;
+      parts[n] = "ok";
+    } else {
+      parts[n] = s.reason instanceof AnalysisError ? s.reason.code : "ai_failed";
+    }
+  });
+  const meta = { ms: Date.now() - t0, parts };
+  console.log(JSON.stringify({ evt: "ai_parts", ...meta }));
 
-  return normalizeReport(diag.value, strat.status === "fulfilled" ? strat.value : {});
+  // The verdict and the findings are the report; without either there is nothing honest to show.
+  for (const n of ["core", "findings"] as const) {
+    const s = settled[names.indexOf(n)];
+    if (s.status === "rejected") throw s.reason instanceof AnalysisError ? s.reason : new AnalysisError("ai_failed", String(s.reason));
+  }
+
+  const report = normalizeReport(
+    { ...out.core, ...out.findings },
+    { ...(out.ideas ?? {}), ...(out.plan ?? {}) },
+    out.signals ?? null
+  );
+  return { report, meta };
 }
 
 // ── Normalisation: validate, clamp, and fill legacy fields ───────────────────
@@ -392,7 +562,19 @@ function sentences(...parts: (string | false | null | undefined)[]): string {
     .join(" ");
 }
 
-export function normalizeReport(d: Record<string, unknown>, s: Record<string, unknown>): CreativeReport {
+/**
+ * Validates and merges the model's JSON into a CreativeReport.
+ *  d   = verdict + findings (required)
+ *  s   = strategy: ideas + plan (may be empty if those calls failed)
+ *  sig = signal scores from their own call; null if that call failed, in
+ *        which case d.signal_scores is used if present (example reports),
+ *        otherwise the signal section is left out rather than shown as n/a.
+ */
+export function normalizeReport(
+  d: Record<string, unknown>,
+  s: Record<string, unknown>,
+  sig: Record<string, unknown> | null = null
+): CreativeReport {
   if (typeof d.score !== "number" || !Number.isFinite(d.score)) throw new Error("AI JSON is missing a numeric score");
   const score = Math.round(clamp(d.score, 0, 100));
 
@@ -429,8 +611,8 @@ export function normalizeReport(d: Record<string, unknown>, s: Record<string, un
     }))
     .filter((x) => x.issue);
 
-  const sigIn = arr<Record<string, unknown>>(d.signal_scores);
-  const signal_scores: SignalScore[] = SIGNAL_LABELS.map((label) => {
+  const sigIn = arr<Record<string, unknown>>(sig?.signal_scores ?? d.signal_scores);
+  const signal_scores: SignalScore[] = !sigIn.length ? [] : SIGNAL_LABELS.map((label) => {
     const m = sigIn.find((x) => str(x.label).toLowerCase() === label.toLowerCase());
     const raw = m?.score;
     return {
@@ -554,7 +736,8 @@ export function normalizeReport(d: Record<string, unknown>, s: Record<string, un
     format: str(d.format),
     placement_guess: str(d.placement_guess),
     verdict,
-    priority_action: str(d.priority_action),
+    // "Do this first" must be the same change as the first card in Improve first.
+    priority_action: fix_items[0]?.fix || str(d.priority_action),
     summary_points,
     annotations,
     strength_items,

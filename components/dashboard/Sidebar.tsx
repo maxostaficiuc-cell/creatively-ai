@@ -19,6 +19,7 @@ import {
 import { Logo } from "@/components/ui/Logo";
 import type { Profile } from "@/lib/types";
 import { weeklyAllowanceFor } from "@/lib/types";
+import { CreditBar, CreditCount, CreditDelta } from "@/components/dashboard/CreditsContext";
 
 const mainLinks = [
   { href: "/dashboard", label: "Overview", icon: LayoutGrid },
@@ -85,7 +86,6 @@ export function Sidebar({ profile }: { profile: Profile | null }) {
   const pathname = usePathname();
   const credits = profile?.ai_credits ?? 0;
   const creditLimit = weeklyAllowanceFor(profile?.plan ?? "Pro");
-  const pct = Math.min(100, Math.round((credits / creditLimit) * 100));
 
   const displayName = profile?.full_name || "there";
   const initial = displayName.trim().charAt(0).toUpperCase() || "U";
@@ -115,15 +115,14 @@ export function Sidebar({ profile }: { profile: Profile | null }) {
             </Link>
           </div>
           <p className="mt-1 text-sm font-medium text-ink-primary">{profile?.plan || "Pro"}</p>
-          <div className="mt-3 flex items-center justify-between text-xs text-ink-secondary">
+          <div className="relative mt-3 flex items-center justify-between text-xs text-ink-secondary">
+            <CreditDelta className="bottom-[calc(100%+4px)] right-0" />
             <span>AI Credits</span>
             <span>
-              {credits.toLocaleString()} / {creditLimit.toLocaleString()}
+              <CreditCount fallback={credits} /> / {creditLimit.toLocaleString()}
             </span>
           </div>
-          <div className="mt-1.5 h-1.5 w-full overflow-hidden rounded-full bg-base-border">
-            <div className="h-full rounded-full bg-brand" style={{ width: `${pct}%` }} />
-          </div>
+          <CreditBar fallback={credits} allowance={creditLimit} />
         </div>
 
         <Link

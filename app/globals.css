@@ -1248,3 +1248,30 @@ body {
   .rp-root *, .rp-root *::before, .rp-root *::after { animation: none !important; transition: none !important; }
   .rp-lightbox { animation: none !important; }
 }
+
+/* ── Credit deduction feedback (components/dashboard/CreditsContext.tsx) ── */
+.credit-delta {
+  position: absolute; z-index: 5;
+  white-space: nowrap; pointer-events: none;
+  padding: 1px 6px; border-radius: 6px;
+  font-size: 10.5px; font-weight: 600; line-height: 16px;
+  color: #FCA5A5; background: rgba(239, 68, 68, 0.14); border: 1px solid rgba(239, 68, 68, 0.3);
+  animation: credit-delta 1.1s cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+@keyframes credit-delta {
+  0% { opacity: 0; transform: translateY(4px); }
+  18% { opacity: 1; transform: translateY(0); }
+  70% { opacity: 1; transform: translateY(-4px); }
+  100% { opacity: 0; transform: translateY(-9px); }
+}
+.credit-bar { transition: width 0.7s cubic-bezier(0.22, 1, 0.36, 1), background-color 0.4s ease; }
+.credit-bar-hit { background-color: #EF4444; }
+@media (prefers-reduced-motion: reduce) {
+  .credit-delta { animation: none; opacity: 1; }
+  .credit-bar { transition: none; }
+}
+
+/* Analyze page: time-based "working" bar (no fake percentage). */
+.analyze-indeterminate { animation: analyze-indeterminate 1.6s ease-in-out infinite; }
+@keyframes analyze-indeterminate { 0% { left: -35%; } 100% { left: 100%; } }
+@media (prefers-reduced-motion: reduce) { .analyze-indeterminate { animation: none; left: 0; width: 100%; opacity: 0.5; } }
