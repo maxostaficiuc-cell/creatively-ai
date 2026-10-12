@@ -197,7 +197,7 @@ export const SIGNAL_LABELS = [
 const VOICE = `VOICE — you are a senior performance creative strategist writing notes for a paying client. It must read like a person wrote it, not an AI.
 - Plain, specific and confident. Short sentences. No filler, no hype, no motivational tone.
 - Name the brand and product (e.g. "Huel's headline", "the strawberry shake"). Never write "this ad", "the creative", "this analysis", "the advertisement".
-- Quote on-image text exactly, in double quotes.
+- Quote on-image text exactly, inside curly quotes “like this”.
 - Evidence fields: only what is visible in the image. Judgement fields ("why", "impact", "hypothesis"): your professional view, stated once. One hedge at most, no stacked "may potentially".
 - Never use these words or patterns: leverage, elevate, resonate, compelling, seamless, robust, unlock, game-changer, delve, crucial, vital, powerful, captivating, "it's worth noting", "not only ... but also", "in today's", "overall", "effectively", "in conclusion". No exclamation marks, emojis, markdown or em dashes.
 - No performance numbers (CTR, ROAS, CPA, conversions, spend). Mention prices and claims only if they are printed in the image.
@@ -312,6 +312,9 @@ export type AnalysisErrorCode =
   | "ai_failed"; // anything else
 
 export class AnalysisError extends Error {
+  /** Which call failed (core, findings, …) and a short reason, safe to show as a support reference. */
+  part = "";
+  reason = "";
   constructor(
     public code: AnalysisErrorCode,
     message: string,
@@ -320,6 +323,11 @@ export class AnalysisError extends Error {
   ) {
     super(message);
     this.name = "AnalysisError";
+  }
+  tagged(part: string, reason: string) {
+    this.part = part;
+    this.reason = reason;
+    return this;
   }
 }
 
@@ -348,6 +356,97 @@ function classify(status: number, body: string, retryAfter: string | null, tag: 
   return new AnalysisError("ai_failed", detail);
 }
 
+// ── Output schemas ───────────────────────────────────────────────────────────
+// Sent as output_config.format so the API guarantees parseable JSON in this
+// shape (structured outputs). Word limits stay in the prompts; normalizeReport
+// still validates every value.
+type Schema = Record<string, unknown>;
+const S: Schema = { type: "string" };
+const N: Schema = { type: "number" };
+const I: Schema = { type: "integer" };
+const SN: Schema = { type: ["string", "null"] };
+const obj = (properties: Record<string, Schema>): Schema => ({
+  type: "object",
+  properties,
+  required: Object.keys(properties),
+  additionalProperties: false,
+});
+const list = (items: Schema): Schema => ({ type: "array", items });
+const strs = list(S);
+
+const SCHEMAS: Record<string, Schema> = {
+  core: obj({
+    score: I,
+    verdict_label: S,
+    format: S,
+    placement_guess: S,
+    verdict: S,
+    summary_points: obj({ message: S, audience: S, strongest: S, weakest: S, opportunity: S, next_action: S }),
+    executive_summary: S,
+    hook: obj({ text: S, type: S, clarity: S, specificity: S, emotional_angle: S, strength: S, limitation: S }),
+    expected_impact: S,
+    campaign_readiness: S,
+    final_recommendation: obj({ verdict: S, reason: S }),
+    creative_readiness_score: I,
+  }),
+  findings: obj({
+    annotations: list(obj({ id: S, label: S, x: N, y: N, w: N, h: N, tone: S, note: S })),
+    strength_items: list(obj({ title: S, evidence: S, why: S, keep: S, annotation: SN })),
+    fix_items: list(
+      obj({ issue: S, where: S, why: S, fix: S, example: S, priority: S, effort: S, impact: S, annotation: SN })
+    ),
+    positive_factors: strs,
+    negative_factors: strs,
+  }),
+  signals: obj({
+    signal_scores: list(obj({ label: S, score: { type: ["integer", "null"] }, reason: S, improve: S })),
+  }),
+  ideas: obj({
+    hook_ideas: list(obj({ category: S, hook: S, why: S, changes: S })),
+    ad_angles: list(obj({ name: S, message: S, hook: S, offer: S, visual: S, cta: S, hypothesis: S })),
+    improvements: list(obj({ area: S, before: S, after: S })),
+  }),
+  plan: obj({
+    variations: list(obj({ name: S, focus: S, headline: S, changes: S, why: S, hypothesis: S, keep: S, layout: S })),
+    audiences: list(
+      obj({
+        type: S,
+        name: S,
+        overview: S,
+        motivations: strs,
+        pain_points: strs,
+        objections: strs,
+        awareness: S,
+        messaging: S,
+        angle: S,
+        evidence: S,
+      })
+    ),
+    campaign: obj({
+      objective: obj({ rec: S, why: S }),
+      optimization: obj({ rec: S, why: S }),
+      testing: obj({ test: S, keep: S, measure: S, evidence: S }),
+      placements: obj({ rec: S, why: S }),
+      readiness: obj({ status: S, reasons: strs }),
+    }),
+    tests: list(
+      obj({
+        name: S,
+        variable_isolated: S,
+        hypothesis: S,
+        change: S,
+        keep: S,
+        primary_metric: S,
+        secondary_metrics: S,
+        interpret: S,
+      })
+    ),
+  }),
+};
+
+/** Set when the configured model rejects structured outputs; later calls skip it. */
+let schemaUnsupported = false;
+
 type CallOpts = { deadline: number; maxTokens: number; tag: string };
 
 /**
@@ -356,12 +455,13 @@ type CallOpts = { deadline: number; maxTokens: number; tag: string };
  * output when there is enough time left for a second attempt.
  */
 async function callClaudeJSON(base64: string, mediaType: string, prompt: string, { deadline, maxTokens, tag }: CallOpts) {
-  const minForRetry = 6000 + maxTokens * 4; // rough ms a fresh attempt needs
+  const minForRetry = tag === "findings" || tag === "plan" ? 12000 : 9000; // rough ms a fresh attempt needs
   let attempt = 0;
+  let useSchema = !schemaUnsupported && !!SCHEMAS[tag];
   for (;;) {
     attempt++;
     const remaining = deadline - Date.now();
-    if (remaining < 1500) throw new AnalysisError("ai_timeout", `No time left for ${tag}`, true);
+    if (remaining < 1500) throw new AnalysisError("ai_timeout", `No time left for ${tag}`, true).tagged(tag, "timeout");
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), remaining);
     let err: AnalysisError;
@@ -378,6 +478,7 @@ async function callClaudeJSON(base64: string, mediaType: string, prompt: string,
           // Current Haiku model. Override without a code change via ANTHROPIC_MODEL.
           model: process.env.ANTHROPIC_MODEL || "claude-haiku-5-5",
           max_tokens: maxTokens,
+          ...(useSchema ? { output_config: { format: { type: "json_schema", schema: SCHEMAS[tag] } } } : {}),
           messages: [
             {
               role: "user",
@@ -390,7 +491,16 @@ async function callClaudeJSON(base64: string, mediaType: string, prompt: string,
         }),
       });
       if (!res.ok) {
-        err = classify(res.status, await res.text().catch(() => ""), res.headers.get("retry-after"), tag);
+        const bodyText = await res.text().catch(() => "");
+        if (useSchema && res.status === 400 && /output_config|json_schema|structured|schema/i.test(bodyText)) {
+          // This model/account can't do structured outputs: fall back to prompt-only JSON.
+          console.warn(JSON.stringify({ evt: "ai_schema_unsupported", tag, detail: bodyText.slice(0, 300) }));
+          schemaUnsupported = true;
+          useSchema = false;
+          attempt--;
+          continue;
+        }
+        err = classify(res.status, bodyText, res.headers.get("retry-after"), tag).tagged(tag, `http_${res.status}`);
       } else {
         const data = await res.json();
         const text: string = (data.content ?? [])
@@ -400,22 +510,24 @@ async function callClaudeJSON(base64: string, mediaType: string, prompt: string,
         const start = text.indexOf("{");
         const end = text.lastIndexOf("}");
         if (data.stop_reason === "max_tokens") {
-          err = new AnalysisError("ai_bad_response", `${tag} was cut off at max_tokens (${text.length} chars)`, true);
+          err = new AnalysisError("ai_bad_response", `${tag} was cut off at max_tokens (${text.length} chars)`, true).tagged(tag, "cut_off");
+        } else if (data.stop_reason === "refusal") {
+          err = new AnalysisError("ai_rejected_image", `${tag} was refused by the model`, false).tagged(tag, "refusal");
         } else if (start === -1 || end <= start) {
-          err = new AnalysisError("ai_bad_response", `${tag} contained no JSON object (${text.length} chars)`, true);
+          err = new AnalysisError("ai_bad_response", `${tag} contained no JSON object (${text.length} chars)`, true).tagged(tag, "no_json");
         } else {
           try {
             return JSON.parse(text.slice(start, end + 1)) as Record<string, unknown>;
           } catch (e) {
-            err = new AnalysisError("ai_bad_response", `${tag} returned invalid JSON: ${e instanceof Error ? e.message : e}`, true);
+            err = new AnalysisError("ai_bad_response", `${tag} returned invalid JSON: ${e instanceof Error ? e.message : e}`, true).tagged(tag, "bad_json");
           }
         }
       }
     } catch (e) {
       if (e instanceof AnalysisError) throw e;
       err = ctrl.signal.aborted
-        ? new AnalysisError("ai_timeout", `${tag} did not finish inside the time budget`, true)
-        : new AnalysisError("ai_unavailable", `${tag} network error: ${e instanceof Error ? e.message : e}`, true);
+        ? new AnalysisError("ai_timeout", `${tag} did not finish inside the time budget`, true).tagged(tag, "timeout")
+        : new AnalysisError("ai_unavailable", `${tag} network error: ${e instanceof Error ? e.message : e}`, true).tagged(tag, "network");
     } finally {
       clearTimeout(timer);
     }
@@ -498,11 +610,13 @@ export async function analyzeWithClaudeMeta(
   const mt = sniffImageType(bytes) ?? mediaType;
 
   const jobs = {
-    core: callClaudeJSON(base64, mt, CORE_PROMPT, { deadline, maxTokens: 1400, tag: "core" }),
-    findings: callClaudeJSON(base64, mt, FINDINGS_PROMPT, { deadline, maxTokens: 2000, tag: "findings" }),
-    signals: callClaudeJSON(base64, mt, SIGNALS_PROMPT, { deadline, maxTokens: 1100, tag: "signals" }),
-    ideas: callClaudeJSON(base64, mt, IDEAS_PROMPT, { deadline, maxTokens: 1600, tag: "ideas" }),
-    plan: callClaudeJSON(base64, mt, PLAN_PROMPT, { deadline, maxTokens: 2000, tag: "plan" }),
+    // Generous caps: output rate limits count only tokens actually generated,
+    // and a cut-off answer is useless, so there is no reason to cut close.
+    core: callClaudeJSON(base64, mt, CORE_PROMPT, { deadline, maxTokens: 4000, tag: "core" }),
+    findings: callClaudeJSON(base64, mt, FINDINGS_PROMPT, { deadline, maxTokens: 6000, tag: "findings" }),
+    signals: callClaudeJSON(base64, mt, SIGNALS_PROMPT, { deadline, maxTokens: 3000, tag: "signals" }),
+    ideas: callClaudeJSON(base64, mt, IDEAS_PROMPT, { deadline, maxTokens: 4000, tag: "ideas" }),
+    plan: callClaudeJSON(base64, mt, PLAN_PROMPT, { deadline, maxTokens: 6000, tag: "plan" }),
   };
   const names = Object.keys(jobs) as (keyof typeof jobs)[];
   const settled = await Promise.allSettled(names.map((n) => jobs[n]));
@@ -541,8 +655,11 @@ const arr = <T>(v: unknown): T[] => (Array.isArray(v) ? (v as T[]) : []);
 const strArr = (v: unknown): string[] => arr<unknown>(v).map((x) => str(x)).filter(Boolean);
 const clamp = (n: number, lo: number, hi: number) => Math.min(hi, Math.max(lo, n));
 const frac = (v: unknown, fb: number) => (typeof v === "number" && Number.isFinite(v) ? clamp(v > 1 ? v / 100 : v, 0, 1) : fb);
-const pick = <T extends string>(v: unknown, allowed: readonly T[], fb: T): T =>
-  allowed.includes(v as T) ? (v as T) : fb;
+const pick = <T extends string>(v: unknown, allowed: readonly T[], fb: T): T => {
+  if (typeof v !== "string") return fb;
+  const t = v.trim().toLowerCase();
+  return allowed.find((a) => a.toLowerCase() === t) ?? fb;
+};
 
 
 const VERDICTS = ["YES", "YES — WITH CHANGES", "TEST FIRST", "NO — REWORK REQUIRED"] as const;

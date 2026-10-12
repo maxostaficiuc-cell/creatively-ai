@@ -23,6 +23,8 @@ type FailState = {
   retryable: boolean;
   /** false = server confirmed no charge; null = not confirmed */
   charged: boolean | null;
+  /** Shown small so support can find the exact failure in the logs. */
+  reference: string | null;
 };
 type Success = { charged: number; remaining: number | null; replay: boolean };
 
@@ -235,6 +237,7 @@ export function AnalyzeClient({ credits: initialCredits }: { credits: number }) 
       message: body?.error ?? def.message,
       retryable: body?.retryable ?? def.retryable,
       charged: body ? body.charged : null,
+      reference: [body?.ref, (body?.requestId ?? requestId).slice(0, 8)].filter(Boolean).join(" · "),
     });
     setPhase("ready");
     if (body?.charged !== false) router.refresh();
@@ -659,6 +662,7 @@ function FailCard({ fail }: { fail: FailState }) {
           If credits were held for this attempt, they return automatically within a few minutes.
         </p>
       )}
+      {fail.reference && <p className="mt-2 font-mono text-[10.5px] text-ink-muted/80">Ref: {fail.reference}</p>}
       {fail.code === "session_expired" ? (
         <Link href="/login" className="mt-3 inline-flex text-xs font-medium text-brand-light hover:underline">
           Log in again →
