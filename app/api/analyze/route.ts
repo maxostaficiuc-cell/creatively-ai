@@ -92,10 +92,21 @@ export async function POST(request: Request) {
     isSimulated = aiSimulated;
   }
 
-  // Deduct credits and record the analysis
+  // The AI call failed (not a video placeholder): don't charge, don't save a
+  // fake report — tell the user plainly so they can retry.
+  if (isSimulated && !isVideo) {
+    await supabase.storage.from("creatives").remove([path]).catch(() => {});
+    return NextResponse.json(
+      { error: "We couldn't analyze this creative right now. No credits were used — please try again in a moment." },
+      { status: 503 }
+    );
+  }
+
+  // Deduct credits and record the analysis (never for simulated output)
+  const charged = isSimulated ? 0 : cost;
   await supabase
     .from("profiles")
-    .update({ ai_credits: currentCredits - cost })
+    .update({ ai_credits: currentCredits - charged })
     .eq("id", user.id);
 
   const { data: creative, error: insertError } = await supabase
@@ -110,7 +121,7 @@ export async function POST(request: Request) {
       whats_working: finalResult.whats_working,
       whats_not: finalResult.whats_not,
       what_to_test: finalResult.what_to_test,
-      credits_used: cost,
+      credits_used: charged,
       is_simulated: isSimulated,
       report: finalResult,
     })
@@ -121,5 +132,5 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: insertError.message }, { status: 500 });
   }
 
-  return NextResponse.json({ creative, remainingCredits: currentCredits - cost });
+  return NextResponse.json({ creative, remainingCredits: currentCredits - charged });
 }

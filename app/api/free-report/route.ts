@@ -195,6 +195,11 @@ export async function POST(request: Request) {
       return fail("ANALYSIS_ERROR", 500);
     }
     const { result, isSimulated } = analysis;
+    if (isSimulated) {
+      // No real analysis happened → don't save a placeholder or consume the
+      // free report (the finally block releases the lock so they can retry).
+      return fail("ANALYSIS_ERROR", 503);
+    }
 
     const supabase = createAdminClient();
     const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, "_");

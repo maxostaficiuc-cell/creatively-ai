@@ -163,6 +163,21 @@ export async function runCreativeAnalysis(
   }
 
   try {
+    const result = await analyzeWithClaude(bytes, mediaType);
+    return { result, isSimulated: false };
+  } catch (err) {
+    console.error("AI analysis failed, falling back to simulated result:", err);
+    return { result: simulatedResult("call_failed"), isSimulated: true };
+  }
+}
+
+/**
+ * The real Claude call. THROWS with a precise reason on any failure (used by
+ * the admin AI check to show exactly what went wrong).
+ */
+export async function analyzeWithClaude(bytes: Uint8Array, mediaType: string): Promise<CreativeReport> {
+  if (!process.env.ANTHROPIC_API_KEY) throw new Error("ANTHROPIC_API_KEY is not set");
+  {
     const base64 = Buffer.from(bytes).toString("base64");
     const anthropicRes = await fetch("https://api.anthropic.com/v1/messages", {
       method: "POST",
@@ -172,8 +187,12 @@ export async function runCreativeAnalysis(
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-haiku-4-5-20251001",
-        max_tokens: 3000,
+        // Current Haiku model (claude-haiku-4-5 is scheduled for retirement).
+        // Override without a code change via the ANTHROPIC_MODEL env var.
+        model: process.env.ANTHROPIC_MODEL || "claude-haiku-5-5",
+        // The report is long; 3000 tokens truncated it mid-JSON, which made
+        // every analysis fall back to "Simulated".
+        max_tokens: 8000,
         messages: [
           {
             role: "user",
@@ -199,13 +218,29 @@ export async function runCreativeAnalysis(
     }
 
     const data = await anthropicRes.json();
-    const text = data.content?.[0]?.text ?? "{}";
-    const cleaned = text.replace(/```json|```/g, "").trim();
-    const result = JSON.parse(cleaned) as CreativeReport;
-    return { result, isSimulated: false };
-  } catch (err) {
-    console.error("AI analysis failed, falling back to simulated result:", err);
-    return { result: simulatedResult("call_failed"), isSimulated: true };
+    const text: string = (data.content ?? [])
+      .filter((b: { type?: string }) => b.type === "text")
+      .map((b: { text?: string }) => b.text ?? "")
+      .join("");
+    if (data.stop_reason === "max_tokens") {
+      throw new Error(`AI response was cut off at max_tokens (${text.length} chars) — report incomplete`);
+    }
+    // Take the JSON object even if the model added a sentence or code fence around it.
+    const start = text.indexOf("{");
+    const end = text.lastIndexOf("}");
+    if (start === -1 || end <= start) {
+      throw new Error(`AI response contained no JSON object (stop_reason=${data.stop_reason}, ${text.length} chars)`);
+    }
+    let result: CreativeReport;
+    try {
+      result = JSON.parse(text.slice(start, end + 1)) as CreativeReport;
+    } catch (e) {
+      throw new Error(`AI returned invalid JSON (${text.length} chars): ${e instanceof Error ? e.message : e}`);
+    }
+    if (typeof result.score !== "number") {
+      throw new Error("AI JSON is missing a numeric score");
+    }
+    return result;
   }
 }
 
