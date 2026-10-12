@@ -88,3 +88,56 @@ export async function recordFreeReportClaim(params: {
     status: "completed",
   });
 }
+
+// ── In-flight lock (migration-009) ──────────────────────────────────────────
+// A short-lived 'pending' claim taken before the analysis runs, so a double
+// click / parallel request for the same email can't produce two reports.
+
+const PENDING_STALE_MS = 5 * 60 * 1000;
+
+export type PendingLock =
+  | { status: "locked"; claimId: string }
+  | { status: "in_progress" }
+  | { status: "unavailable" }; // migration not run yet → continue without a lock
+
+export async function acquirePendingClaim(params: {
+  emailHash: string;
+  ipHash: string;
+  deviceHash: string;
+  cookieTokenHash: string | null;
+}): Promise<PendingLock> {
+  const supabase = createAdminClient();
+  // Clear any stale lock left behind by a crashed request.
+  await supabase
+    .from("free_report_claims")
+    .delete()
+    .eq("email_hash", params.emailHash)
+    .eq("status", "pending")
+    .lt("created_at", new Date(Date.now() - PENDING_STALE_MS).toISOString());
+
+  const { data, error } = await supabase
+    .from("free_report_claims")
+    .insert({
+      email_hash: params.emailHash,
+      ip_hash: params.ipHash,
+      device_hash: params.deviceHash,
+      cookie_token_hash: params.cookieTokenHash,
+      status: "pending",
+    })
+    .select("id")
+    .single();
+
+  if (!error && data) return { status: "locked", claimId: data.id };
+  if (error?.code === "23505") return { status: "in_progress" }; // another request holds the lock
+  return { status: "unavailable" };
+}
+
+export async function completePendingClaim(claimId: string, creativeId: string | null) {
+  const supabase = createAdminClient();
+  await supabase.from("free_report_claims").update({ status: "completed", creative_id: creativeId }).eq("id", claimId);
+}
+
+export async function releasePendingClaim(claimId: string) {
+  const supabase = createAdminClient();
+  await supabase.from("free_report_claims").delete().eq("id", claimId).eq("status", "pending");
+}

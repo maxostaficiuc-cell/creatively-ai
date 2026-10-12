@@ -136,7 +136,7 @@ export function Nav() {
                 <GetFreeReportButton variant="secondary" className="!rounded-full !border-white/10 !bg-white/[0.03] !px-4 !py-2 hover:!border-brand/40">
                   Free Report
                 </GetFreeReportButton>
-                <TrialButton placement="nav" size="sm" arrow={false} className="!h-10 !px-4">
+                <TrialButton placement="nav" size="compact" arrow={false}>
                   Try for $1
                 </TrialButton>
               </>
@@ -147,7 +147,7 @@ export function Nav() {
 
           {/* Mobile: compact $1 trial button between the logo and the menu */}
           {STARTER_TRIAL.enabled && (
-            <TrialButton placement="nav-mobile" size="sm" arrow={false} className="ml-auto mr-1 !h-9 !px-3.5 !text-[13px] min-[360px]:!px-4 lg:hidden">
+            <TrialButton placement="nav-mobile" size="compact" arrow={false} className="ml-auto mr-1 !px-3.5 min-[360px]:!px-4 lg:hidden">
               Try for $1
             </TrialButton>
           )}

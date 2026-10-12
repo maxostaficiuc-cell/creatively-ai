@@ -6,6 +6,8 @@ import { X, Upload } from "lucide-react";
 import { AnalysisSequence } from "@/components/marketing/AnalysisSequence";
 import { ButtonLink } from "@/components/ui/Button";
 import { getDeviceFingerprint } from "@/lib/deviceFingerprint";
+import { TrialButton } from "@/components/marketing/TrialButton";
+import { STARTER_TRIAL } from "@/lib/starterTrial";
 
 type Phase = "form" | "analyzing" | "already-used" | "video-blocked";
 
@@ -17,6 +19,11 @@ export function FreeReportModal({ onClose }: { onClose: () => void }) {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [name, setName] = useState("");
   const [email, setEmail] = useState("");
+  // Optional, unticked by default. Only when checked does the server send
+  // follow-up events to Loops for this email.
+  const [emailConsent, setEmailConsent] = useState(false);
+  // Synchronous guard so a fast double click can't fire two requests.
+  const submittingRef = useRef(false);
   const [error, setError] = useState<string | null>(null);
   const [phase, setPhase] = useState<Phase>("form");
   const [analysisDone, setAnalysisDone] = useState(false);
@@ -71,6 +78,7 @@ export function FreeReportModal({ onClose }: { onClose: () => void }) {
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
+    if (submittingRef.current) return;
     setError(null);
 
     if (!name.trim()) {
@@ -86,6 +94,7 @@ export function FreeReportModal({ onClose }: { onClose: () => void }) {
       return;
     }
 
+    submittingRef.current = true;
     setPhase("analyzing");
     setAnalysisDone(false);
 
@@ -95,12 +104,14 @@ export function FreeReportModal({ onClose }: { onClose: () => void }) {
       formData.append("name", name.trim());
       formData.append("email", email.trim());
       formData.append("device", getDeviceFingerprint());
+      formData.append("emailConsent", emailConsent ? "true" : "false");
 
       const res = await fetch("/api/free-report", { method: "POST", body: formData });
       const data = await res.json();
       setAnalysisDone(true);
 
       if (!res.ok) {
+        submittingRef.current = false;
         if (data.code === "ALREADY_USED") {
           setPhase("already-used");
           return;
@@ -117,6 +128,7 @@ export function FreeReportModal({ onClose }: { onClose: () => void }) {
       // Give the checklist a beat to visibly finish before navigating away.
       setTimeout(() => router.push(`/report/${data.reportId}`), 500);
     } catch {
+      submittingRef.current = false;
       setAnalysisDone(true);
       setError("Something went wrong. Please try again.");
       setPhase("form");
@@ -131,7 +143,9 @@ export function FreeReportModal({ onClose }: { onClose: () => void }) {
       onClick={(e) => {
         // Close on backdrop click only — never when the click originated
         // inside the panel itself.
-        if (e.target === e.currentTarget) close();
+        // Never while an analysis is running — a stray second tap must not
+        // throw away a report that's being generated.
+        if (e.target === e.currentTarget && phase !== "analyzing") close();
       }}
     >
       <div
@@ -222,6 +236,19 @@ export function FreeReportModal({ onClose }: { onClose: () => void }) {
                 />
               </div>
 
+              <label className="flex cursor-pointer items-start gap-2.5 text-xs leading-relaxed text-ink-secondary">
+                <input
+                  type="checkbox"
+                  checked={emailConsent}
+                  onChange={(e) => setEmailConsent(e.target.checked)}
+                  className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer rounded border-base-border bg-base-surface accent-[#8b5cf6]"
+                />
+                <span>
+                  Email me tips about my report and occasional Creatively.ai offers. Optional — unsubscribe
+                  anytime.
+                </span>
+              </label>
+
               {error && <p className="text-sm text-accent-red">{error}</p>}
 
               <button
@@ -243,10 +270,28 @@ export function FreeReportModal({ onClose }: { onClose: () => void }) {
         {phase === "already-used" && (
           <div className="flex min-h-[60vh] flex-col items-center justify-center text-center">
             <p className="text-lg font-medium text-ink-primary">You&apos;ve already used your free report.</p>
-            <p className="mt-2 text-sm text-ink-secondary">Ready to analyze more creatives?</p>
-            <ButtonLink href="/signup" className="mt-5">
-              Get Started
-            </ButtonLink>
+            {STARTER_TRIAL.enabled ? (
+              <>
+                <p className="mt-2 max-w-sm text-sm leading-relaxed text-ink-secondary">
+                  Ready to analyze more creatives? Unlock continued access with our introductory Starter
+                  offer.
+                </p>
+                <TrialButton placement="free-report-modal" className="mt-6 min-w-[200px]">
+                  Try for $1
+                </TrialButton>
+                <p className="mt-3 text-xs text-ink-muted">
+                  ${STARTER_TRIAL.introPrice} for your first {STARTER_TRIAL.days} days, then $
+                  {STARTER_TRIAL.renewalPrice}/month.
+                </p>
+              </>
+            ) : (
+              <>
+                <p className="mt-2 text-sm text-ink-secondary">Ready to analyze more creatives?</p>
+                <ButtonLink href="/signup" className="mt-5">
+                  Get Started
+                </ButtonLink>
+              </>
+            )}
           </div>
         )}
 

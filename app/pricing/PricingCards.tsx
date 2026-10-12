@@ -128,7 +128,7 @@ export function PricingCards() {
                 </TalkToSalesButton>
               ) : trial ? (
                 <div className="mt-7 animate-fade-in-up" style={{ animationDelay: "120ms" }}>
-                  <TrialButton placement="pricing" arrow={false} className="w-full !rounded-xl">
+                  <TrialButton placement="pricing" arrow={false} className="w-full">
                     Start 7-Day Trial — ${STARTER_TRIAL.introPrice}
                   </TrialButton>
                   <p className="mt-2.5 text-center text-xs leading-snug text-ink-muted">

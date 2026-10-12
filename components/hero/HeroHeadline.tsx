@@ -33,12 +33,8 @@ export const HeroHeadline = forwardRef<HTMLDivElement, { className?: string; sty
           style={{ animationDelay: "180ms" }}
         >
           {STARTER_TRIAL.enabled ? (
-            <TrialButton
-              placement="hero"
-              size="lg"
-              className="w-full !h-auto py-3.5 text-[13px] uppercase tracking-[0.08em] sm:w-auto"
-            >
-              Try Creatively.ai for $1
+            <TrialButton placement="hero" size="large" className="w-full sm:w-auto">
+              Try for $1
             </TrialButton>
           ) : (
             <GetFreeReportButton className="w-full px-7 py-3.5 text-[13px] font-semibold uppercase tracking-[0.08em] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/70 sm:w-auto">

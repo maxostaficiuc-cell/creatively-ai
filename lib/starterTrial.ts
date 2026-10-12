@@ -42,7 +42,10 @@ export type TrialPlacement =
   | "winning-ads"
   | "pricing"
   | "final"
-  | "footer";
+  | "footer"
+  | "free-report-modal"
+  | "post-analysis"
+  | "onboarding";
 
 /** Every trial button goes through /start-trial, which picks signup vs checkout. */
 export function trialHref(placement: TrialPlacement) {

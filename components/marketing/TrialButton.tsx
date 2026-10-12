@@ -1,41 +1,73 @@
+"use client";
+
+import { useEffect, useState } from "react";
 import { ArrowRight } from "lucide-react";
 import { STARTER_TRIAL, TRIAL_TERMS, trialHref, type TrialPlacement } from "@/lib/starterTrial";
 
-// Shared "Try for $1" button + compact callout. Server-safe (no hooks), so it
-// can sit in server and client components alike.
+// The ONE shared "Try for $1" button (nav, hero, free-report modal,
+// post-analysis offer, pricing card, final CTA, section callouts).
 //
-// A plain <a> on purpose: /start-trial is a route handler that redirects to
-// signup or to Whop's checkout, so it needs a full navigation, not a
-// client-side Next.js transition.
+// • A plain <a>: /start-trial is a route handler that redirects to signup or
+//   to Whop's checkout, so it needs a full navigation — never delayed by an
+//   animation.
+// • After the first click it shows a spinner (same size, label kept in place
+//   for width) and ignores repeat clicks until the page changes.
+// • Styling + motion live in globals.css (.trial-btn): idle glow + sweep,
+//   hover lift, press scale, focus ring, all off under reduced motion.
 
 const SIZES = {
-  sm: "h-9 px-3.5 text-[13px]",
-  md: "h-11 px-5 text-sm",
-  lg: "h-[52px] px-7 text-[15px]",
+  compact: "trial-btn--compact",
+  default: "trial-btn--default",
+  large: "trial-btn--large",
 } as const;
 
 export function TrialButton({
   placement,
-  children,
-  size = "md",
+  children = "Try for $1",
+  size = "default",
   arrow = true,
   className = "",
 }: {
   placement: TrialPlacement;
-  children: React.ReactNode;
+  children?: React.ReactNode;
   size?: keyof typeof SIZES;
   arrow?: boolean;
   className?: string;
 }) {
+  const [loading, setLoading] = useState(false);
+
+  // Coming back with the browser's Back button restores the page from cache —
+  // make sure the button isn't stuck in its loading state.
+  useEffect(() => {
+    const reset = () => setLoading(false);
+    window.addEventListener("pageshow", reset);
+    return () => window.removeEventListener("pageshow", reset);
+  }, []);
+
   return (
     <a
       href={trialHref(placement)}
       data-cta="starter_trial"
       data-placement={placement}
-      className={`trial-btn group inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-full font-semibold text-white ${SIZES[size]} ${className}`}
+      aria-busy={loading || undefined}
+      aria-disabled={loading || undefined}
+      onClick={(e) => {
+        // let modified clicks (new tab etc.) through untouched
+        if (e.metaKey || e.ctrlKey || e.shiftKey || e.altKey || e.button !== 0) return;
+        if (loading) {
+          e.preventDefault();
+          return;
+        }
+        setLoading(true);
+      }}
+      className={`trial-btn ${SIZES[size]} ${loading ? "is-loading" : ""} ${className}`}
     >
-      {children}
-      {arrow && <ArrowRight size={size === "sm" ? 14 : 16} className="transition-transform duration-200 group-hover:translate-x-0.5" aria-hidden />}
+      <span className="trial-btn__label">
+        {children}
+        {arrow && <ArrowRight className="trial-btn__arrow" aria-hidden />}
+      </span>
+      <span className="trial-btn__spinner" aria-hidden />
+      {loading && <span className="sr-only">Opening checkout…</span>}
     </a>
   );
 }

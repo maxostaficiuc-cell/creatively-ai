@@ -423,15 +423,15 @@ export default async function LandingPage() {
               Find opportunities to improve your ads with actionable creative analysis.
             </p>
             <div className="mt-9 flex flex-col items-center justify-center gap-3 sm:flex-row">
-              <TrialButton placement="final" size="lg">
-                Try 7 Days for $1
+              <TrialButton placement="final" size="large">
+                Try for $1
               </TrialButton>
               <GetFreeReportButton variant="secondary" className="!h-[52px] !rounded-full !px-6">
                 Get Your Free Report
               </GetFreeReportButton>
             </div>
             <p className="mt-4 text-xs text-ink-muted">
-              Then ${STARTER_TRIAL.renewalPrice}/month. Review the terms before checkout.
+              {TRIAL_TERMS} Review the terms before checkout.
             </p>
           </div>
         </section>
