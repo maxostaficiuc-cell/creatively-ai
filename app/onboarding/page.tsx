@@ -53,6 +53,8 @@ function OnboardingForm() {
   const requestedPlan = VALID_PLANS.includes(requestedPlanParam || "") ? requestedPlanParam! : "Starter";
   // $1 Starter introductory offer, carried from the trial buttons via signup.
   const trialOffer = requestedPlan === "Starter" && searchParams.get("offer") === "trial" && STARTER_TRIAL.enabled;
+  // Paid at Whop before creating the account → never send them to pay again.
+  const paidFirst = searchParams.get("paid") === "1";
 
   const [step, setStep] = useState(0);
   const [persona, setPersona] = useState<string | null>(null);
@@ -92,6 +94,11 @@ function OnboardingForm() {
     // history entry instead of pushing a new one, so pressing Back from
     // Whop's checkout doesn't land the user right back on this onboarding
     // form.
+    if (paidFirst) {
+      // The verified webhook already attached (or will attach) their plan.
+      window.location.replace("/checkout/complete");
+      return;
+    }
     if (trialOffer) {
       // Same single trial flow as every "Try for $1" button (→ Whop trial checkout).
       window.location.replace("/start-trial?from=onboarding");
@@ -176,7 +183,7 @@ function OnboardingForm() {
             ))}
           </div>
 
-          {trialOffer && (
+          {!paidFirst && trialOffer && (
             <p className="mt-6 rounded-xl border border-brand/25 bg-brand/[0.06] px-4 py-3 text-xs leading-relaxed text-ink-secondary">
               <span className="font-medium text-ink-primary">Starter trial:</span> {TRIAL_TERMS} You&apos;ll pay $
               {STARTER_TRIAL.introPrice} today at checkout; the subscription renews at ${STARTER_TRIAL.renewalPrice}/month

@@ -153,6 +153,27 @@ async function grantPlanByEmail(email: string, planId: string, membershipId: str
   return true;
 }
 
+/**
+ * Pay-first checkout ($1 trial): the buyer may not have an account yet.
+ * Park the grant; migration-010's trigger applies it once an account with
+ * this email exists and its email is confirmed. Written only here, after a
+ * verified webhook signature.
+ */
+async function parkPendingGrant(email: string, planId: string, membershipId: string | null) {
+  const supabase = createAdminClient();
+  const { error } = await supabase.from("pending_grants").upsert(
+    {
+      email: email.trim().toLowerCase(),
+      plan: planId,
+      credits: weeklyAllowanceFor(planId),
+      whop_membership_id: membershipId,
+    },
+    { onConflict: "email" }
+  );
+  if (error) console.error("whop-webhook: could not park pending grant (run migration-010?):", error.message);
+  return !error;
+}
+
 async function revokeByEmail(email: string, status: "cancelled" | "past_due"): Promise<boolean> {
   const supabase = createAdminClient();
   const { data: profile } = await supabase
@@ -229,8 +250,12 @@ export async function POST(request: Request) {
             idempotencyKey: `sts-${membershipId ?? email}`,
           });
         }
+        // No account yet (paid first) → keep the grant until they sign up.
+        const parked = matched ? false : await parkPendingGrant(email, ourPlan, membershipId);
         console.log(
-          `[whop-webhook ${receivedAt}] ${event.id}: ${matched ? "granted" : "no matching account for"} plan ${ourPlan}`
+          `[whop-webhook ${receivedAt}] ${event.id}: ${
+            matched ? "granted" : parked ? "no account yet — grant parked for signup" : "no matching account for"
+          } plan ${ourPlan}`
         );
       } else if (!ourPlan) {
         console.error(`[whop-webhook ${receivedAt}] ${event.id}: unrecognized plan_id ${whopPlanId}`);
@@ -241,6 +266,10 @@ export async function POST(request: Request) {
       const email = readEmail(event.data);
       if (email) {
         const matched = await revokeByEmail(email, "cancelled");
+        // Cancelled before ever creating an account → drop the parked grant.
+        if (!matched) {
+          await createAdminClient().from("pending_grants").delete().eq("email", email.trim().toLowerCase());
+        }
         console.log(`[whop-webhook ${receivedAt}] ${event.id}: ${matched ? "revoked" : "no matching account for"} access`);
       }
     } else if (event.type === "payment.failed") {

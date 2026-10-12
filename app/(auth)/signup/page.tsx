@@ -29,7 +29,11 @@ function SignupForm() {
   // ?offer=trial (the $1 Starter introductory offer) is carried the same way,
   // and only for Starter — it changes which Whop checkout link is used.
   const trialOffer = requestedPlan === "Starter" && searchParams.get("offer") === "trial";
-  const onboardingPath = requestedPlan
+  // Came back from a pay-first checkout: no second checkout after onboarding.
+  const paidFirst = searchParams.get("paid") === "1";
+  const onboardingPath = paidFirst
+    ? "/onboarding?paid=1"
+    : requestedPlan
     ? `/onboarding?plan=${requestedPlan}${trialOffer ? "&offer=trial" : ""}`
     : "/onboarding";
 
@@ -85,6 +89,12 @@ function SignupForm() {
               We sent a verification link to <span className="text-ink-primary">{email}</span>.
               Confirm your email to finish creating your account.
             </p>
+            {paidFirst && (
+              <p className="mt-3 text-sm text-ink-secondary">
+                Your Starter plan activates as soon as you confirm — as long as this is the email you used at
+                checkout.
+              </p>
+            )}
           </div>
         </div>
       </div>
@@ -100,6 +110,12 @@ function SignupForm() {
         <div className="rounded-2xl border border-base-border bg-base-card p-8">
           <h1 className="text-xl font-semibold text-ink-primary">Create your account</h1>
           <p className="mt-1 text-sm text-ink-secondary">Start creating better ads today.</p>
+          {paidFirst && (
+            <p className="mt-4 rounded-xl border border-brand/30 bg-brand/[0.07] px-3.5 py-2.5 text-xs leading-relaxed text-ink-secondary">
+              <span className="font-medium text-ink-primary">Use the same email you paid with.</span> That&apos;s how
+              we attach your Starter plan to your new account.
+            </p>
+          )}
 
           <form onSubmit={handleSubmit} className="mt-6 space-y-4">
             <div>

@@ -7,8 +7,10 @@ import { redirectTo } from "@/lib/redirect";
 
 // Every "Try for $1" button points here, so there is exactly ONE trial flow:
 //   • offer not configured      → normal Starter signup (no $1 anywhere)
-//   • not signed in             → /signup?plan=Starter&offer=trial
-//                                  (signup → onboarding → Whop trial checkout)
+//   • not signed in             → straight to the Whop trial checkout (PAY FIRST);
+//                                  Whop returns them to /checkout/complete, where
+//                                  they create the account (migration-010 attaches
+//                                  the payment once their email is confirmed)
 //   • signed in, already paying → /billing (manage the existing plan)
 //   • signed in, no active plan → straight to the Whop trial checkout
 //
@@ -37,7 +39,7 @@ export async function GET(request: NextRequest) {
   const {
     data: { user },
   } = await supabase.auth.getUser();
-  if (!user) return to("/signup?plan=Starter&offer=trial");
+  if (!user) return NextResponse.redirect(trialCheckout, 303);
 
   const { data: profile } = await supabase
     .from("profiles")
