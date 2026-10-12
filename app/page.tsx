@@ -23,6 +23,7 @@ import { STARTER_TRIAL, TRIAL_TERMS } from "@/lib/starterTrial";
 import { WinningAdsShowcase } from "@/components/marketing/WinningAdsShowcase";
 import { getShowcaseCreatives } from "@/lib/showcaseServer";
 import { DEMO_CREATIVES } from "@/lib/demoReports";
+import { FounderSection } from "@/components/marketing/FounderSection";
 
 // Re-check the showcase table every 5 minutes so admin uploads appear
 // on the public homepage without a redeploy.
@@ -369,6 +370,9 @@ export default async function LandingPage() {
       </section>
 
       {/* WHO IT'S FOR */}
+      {/* MEET THE FOUNDER — scroll-driven glass pour + founder card */}
+      <FounderSection />
+
       <section className="border-t border-white/5 px-6 py-24">
         <div className="mx-auto max-w-4xl">
           <h2 className="text-center text-3xl font-semibold tracking-tight text-ink-primary sm:text-4xl">
