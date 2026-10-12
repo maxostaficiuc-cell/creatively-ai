@@ -3,6 +3,7 @@ import { createClient } from "@/lib/supabase/server";
 import { checkoutUrlFor } from "@/lib/whop-plans";
 import { STARTER_TRIAL } from "@/lib/starterTrial";
 import { sendLoopsEvent } from "@/lib/loops";
+import { redirectTo } from "@/lib/redirect";
 
 // Every "Try for $1" button points here, so there is exactly ONE trial flow:
 //   • offer not configured      → normal Starter signup (no $1 anywhere)
@@ -26,7 +27,8 @@ export async function GET(request: NextRequest) {
   // never any user or payment data.
   console.log(`starter_trial_cta_clicked placement=${from}`);
 
-  const to = (path: string) => NextResponse.redirect(new URL(path, url.origin), 303);
+  // Relative redirects keep the visitor on trycreatively.space (see lib/redirect.ts).
+  const to = (path: string) => redirectTo(path);
 
   const trialCheckout = checkoutUrlFor("Starter", "monthly", "trial");
   if (!STARTER_TRIAL.enabled || !trialCheckout) return to("/signup?plan=Starter");

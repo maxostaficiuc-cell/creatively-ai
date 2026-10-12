@@ -1,17 +1,21 @@
-import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
+import { redirectTo, safePath } from "@/lib/redirect";
 
 // Handles the redirect from Supabase email links (signup confirmation
 // and password reset) and exchanges the code for a session.
 export async function GET(request: Request) {
-  const { searchParams, origin } = new URL(request.url);
+  const { searchParams } = new URL(request.url);
   const code = searchParams.get("code");
-  const next = searchParams.get("next") ?? "/onboarding";
+  // Same-site paths only (keeps ?plan=…&offer=trial intact).
+  const next = safePath(searchParams.get("next"), "/onboarding");
 
   if (code) {
     const supabase = createClient();
     await supabase.auth.exchangeCodeForSession(code);
   }
 
-  return NextResponse.redirect(`${origin}${next}`);
+  // Relative redirect: on Netlify the request origin is the internal deploy
+  // address, which would move the visitor off trycreatively.space and lose
+  // the session that was just created.
+  return redirectTo(next, 307);
 }
