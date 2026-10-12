@@ -42,7 +42,9 @@ export function AppShell({
 
       <div className="flex min-w-0 flex-1 flex-col">
         <TopBar profile={profile} greeting={greeting} subtitle={subtitle} onMenuClick={() => setMobileOpen(true)} />
-        <main className="flex-1 overflow-y-auto px-6 py-6">{children}</main>
+        {/* overflow-x-clip (not overflow-y-auto): the window is what scrolls, and an
+            overflow container here would stop sticky elements (report nav) working. */}
+        <main className="min-w-0 flex-1 overflow-x-clip px-6 py-6">{children}</main>
       </div>
 
       <UpgradePrompt profile={profile} />

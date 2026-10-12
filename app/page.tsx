@@ -22,6 +22,7 @@ import { TrialButton, TrialCallout } from "@/components/marketing/TrialButton";
 import { STARTER_TRIAL, TRIAL_TERMS } from "@/lib/starterTrial";
 import { WinningAdsShowcase } from "@/components/marketing/WinningAdsShowcase";
 import { getShowcaseCreatives } from "@/lib/showcaseServer";
+import { DEMO_CREATIVES } from "@/lib/demoReports";
 
 // Re-check the showcase table every 5 minutes so admin uploads appear
 // on the public homepage without a redeploy.
@@ -42,11 +43,12 @@ const honestExamples = [
   { score: 38, verdict: "Weak — fix before spending", tone: "red" as const },
 ];
 
-const winningAds = [
-  { slug: "demo-creative-1", imageUrl: "/winning-ads/creative-1.png", score: 91 },
-  { slug: "demo-creative-2", imageUrl: "/winning-ads/creative-2.png", score: 92 },
-  { slug: "demo-creative-3", imageUrl: "/winning-ads/creative-3.png", score: 97 },
-];
+// Scores come from the example reports themselves, so card and report always agree.
+const winningAds = Object.values(DEMO_CREATIVES).map((d) => ({
+  slug: d.slug,
+  imageUrl: d.imageUrl,
+  score: d.report.score,
+}));
 
 const audiences = [
   { title: "Media Buyers", body: "Know which creatives deserve more attention." },
