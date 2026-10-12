@@ -172,7 +172,9 @@ export async function runCreativeAnalysis(
         "anthropic-version": "2023-06-01",
       },
       body: JSON.stringify({
-        model: "claude-haiku-4-5-20251001",
+        // Current Haiku model (claude-haiku-4-5 is scheduled for retirement).
+        // Override without a code change via the ANTHROPIC_MODEL env var.
+        model: process.env.ANTHROPIC_MODEL || "claude-haiku-5-5",
         max_tokens: 3000,
         messages: [
           {
