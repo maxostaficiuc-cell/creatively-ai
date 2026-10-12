@@ -224,7 +224,8 @@ export async function POST(request: Request) {
         // No real analysis: don't save a placeholder, don't charge.
         await supabase.storage.from("creatives").remove([path]).catch(() => {});
         const map = AI_TO_HTTP[ai.error?.code ?? "ai_failed"];
-        return failAfterReserve(map.code, map.status, { retryAfter: ai.error?.retryAfterSec ?? null });
+        const ref = `${ai.error?.part || "ai"}:${ai.error?.reason || ai.error?.code || "failed"}`;
+        return failAfterReserve(map.code, map.status, { retryAfter: ai.error?.retryAfterSec ?? null, ref });
       }
       finalResult = ai.result as unknown as typeof finalResult;
       isSimulated = false;

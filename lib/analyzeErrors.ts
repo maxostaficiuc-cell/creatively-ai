@@ -105,4 +105,6 @@ export type AnalyzeErrorBody = {
   requestId: string;
   retryAfter?: number | null;
   balance?: number | null;
+  /** Short support reference, e.g. "findings:cut_off". No secrets or internals. */
+  ref?: string;
 };
