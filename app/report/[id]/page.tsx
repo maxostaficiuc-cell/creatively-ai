@@ -5,6 +5,8 @@ import { Nav } from "@/components/marketing/Nav";
 import { Footer } from "@/components/marketing/Footer";
 import { CreativeReportView } from "@/components/marketing/CreativeReportView";
 import { DEMO_CREATIVES } from "@/lib/demoReports";
+import { PostAnalysisOffer } from "@/components/marketing/PostAnalysisOffer";
+import { createClient } from "@/lib/supabase/server";
 import type { Creative } from "@/lib/types";
 
 export const dynamic = "force-dynamic";
@@ -14,7 +16,27 @@ export const dynamic = "force-dynamic";
 // browser), scoped specifically to is_free_report rows only — it can
 // never be used to view a regular authenticated user's private creative,
 // even if someone guessed a UUID.
+/** Paying users see product actions instead of the introductory offer. */
+async function offerMode(): Promise<"offer" | "subscriber"> {
+  try {
+    const supabase = createClient();
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+    if (!user) return "offer";
+    const { data: profile } = await supabase
+      .from("profiles")
+      .select("subscription_status")
+      .eq("id", user.id)
+      .maybeSingle();
+    return profile?.subscription_status === "active" ? "subscriber" : "offer";
+  } catch {
+    return "offer";
+  }
+}
+
 export default async function ReportPage({ params }: { params: { id: string } }) {
+  const mode = await offerMode();
   // Static example reports for the homepage's "See what's working" section
   // — fixed demo data, never touches the database.
   const demo = DEMO_CREATIVES[params.id];
@@ -35,7 +57,11 @@ export default async function ReportPage({ params }: { params: { id: string } })
               advertising performance data.
             </p>
             <div className="mt-8">
-              <CreativeReportView report={demo.report} imageUrl={demo.imageUrl} showUpgradeCta />
+              <CreativeReportView
+                report={demo.report}
+                imageUrl={demo.imageUrl}
+                upgrade={<PostAnalysisOffer reportId={params.id} mode={mode} />}
+              />
             </div>
           </div>
         </section>
@@ -82,7 +108,7 @@ export default async function ReportPage({ params }: { params: { id: string } })
               report={creative.report}
               imageUrl={creative.file_url}
               isSimulated={creative.is_simulated}
-              showUpgradeCta
+              upgrade={<PostAnalysisOffer reportId={params.id} mode={mode} />}
             />
           </div>
         </div>

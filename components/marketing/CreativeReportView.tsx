@@ -16,7 +16,6 @@ import {
   Info,
 } from "lucide-react";
 import { ScoreRing } from "@/components/marketing/ScoreRing";
-import { ButtonLink } from "@/components/ui/Button";
 import type { CreativeReport } from "@/lib/analyzeCreative";
 
 export const VERDICT_TONE: Record<CreativeReport["final_recommendation"]["verdict"], string> = {
@@ -72,12 +71,13 @@ export function CreativeReportView({
   report,
   imageUrl,
   isSimulated,
-  showUpgradeCta = false,
+  upgrade = null,
 }: {
   report: CreativeReport;
   imageUrl?: string | null;
   isSimulated?: boolean;
-  showUpgradeCta?: boolean;
+  /** Rendered after the full report — never before or over it. */
+  upgrade?: React.ReactNode;
 }) {
   return (
     <div className="space-y-6">
@@ -358,18 +358,8 @@ export function CreativeReportView({
         </p>
       </div>
 
-      {showUpgradeCta && (
-        <div className="rounded-2xl border border-brand/40 bg-gradient-to-br from-brand/10 via-base-card to-base-card p-7 text-center shadow-glow">
-          <p className="text-lg font-medium text-ink-primary">Want to analyze every creative you launch?</p>
-          <p className="mt-2 text-sm text-ink-secondary">
-            Unlock unlimited creative analysis, video analysis, and full creative intelligence with
-            Creatively.ai.
-          </p>
-          <ButtonLink href="/signup" className="mt-5">
-            Get Started
-          </ButtonLink>
-        </div>
-      )}
+      {/* conversion slot (e.g. PostAnalysisOffer) — always AFTER the results */}
+      {upgrade}
     </div>
   );
 }

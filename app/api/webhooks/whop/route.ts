@@ -3,6 +3,7 @@ import { createHmac, timingSafeEqual } from "crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { weeklyAllowanceFor } from "@/lib/types";
 import { ourPlanFromWhopPlanId } from "@/lib/whop-plans";
+import { sendLoopsEvent } from "@/lib/loops";
 
 // Real Whop webhook handling — verifies the signature per the Standard
 // Webhooks spec Whop uses, then updates the paying user's plan and resets
@@ -209,7 +210,25 @@ export async function POST(request: Request) {
       const membershipId = readMembershipId(event.data);
 
       if (email && ourPlan) {
+        // Was this account already active before this event? (Used only to send
+        // the "subscribed" Loops event once — not for any access decision.)
+        const { data: before } = await createAdminClient()
+          .from("profiles")
+          .select("subscription_status")
+          .ilike("email", email)
+          .maybeSingle();
         const matched = await grantPlanByEmail(email, ourPlan, membershipId);
+        const isTrialPlan = !!process.env.WHOP_PLAN_ID_STARTER_TRIAL && whopPlanId === process.env.WHOP_PLAN_ID_STARTER_TRIAL;
+        if (matched && isTrialPlan && before?.subscription_status !== "active") {
+          // Confirmed by a verified Whop webhook — never by a button click.
+          // Lets Loops stop the upgrade journeys and start the welcome flow.
+          await sendLoopsEvent({
+            email,
+            eventName: "starter_trial_subscribed",
+            eventProperties: { source: "whop_webhook" },
+            idempotencyKey: `sts-${membershipId ?? email}`,
+          });
+        }
         console.log(
           `[whop-webhook ${receivedAt}] ${event.id}: ${matched ? "granted" : "no matching account for"} plan ${ourPlan}`
         );

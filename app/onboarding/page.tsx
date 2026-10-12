@@ -92,7 +92,12 @@ function OnboardingForm() {
     // history entry instead of pushing a new one, so pressing Back from
     // Whop's checkout doesn't land the user right back on this onboarding
     // form.
-    const checkoutUrl = checkoutUrlFor(requestedPlan, "monthly", trialOffer ? "trial" : null);
+    if (trialOffer) {
+      // Same single trial flow as every "Try for $1" button (→ Whop trial checkout).
+      window.location.replace("/start-trial?from=onboarding");
+      return;
+    }
+    const checkoutUrl = checkoutUrlFor(requestedPlan, "monthly");
     window.location.replace(checkoutUrl || "/dashboard");
   }
 

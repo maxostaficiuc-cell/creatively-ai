@@ -6,7 +6,11 @@ import {
   getClientIp,
   checkFreeReportEligibility,
   recordFreeReportClaim,
+  acquirePendingClaim,
+  completePendingClaim,
+  releasePendingClaim,
 } from "@/lib/freeReport";
+import { sendLoopsEvent } from "@/lib/loops";
 import { verifyTurnstileToken } from "@/lib/turnstile";
 
 export const runtime = "nodejs";
@@ -22,6 +26,7 @@ type ErrorCode =
   | "VALIDATION_ERROR"
   | "RATE_LIMIT"
   | "ALREADY_USED"
+  | "IN_PROGRESS"
   | "UPLOAD_ERROR"
   | "ANALYSIS_ERROR"
   | "MISSING_CONFIGURATION";
@@ -31,23 +36,39 @@ const ERROR_MESSAGES: Record<ErrorCode, string> = {
   FILE_TOO_LARGE: "This creative is too large. Please upload a file under 8MB.",
   VIDEO_NOT_ALLOWED: "Video analysis is available on paid plans.",
   VALIDATION_ERROR: "Please check your name and email and try again.",
-  RATE_LIMIT: "You've reached the current analysis limit. Please try again later.",
+  RATE_LIMIT:
+    "You've reached the current analysis limit. Please try again later.",
   ALREADY_USED: "You've already used your free report.",
+  IN_PROGRESS: "Your report is already being generated — hang tight.",
   UPLOAD_ERROR: "Your image could not be uploaded. Please try again.",
-  ANALYSIS_ERROR: "We couldn't complete the analysis. Your creative is safe — please try again.",
-  MISSING_CONFIGURATION: "Analysis is temporarily unavailable. Please try again shortly.",
+  ANALYSIS_ERROR:
+    "We couldn't complete the analysis. Your creative is safe — please try again.",
+  MISSING_CONFIGURATION:
+    "Analysis is temporarily unavailable. Please try again shortly.",
 };
 
-function fail(code: ErrorCode, status: number, extra?: Record<string, unknown>) {
-  return NextResponse.json({ code, error: ERROR_MESSAGES[code], ...extra }, { status });
+function fail(
+  code: ErrorCode,
+  status: number,
+  extra?: Record<string, unknown>,
+) {
+  return NextResponse.json(
+    { code, error: ERROR_MESSAGES[code], ...extra },
+    { status },
+  );
 }
 
 export async function POST(request: Request) {
   // Fail loud and specific, not with a raw crash, if required config is
   // missing — per the explicit requirement not to silently pretend this
   // works when it can't.
-  if (!process.env.SUPABASE_SERVICE_ROLE_KEY || !process.env.NEXT_PUBLIC_SUPABASE_URL) {
-    console.error("free-report: missing SUPABASE_SERVICE_ROLE_KEY or NEXT_PUBLIC_SUPABASE_URL");
+  if (
+    !process.env.SUPABASE_SERVICE_ROLE_KEY ||
+    !process.env.NEXT_PUBLIC_SUPABASE_URL
+  ) {
+    console.error(
+      "free-report: missing SUPABASE_SERVICE_ROLE_KEY or NEXT_PUBLIC_SUPABASE_URL",
+    );
     return fail("MISSING_CONFIGURATION", 503, {
       missingEnvVar: !process.env.SUPABASE_SERVICE_ROLE_KEY
         ? "SUPABASE_SERVICE_ROLE_KEY"
@@ -68,9 +89,13 @@ export async function POST(request: Request) {
   const email = ((formData.get("email") as string) || "").trim();
   const deviceFingerprint = (formData.get("device") as string) || "";
   const turnstileToken = (formData.get("turnstileToken") as string) || null;
+  // Unticked-by-default opt-in from the form. Loops follow-up events are only
+  // sent when this is true.
+  const emailConsent = formData.get("emailConsent") === "true";
 
   if (!name) return fail("VALIDATION_ERROR", 400);
-  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return fail("VALIDATION_ERROR", 400);
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))
+    return fail("VALIDATION_ERROR", 400);
   if (!file || file.size === 0) return fail("INVALID_FILE", 400);
   if (!file.type.startsWith("image/")) return fail("VIDEO_NOT_ALLOWED", 400);
   if (file.size > MAX_BYTES) return fail("FILE_TOO_LARGE", 400);
@@ -111,107 +136,173 @@ export async function POST(request: Request) {
   }
 
   if (!eligibility.eligible) {
-    return eligibility.reason === "rate_limited" ? fail("RATE_LIMIT", 429) : fail("ALREADY_USED", 403);
+    if (eligibility.reason === "rate_limited") return fail("RATE_LIMIT", 429);
+    // Journey B trigger. Deduped per email per day so retries don't re-send.
+    await sendLoopsEvent({
+      email,
+      eventName: "free_report_limit_reached",
+      consented: emailConsent,
+      contactProperties: { firstName: name.split(" ")[0] },
+      eventProperties: { source: "free_report_modal" },
+      idempotencyKey: `frl-${emailHash.slice(0, 32)}-${new Date().toISOString().slice(0, 10)}`,
+    });
+    return fail("ALREADY_USED", 403);
   }
 
-  let bytes: Uint8Array;
+  // Take the in-flight lock before doing any expensive work.
+  let lockId: string | null = null;
   try {
-    const arrayBuffer = await file.arrayBuffer();
-    bytes = new Uint8Array(arrayBuffer);
-  } catch (err) {
-    console.error("free-report: failed to read file bytes:", err);
-    return fail("UPLOAD_ERROR", 400);
-  }
-
-  let analysis;
-  try {
-    analysis = await runCreativeAnalysis(bytes, file.type);
-  } catch (err) {
-    // runCreativeAnalysis already catches AI failures internally and
-    // returns a simulated result — reaching this catch means something
-    // more fundamental broke (e.g. it threw synchronously), which
-    // shouldn't normally happen, but fail cleanly if it does.
-    console.error("free-report: analysis threw unexpectedly:", err);
-    return fail("ANALYSIS_ERROR", 500);
-  }
-  const { result, isSimulated } = analysis;
-
-  const supabase = createAdminClient();
-  const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, "_");
-  const path = `free-reports/${Date.now()}-${safeName}`;
-
-  let fileUrl: string | null = null;
-  try {
-    const { error: uploadError } = await supabase.storage
-      .from("creatives")
-      .upload(path, bytes, { contentType: file.type, upsert: false });
-    if (uploadError) {
-      console.error("free-report: storage upload failed:", uploadError.message);
-    } else {
-      const { data: signedUrlData } = await supabase.storage
-        .from("creatives")
-        .createSignedUrl(path, 60 * 60 * 24 * 30);
-      fileUrl = signedUrlData?.signedUrl ?? null;
-    }
-  } catch (err) {
-    console.error("free-report: storage step threw:", err);
-    // Continue without a stored image rather than failing the whole
-    // report — the analysis itself already succeeded.
-  }
-
-  let creativeId: string | null = null;
-  try {
-    const { data: creative, error: insertError } = await supabase
-      .from("creatives")
-      .insert({
-        user_id: null,
-        file_url: fileUrl,
-        file_type: "image",
-        is_free_report: true,
-        lead_name: name,
-        lead_email: email,
-        score: result.score,
-        summary: result.summary,
-        whats_working: result.whats_working,
-        whats_not: result.whats_not,
-        what_to_test: result.what_to_test,
-        report: result,
-        credits_used: 0,
-        is_simulated: isSimulated,
-      })
-      .select("id")
-      .single();
-
-    if (insertError) {
-      console.error("free-report: creative insert failed:", insertError.message);
-      return fail("ANALYSIS_ERROR", 500);
-    }
-    creativeId = creative.id;
-  } catch (err) {
-    console.error("free-report: creative insert threw:", err);
-    return fail("ANALYSIS_ERROR", 500);
-  }
-
-  try {
-    await recordFreeReportClaim({
+    const lock = await acquirePendingClaim({
       emailHash,
       ipHash,
       deviceHash,
       cookieTokenHash,
-      creativeId,
     });
+    if (lock.status === "in_progress") return fail("IN_PROGRESS", 409);
+    if (lock.status === "locked") lockId = lock.claimId;
   } catch (err) {
-    // The report itself succeeded and was saved — don't fail the request
-    // over the claim-tracking write, just log it for follow-up.
-    console.error("free-report: failed to record claim:", err);
+    console.error("free-report: lock step failed, continuing without it:", err);
   }
+  let completed = false;
+  try {
+    await sendLoopsEvent({
+      email,
+      eventName: "free_report_started",
+      consented: emailConsent,
+      contactProperties: { firstName: name.split(" ")[0] },
+      eventProperties: { source: "free_report_modal" },
+      idempotencyKey: lockId ? `frs-${lockId}` : undefined,
+    });
 
-  const response = NextResponse.json({ reportId: creativeId, isSimulated });
-  response.cookies.set(COOKIE_NAME, cookieToken, {
-    httpOnly: true,
-    secure: true,
-    sameSite: "lax",
-    maxAge: 60 * 60 * 24 * 365,
-  });
-  return response;
+    let bytes: Uint8Array;
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      bytes = new Uint8Array(arrayBuffer);
+    } catch (err) {
+      console.error("free-report: failed to read file bytes:", err);
+      return fail("UPLOAD_ERROR", 400);
+    }
+
+    let analysis;
+    try {
+      analysis = await runCreativeAnalysis(bytes, file.type);
+    } catch (err) {
+      // runCreativeAnalysis already catches AI failures internally and
+      // returns a simulated result — reaching this catch means something
+      // more fundamental broke (e.g. it threw synchronously), which
+      // shouldn't normally happen, but fail cleanly if it does.
+      console.error("free-report: analysis threw unexpectedly:", err);
+      return fail("ANALYSIS_ERROR", 500);
+    }
+    const { result, isSimulated } = analysis;
+
+    const supabase = createAdminClient();
+    const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, "_");
+    const path = `free-reports/${Date.now()}-${safeName}`;
+
+    let fileUrl: string | null = null;
+    try {
+      const { error: uploadError } = await supabase.storage
+        .from("creatives")
+        .upload(path, bytes, { contentType: file.type, upsert: false });
+      if (uploadError) {
+        console.error(
+          "free-report: storage upload failed:",
+          uploadError.message,
+        );
+      } else {
+        const { data: signedUrlData } = await supabase.storage
+          .from("creatives")
+          .createSignedUrl(path, 60 * 60 * 24 * 30);
+        fileUrl = signedUrlData?.signedUrl ?? null;
+      }
+    } catch (err) {
+      console.error("free-report: storage step threw:", err);
+      // Continue without a stored image rather than failing the whole
+      // report — the analysis itself already succeeded.
+    }
+
+    let creativeId: string | null = null;
+    try {
+      const { data: creative, error: insertError } = await supabase
+        .from("creatives")
+        .insert({
+          user_id: null,
+          file_url: fileUrl,
+          file_type: "image",
+          is_free_report: true,
+          lead_name: name,
+          lead_email: email,
+          score: result.score,
+          summary: result.summary,
+          whats_working: result.whats_working,
+          whats_not: result.whats_not,
+          what_to_test: result.what_to_test,
+          report: result,
+          credits_used: 0,
+          is_simulated: isSimulated,
+        })
+        .select("id")
+        .single();
+
+      if (insertError) {
+        console.error(
+          "free-report: creative insert failed:",
+          insertError.message,
+        );
+        return fail("ANALYSIS_ERROR", 500);
+      }
+      creativeId = creative.id;
+    } catch (err) {
+      console.error("free-report: creative insert threw:", err);
+      return fail("ANALYSIS_ERROR", 500);
+    }
+
+    try {
+      if (lockId) {
+        await completePendingClaim(lockId, creativeId);
+      } else {
+        await recordFreeReportClaim({
+          emailHash,
+          ipHash,
+          deviceHash,
+          cookieTokenHash,
+          creativeId,
+        });
+      }
+      completed = true;
+    } catch (err) {
+      // The report itself succeeded and was saved — don't fail the request
+      // over the claim-tracking write, just log it for follow-up.
+      console.error("free-report: failed to record claim:", err);
+    }
+
+    completed = true;
+
+    // Journey A trigger (report ready, not yet subscribed).
+    await sendLoopsEvent({
+      email,
+      eventName: "free_report_completed",
+      consented: emailConsent,
+      contactProperties: { firstName: name.split(" ")[0] },
+      eventProperties: {
+        source: "free_report_modal",
+        // Netlify sets URL to the site's primary address.
+        report_url: `${process.env.URL || new URL(request.url).origin}/report/${creativeId}`,
+      },
+      idempotencyKey: creativeId ? `frc-${creativeId}` : undefined,
+    });
+
+    const response = NextResponse.json({ reportId: creativeId, isSimulated });
+    response.cookies.set(COOKIE_NAME, cookieToken, {
+      httpOnly: true,
+      secure: true,
+      sameSite: "lax",
+      maxAge: 60 * 60 * 24 * 365,
+    });
+    return response;
+  } finally {
+    // Any failure after taking the lock releases it, so the visitor can retry.
+    if (lockId && !completed) await releasePendingClaim(lockId).catch(() => {});
+  }
 }

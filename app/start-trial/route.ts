@@ -2,6 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { createClient } from "@/lib/supabase/server";
 import { checkoutUrlFor } from "@/lib/whop-plans";
 import { STARTER_TRIAL } from "@/lib/starterTrial";
+import { sendLoopsEvent } from "@/lib/loops";
 
 // Every "Try for $1" button points here, so there is exactly ONE trial flow:
 //   • offer not configured      → normal Starter signup (no $1 anywhere)
@@ -19,10 +20,11 @@ const PLACEMENT = /^[a-z-]{1,24}$/;
 
 export async function GET(request: NextRequest) {
   const url = request.nextUrl;
-  const from = url.searchParams.get("from") ?? "";
+  const fromRaw = url.searchParams.get("from") ?? "";
+  const from = PLACEMENT.test(fromRaw) ? fromRaw : "unknown";
   // Lightweight click tracking (no analytics tool is installed): placement only,
   // never any user or payment data.
-  console.log(`starter_trial_cta_clicked placement=${PLACEMENT.test(from) ? from : "unknown"}`);
+  console.log(`starter_trial_cta_clicked placement=${from}`);
 
   const to = (path: string) => NextResponse.redirect(new URL(path, url.origin), 303);
 
@@ -41,6 +43,24 @@ export async function GET(request: NextRequest) {
     .eq("id", user.id)
     .maybeSingle();
   if (profile?.subscription_status === "active") return to("/billing");
+
+  // Signed-in visitor is about to see the Whop checkout. Loops events are only
+  // sent if this email is already a Loops contact (never creates one).
+  if (user.email) {
+    // Loops-friendly source names (free_report_modal, post_analysis_offer, hero, …)
+    const source =
+      from === "onboarding" ? "signup" : from === "post-analysis" ? "post_analysis_offer" : from.replace(/-/g, "_");
+    await Promise.all([
+      from !== "onboarding" &&
+        sendLoopsEvent({ email: user.email, eventName: "starter_trial_cta_clicked", eventProperties: { source } }),
+      sendLoopsEvent({
+        email: user.email,
+        eventName: "starter_trial_checkout_started",
+        eventProperties: { source },
+        idempotencyKey: `stc-${user.id}-${new Date().toISOString().slice(0, 13)}`,
+      }),
+    ]);
+  }
 
   return NextResponse.redirect(trialCheckout, 303);
 }
