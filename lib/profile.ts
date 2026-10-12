@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { createAdminClient } from "@/lib/supabase/admin";
 import { weeklyAllowanceFor } from "@/lib/types";
 import type { Profile } from "@/lib/types";
 
@@ -26,13 +27,17 @@ export async function getFreshProfile(
 
   if (!profile) return null;
 
+  // Billing columns are server-only (migration-011 locks them for browser
+  // sessions), so balance writes go through the service-role client.
+  const writer: SupabaseClient = process.env.SUPABASE_SERVICE_ROLE_KEY ? createAdminClient() : supabase;
+
   const isPaid = profile.subscription_status === "active";
 
   if (!isPaid) {
     // Never trust a stale non-zero balance on an unpaid account — force it
     // to 0 every time this runs, regardless of how it got there.
     if (profile.ai_credits !== 0) {
-      const { data: updated } = await supabase
+      const { data: updated } = await writer
         .from("profiles")
         .update({ ai_credits: 0 })
         .eq("id", userId)
@@ -56,7 +61,7 @@ export async function getFreshProfile(
   if (needsReset) {
     const nextReset = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
 
-    const { data: updated } = await supabase
+    const { data: updated } = await writer
       .from("profiles")
       .update({ ai_credits: allowance, credits_reset_at: nextReset.toISOString() })
       .eq("id", userId)
@@ -64,6 +69,15 @@ export async function getFreshProfile(
       .single<Profile>();
 
     return updated ?? profile;
+  }
+
+  // Credits held by an analysis that crashed (e.g. a platform timeout) come
+  // back after 3 minutes. No-op until migration-011 is run.
+  if (process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    const { data: refunded } = await writer.rpc("release_stale_credit_reservations", { p_user_id: userId });
+    if (typeof refunded === "number" && refunded > 0) {
+      return { ...profile, ai_credits: profile.ai_credits + refunded };
+    }
   }
 
   return profile;

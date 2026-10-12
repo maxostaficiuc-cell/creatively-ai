@@ -28,13 +28,12 @@ export function SettingsClient({ profile }: { profile: Profile }) {
     router.refresh();
   }
 
+  // Cancelling is handled on the Billing page, which cancels the real Whop
+  // membership. (This used to only relabel the plan in the database, which
+  // left billing running; plan is now a server-only column.)
   async function handleCancelPlan() {
-    if (!confirm("Cancel your Pro plan and move to Starter? You can upgrade again anytime.")) return;
     setCancelling(true);
-    const supabase = createClient();
-    await supabase.from("profiles").update({ plan: "Starter" }).eq("id", profile.id);
-    setCancelling(false);
-    router.refresh();
+    router.push("/billing");
   }
 
   async function handleLogout() {
