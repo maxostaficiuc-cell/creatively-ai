@@ -288,7 +288,7 @@ export async function POST(request: Request) {
       eventProperties: {
         source: "free_report_modal",
         // Netlify sets URL to the site's primary address.
-        report_url: `${process.env.URL || new URL(request.url).origin}/report/${creativeId}`,
+        report_url: `${process.env.SITE_URL || process.env.URL || new URL(request.url).origin}/report/${creativeId}`,
       },
       idempotencyKey: creativeId ? `frc-${creativeId}` : undefined,
     });

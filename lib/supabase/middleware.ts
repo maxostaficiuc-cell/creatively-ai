@@ -49,12 +49,21 @@ export async function updateSession(request: NextRequest) {
 
   if (isProtected && !user) {
     const redirectUrl = new URL("/login", request.url);
-    redirectUrl.searchParams.set("next", path);
+    // keep the query (?plan=Starter&offer=trial) so the chosen offer survives login
+    redirectUrl.searchParams.set("next", path + request.nextUrl.search);
     return NextResponse.redirect(redirectUrl);
   }
 
   if ((path === "/login" || path === "/signup") && user) {
-    return NextResponse.redirect(new URL("/dashboard", request.url));
+    // Already signed in: honour where they were heading instead of dumping
+    // them on the dashboard (e.g. the $1 trial → straight to checkout).
+    const params = request.nextUrl.searchParams;
+    const next = params.get("next");
+    let dest = "/dashboard";
+    if (params.get("offer") === "trial") dest = "/start-trial?from=signup";
+    else if (next && next.startsWith("/") && !next.startsWith("//")) dest = next;
+    else if (path === "/signup" && params.get("plan")) dest = `/onboarding?plan=${encodeURIComponent(params.get("plan")!)}`;
+    return NextResponse.redirect(new URL(dest, request.url));
   }
 
   return response;
