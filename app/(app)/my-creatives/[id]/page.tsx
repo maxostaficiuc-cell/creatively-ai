@@ -3,6 +3,7 @@ import Link from "next/link";
 import { ArrowLeft } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { getFreshProfile } from "@/lib/profile";
+import { getConnectedAdAccount } from "@/lib/meta/client";
 import { AppShell } from "@/components/dashboard/AppShell";
 import { CreativeReportView } from "@/components/marketing/CreativeReportView";
 import type { Creative } from "@/lib/types";
@@ -28,6 +29,9 @@ export default async function CreativeDetailPage({ params }: { params: { id: str
 
   if (!creative) notFound();
 
+  // Only a yes/no reaches the browser — never the account or its token.
+  const adAccountConnected = !!(await getConnectedAdAccount(supabase, user.id).catch(() => null));
+
   return (
     <AppShell profile={profile ?? null} greeting="Creative Report" subtitle="">
       <div className="mx-auto max-w-5xl space-y-6">
@@ -43,6 +47,8 @@ export default async function CreativeDetailPage({ params }: { params: { id: str
             report={creative.report}
             imageUrl={creative.file_url}
             isSimulated={creative.is_simulated}
+            reportId={creative.id}
+            adAccountConnected={adAccountConnected}
           />
         ) : (
           <div className="rounded-2xl border border-base-border bg-base-card p-6">

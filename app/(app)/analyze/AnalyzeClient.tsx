@@ -295,6 +295,11 @@ export function AnalyzeClient({ credits }: { credits: number }) {
               report={result.report}
               imageUrl={previewUrl}
               isSimulated={result.is_simulated}
+              reportId={result.id}
+              onReanalyze={() => {
+                resetAll();
+                document.querySelector("main")?.scrollTo({ top: 0 });
+              }}
             />
           ) : (
             // Graceful fallback for older rows saved before the deep report existed

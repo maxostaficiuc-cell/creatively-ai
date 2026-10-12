@@ -310,10 +310,10 @@ export function FullAnalysisModal({ creative, onClose }: { creative: DemoCreativ
                 <div key={s.label}>
                   <div className="mb-1.5 flex items-center justify-between text-xs">
                     <span className="text-ink-secondary">{s.label}</span>
-                    <span className="text-ink-primary">{s.score.toFixed(1)} / 10</span>
+                    <span className="text-ink-primary">{(s.score ?? 0).toFixed(1)} / 10</span>
                   </div>
                   <div className="h-1.5 w-full overflow-hidden rounded-full bg-base-border">
-                    <div className="h-full rounded-full bg-gradient-to-r from-brand to-brand-light" style={{ width: `${s.score * 10}%` }} />
+                    <div className="h-full rounded-full bg-gradient-to-r from-brand to-brand-light" style={{ width: `${(s.score ?? 0) * 10}%` }} />
                   </div>
                 </div>
               ))}

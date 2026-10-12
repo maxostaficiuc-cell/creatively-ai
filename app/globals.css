@@ -1078,3 +1078,173 @@ body {
 @media (min-width: 640px) { .pao-card { padding: 32px; } }
 @keyframes pao-in { from { opacity: 0; transform: translateY(14px); } to { opacity: 1; transform: none; } }
 @media (prefers-reduced-motion: reduce) { .pao-card { animation: none; } }
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   CREATIVE REPORT (components/report/*)
+   One motion vocabulary: rise-in once, bars grow once, markers pop in order,
+   gentle lift on hover. Everything is visible without JS and with reduced
+   motion (the hiding only applies under .rp-ready, which JS adds).
+   ═══════════════════════════════════════════════════════════════════════════ */
+.rp-root { --rp-ease: cubic-bezier(0.22, 1, 0.36, 1); position: relative; }
+.rp-section { scroll-margin-top: calc(var(--rp-top, 0px) + 76px); }
+#rp-overview { scroll-margin-top: calc(var(--rp-top, 0px) + 24px); }
+.rp-eyebrow {
+  display: flex; align-items: center;
+  font-size: 12px; font-weight: 600; letter-spacing: 0.14em; text-transform: uppercase;
+  color: #C4B5FD;
+}
+.rp-field { min-width: 0; }
+.rp-field-label {
+  margin-bottom: 4px;
+  font-size: 11px; font-weight: 600; letter-spacing: 0.08em; text-transform: uppercase;
+  color: #6B6B75;
+}
+
+/* cards */
+.rp-card {
+  position: relative;
+  border-radius: 14px;
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.025), rgba(255, 255, 255, 0) 60%), #15151A;
+  box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.03);
+  transition: transform 0.35s var(--rp-ease), border-color 0.25s ease, box-shadow 0.35s ease, opacity 0.3s ease;
+}
+.rp-card-good { box-shadow: inset 3px 0 0 rgba(34, 197, 94, 0.55), inset 0 1px 0 rgba(255,255,255,0.03); }
+.rp-card-bad { box-shadow: inset 3px 0 0 rgba(248, 113, 113, 0.55), inset 0 1px 0 rgba(255,255,255,0.03); }
+.rp-card-first {
+  border-color: rgba(139, 92, 246, 0.35);
+  background: radial-gradient(120% 80% at 0% 0%, rgba(139, 92, 246, 0.10), transparent 60%), #15151A;
+}
+@media (hover: hover) {
+  .rp-lift:hover, .rp-card-good:hover, .rp-card-bad:hover {
+    transform: translateY(-2px);
+    border-color: rgba(167, 139, 250, 0.28);
+    box-shadow: 0 14px 34px -18px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(139, 92, 246, 0.06);
+  }
+  .rp-card-good:hover { box-shadow: inset 3px 0 0 rgba(34,197,94,0.7), 0 14px 34px -18px rgba(0,0,0,0.8); }
+  .rp-card-bad:hover { box-shadow: inset 3px 0 0 rgba(248,113,113,0.7), 0 14px 34px -18px rgba(0,0,0,0.8); }
+  .rp-reveal-action { opacity: 0.35; transition: opacity 0.2s ease; }
+  .group\/hook:hover .rp-reveal-action, .rp-reveal-action:focus-visible { opacity: 1; }
+}
+
+/* buttons */
+.rp-btn-ghost {
+  display: inline-flex; align-items: center; gap: 6px;
+  height: 36px; padding: 0 12px;
+  border-radius: 9px; border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.03);
+  font-size: 12.5px; font-weight: 500; color: #C9C9D1;
+  transition: border-color 0.2s ease, background-color 0.2s ease, color 0.2s ease;
+}
+.rp-btn-ghost.rp-btn-icon { width: 34px; height: 34px; padding: 0; justify-content: center; flex: none; }
+.rp-btn-ghost:hover { border-color: rgba(167, 139, 250, 0.4); background: rgba(139, 92, 246, 0.08); color: #F5F5F7; }
+.rp-root :is(button, a, [role="button"]):focus-visible { outline: 2px solid #A78BFA; outline-offset: 2px; }
+
+/* overview */
+.rp-overview {
+  position: relative; overflow: hidden;
+  border-radius: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: linear-gradient(160deg, #17171D 0%, #111115 55%, #0E0E12 100%);
+  box-shadow: 0 30px 80px -40px rgba(0, 0, 0, 0.9), inset 0 1px 0 rgba(255, 255, 255, 0.04);
+}
+.rp-glow {
+  position: absolute; inset: -30% -10% auto 35%; height: 420px;
+  background: radial-gradient(closest-side, rgba(139, 92, 246, 0.16), transparent);
+  pointer-events: none;
+}
+.rp-priority {
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.12), rgba(139, 92, 246, 0.03));
+}
+
+/* sticky section navigation */
+.rp-nav {
+  position: sticky; top: var(--rp-top, 0px); z-index: 30;
+  margin: 12px -4px 0; padding: 8px 4px;
+  background: linear-gradient(180deg, rgba(8, 8, 11, 0.94) 70%, rgba(8, 8, 11, 0));
+  backdrop-filter: blur(10px); -webkit-backdrop-filter: blur(10px);
+}
+.rp-nav-list {
+  display: flex; gap: 4px; overflow-x: auto; scrollbar-width: none;
+  padding: 4px; border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.07); background: rgba(21, 21, 26, 0.9);
+  -webkit-mask-image: linear-gradient(90deg, transparent 0, #000 12px, #000 calc(100% - 12px), transparent 100%);
+          mask-image: linear-gradient(90deg, transparent 0, #000 12px, #000 calc(100% - 12px), transparent 100%);
+}
+.rp-nav-list::-webkit-scrollbar { display: none; }
+.rp-nav-pill {
+  flex: none; height: 32px; padding: 0 12px; border-radius: 8px;
+  font-size: 12.5px; font-weight: 500; color: #8B8B96; white-space: nowrap;
+  transition: background-color 0.25s ease, color 0.25s ease;
+}
+.rp-nav-pill:hover { color: #F5F5F7; }
+.rp-nav-pill[aria-current="true"] { background: rgba(139, 92, 246, 0.18); color: #F5F5F7; box-shadow: inset 0 0 0 1px rgba(167, 139, 250, 0.3); }
+
+/* annotated creative */
+.rp-marker { transition: transform 0.3s var(--rp-ease), opacity 0.3s ease; z-index: 2; }
+.rp-marker:hover { transform: scale(1.12); }
+.rp-marker[aria-pressed="true"]::after {
+  content: ""; position: absolute; inset: -2px; border-radius: 9999px;
+  border: 2px solid rgba(255, 255, 255, 0.85);
+  animation: rp-ping 1.6s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+.rp-region { opacity: 0.35; transition: opacity 0.3s ease, background-color 0.3s ease; }
+.rp-region[data-active] { opacity: 1; }
+.rp-ann-item { transition: border-color 0.25s ease, background-color 0.25s ease, transform 0.35s var(--rp-ease); }
+.rp-ann-item:hover { border-color: rgba(167, 139, 250, 0.25); }
+.rp-ann-active { border-color: rgba(167, 139, 250, 0.5) !important; background: linear-gradient(0deg, rgba(139, 92, 246, 0.07), rgba(139, 92, 246, 0.07)), #15151A; }
+@keyframes rp-ping { 0% { transform: scale(1); opacity: 0.7; } 80%, 100% { transform: scale(1.9); opacity: 0; } }
+
+/* score bars */
+.rp-bar { background: linear-gradient(90deg, #6D28D9, #8B5CF6 55%, #C4B5FD); transform-origin: left center; }
+
+/* accordion: height animates via grid rows, no layout jump */
+.rp-collapse { display: grid; grid-template-rows: 0fr; opacity: 0; transition: grid-template-rows 0.38s var(--rp-ease), opacity 0.3s ease; }
+.rp-collapse[data-open] { grid-template-rows: 1fr; opacity: 1; }
+
+/* testing plan rail */
+.rp-timeline { position: relative; }
+.rp-timeline::before {
+  content: ""; position: absolute; left: 14px; top: 24px; bottom: 24px; width: 1px;
+  background: linear-gradient(180deg, rgba(167, 139, 250, 0.5), rgba(167, 139, 250, 0.05));
+}
+@media (min-width: 640px) { .rp-timeline::before { left: 16px; } }
+
+/* next steps */
+.rp-next {
+  border: 1px solid rgba(139, 92, 246, 0.3);
+  background: radial-gradient(90% 120% at 100% 0%, rgba(139, 92, 246, 0.16), transparent 60%), linear-gradient(180deg, #17171D, #121216);
+}
+
+/* jump target highlight */
+.rp-flash { animation: rp-flash 1.6s ease; }
+@keyframes rp-flash { 0%, 30% { box-shadow: 0 0 0 2px rgba(167, 139, 250, 0.75), 0 0 40px -8px rgba(139, 92, 246, 0.6); } 100% { box-shadow: none; } }
+
+/* small entrances used by swaps (compare view, mobile insight) */
+.rp-pop { animation: rp-pop 0.4s var(--rp-ease) both; }
+@keyframes rp-pop { from { opacity: 0; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+.rp-lightbox { animation: rp-fade 0.2s ease both; }
+@keyframes rp-fade { from { opacity: 0; } to { opacity: 1; } }
+
+/* first-paint entrance of the overview (short, staggered) */
+.rp-enter { animation: rp-rise 0.6s var(--rp-ease) both; animation-delay: calc(var(--d, 0) * 80ms); }
+@keyframes rp-rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: none; } }
+
+/* scroll reveal (once) */
+.rp-ready [data-rv] {
+  opacity: 0; transform: translateY(14px);
+  transition: opacity 0.6s var(--rp-ease), transform 0.6s var(--rp-ease);
+  transition-delay: calc(min(var(--d, 0), 6) * 60ms);
+}
+.rp-ready [data-rv].rv-in { opacity: 1; transform: none; }
+.rp-ready [data-rv] .rp-bar { transform: scaleX(0); transition: transform 0.9s var(--rp-ease); transition-delay: calc(150ms + var(--d, 0) * 50ms); }
+.rp-ready [data-rv].rv-in .rp-bar { transform: none; }
+.rp-ready [data-rv]:not(.rv-in) .rp-marker { opacity: 0; }
+.rp-ready [data-rv].rv-in .rp-marker { animation: rp-marker-in 0.45s var(--rp-ease) backwards; animation-delay: calc(200ms + var(--i, 0) * 110ms); }
+@keyframes rp-marker-in { from { opacity: 0; transform: scale(0.4); } to { opacity: 1; transform: scale(1); } }
+
+@media (prefers-reduced-motion: reduce) {
+  .rp-root *, .rp-root *::before, .rp-root *::after { animation: none !important; transition: none !important; }
+  .rp-lightbox { animation: none !important; }
+}

@@ -60,6 +60,7 @@ export default async function ReportPage({ params }: { params: { id: string } })
               <CreativeReportView
                 report={demo.report}
                 imageUrl={demo.imageUrl}
+                context="public"
                 upgrade={<PostAnalysisOffer reportId={params.id} mode={mode} />}
               />
             </div>
@@ -108,6 +109,8 @@ export default async function ReportPage({ params }: { params: { id: string } })
               report={creative.report}
               imageUrl={creative.file_url}
               isSimulated={creative.is_simulated}
+              context="public"
+              reportId={creative.id}
               upgrade={<PostAnalysisOffer reportId={params.id} mode={mode} />}
             />
           </div>
