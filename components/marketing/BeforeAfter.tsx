@@ -1,11 +1,12 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import { Check, Sparkles } from "lucide-react";
+import { Sparkles } from "lucide-react";
 
 // Before → After comparison for the homepage. Visual-first: the only labels
-// are BEFORE and AFTER. Both ads are drawn in code (one fictional campaign,
-// "Lumé Hydra Serum"), so they stay sharp at any size and load nothing extra.
+// are BEFORE and AFTER. The two ads are supplied images (public/before-after):
+// the cluttered Huel Daily Greens mockup (BEFORE) and the original minimalist
+// Huel Daily Greens ad (AFTER). Both are 9:16 portrait and shown uncropped.
 //
 // Plays once each time the section comes into view (it replays if you scroll
 // away and come back, never while it stays visible). Reduced motion shows
@@ -107,97 +108,40 @@ export function BeforeAfter() {
   );
 }
 
-/* ── The ads ─────────────────────────────────────────────────────────────── */
-
-function Bottle({ className = "", tone = "plain" }: { className?: string; tone?: "plain" | "hero" }) {
-  const id = tone === "hero" ? "h" : "p";
-  return (
-    <svg className={className} viewBox="0 0 120 260" aria-hidden>
-      <defs>
-        <linearGradient id={`bb-${id}`} x1="0" x2="1">
-          <stop offset="0" stopColor={tone === "hero" ? "#E9E3FF" : "#E8E3DA"} />
-          <stop offset="0.35" stopColor="#FFFFFF" />
-          <stop offset="0.7" stopColor={tone === "hero" ? "#F3EFFF" : "#F4F1EB"} />
-          <stop offset="1" stopColor={tone === "hero" ? "#C9BCF5" : "#D6D0C5"} />
-        </linearGradient>
-        <linearGradient id={`bp-${id}`} x1="0" x2="1">
-          <stop offset="0" stopColor={tone === "hero" ? "#5B3FC4" : "#CFC9BE"} />
-          <stop offset="0.45" stopColor={tone === "hero" ? "#8B6CFF" : "#F7F5F0"} />
-          <stop offset="1" stopColor={tone === "hero" ? "#4C2FB0" : "#C7C0B4"} />
-        </linearGradient>
-      </defs>
-      {/* pump */}
-      <rect x="44" y="8" width="44" height="14" rx="4" fill={`url(#bp-${id})`} />
-      <rect x="54" y="20" width="16" height="22" rx="3" fill={`url(#bp-${id})`} />
-      <rect x="40" y="40" width="40" height="22" rx="5" fill={`url(#bp-${id})`} />
-      {/* body */}
-      <path d="M26 74 Q26 62 38 62 H82 Q94 62 94 74 V236 Q94 252 78 252 H42 Q26 252 26 236 Z" fill={`url(#bb-${id})`} />
-      <path d="M36 80 V226" stroke="#fff" strokeOpacity="0.7" strokeWidth="5" strokeLinecap="round" />
-      {/* label */}
-      <text x="60" y="150" textAnchor="middle" fontSize="13" fontWeight="700" letterSpacing="3" fill={tone === "hero" ? "#3B2491" : "#7A7468"}>
-        LUMÉ
-      </text>
-      <text x="60" y="166" textAnchor="middle" fontSize="6.5" letterSpacing="1.4" fill={tone === "hero" ? "#6B54C9" : "#9C968A"}>
-        HYDRA SERUM
-      </text>
-      <rect x="44" y="176" width="32" height="1" fill={tone === "hero" ? "#8B6CFF" : "#B8B1A5"} />
-    </svg>
-  );
-}
+/* ── The ads (supplied images, shown whole) ─────────────────────────────── */
 
 function BeforeAd() {
   return (
-    <div className="ad ad-before" role="img" aria-label="Before: a plain serum ad with a vague headline, an unclear offer and a small 'Learn more' link">
-      <p className="adb-brand">LUMÉ</p>
-      <div className="adb-flag adb-f1">
-        <p className="adb-head">Introducing our new serum</p>
-        <Marker n={1} text="Weak hook" />
-      </div>
-      <div className="adb-flag adb-f2">
-        <p className="adb-copy">Now available. Limited-time offer on selected items.</p>
-        <Marker n={2} text="Unclear offer" />
-      </div>
-      <Bottle className="adb-bottle" />
-      <div className="adb-shadow" />
-      <div className="adb-flag adb-f3">
-        <p className="adb-cta">Learn more</p>
-        <Marker n={3} text="Easy to miss" />
-      </div>
-    </div>
-  );
-}
-
-function Marker({ n, text }: { n: number; text: string }) {
-  return (
-    <span className="adb-marker" style={{ ["--n" as string]: n }}>
-      <span className="adb-num">{n}</span>
-      {text}
-    </span>
+    <picture>
+      <source type="image/webp" srcSet="/before-after/huel-before.webp" />
+      <img
+        className="ad ad-before"
+        src="/before-after/huel-before.jpg"
+        alt="Before: an illustrative, cluttered version of the Huel Daily Greens ad, covered in stickers, arrows and emojis"
+        width={720}
+        height={1281}
+        loading="lazy"
+        decoding="async"
+        draggable={false}
+      />
+    </picture>
   );
 }
 
 function AfterAd() {
   return (
-    <div className="ad ad-after" role="img" aria-label="After: the same serum ad with a clear 'Glow in 7 days' headline, a 20% first-order offer and a bold 'Shop the serum' button">
-      <div className="ada-glow" />
-      <p className="ada-brand">LUMÉ</p>
-      <p className="ada-head">Glow in 7&nbsp;days.</p>
-      <p className="ada-sub">Hydra Serum · 2% hyaluronic acid</p>
-      <span className="ada-offer">20% off your first order</span>
-      <div className="ada-stage">
-        <span className="ada-podium" />
-        <Bottle className="ada-bottle" tone="hero" />
-      </div>
-      <span className="ada-cta">Shop the serum →</span>
-      <span className="ada-chip ada-c1" style={{ ["--n" as string]: 1 }}>
-        <Check size={10} strokeWidth={3} /> Clear hook
-      </span>
-      <span className="ada-chip ada-c2" style={{ ["--n" as string]: 2 }}>
-        <Check size={10} strokeWidth={3} /> Offer up front
-      </span>
-      <span className="ada-chip ada-c3" style={{ ["--n" as string]: 3 }}>
-        <Check size={10} strokeWidth={3} /> CTA stands out
-      </span>
-    </div>
+    <picture>
+      <source type="image/webp" srcSet="/before-after/huel-after.webp" />
+      <img
+        className="ad ad-after"
+        src="/before-after/huel-after.png"
+        alt="After: the original minimalist Huel Daily Greens ad — '166 health benefits, 1 serving', a hand holding the bottle, 30 servings for 1.83 € per serve"
+        width={338}
+        height={600}
+        loading="lazy"
+        decoding="async"
+        draggable={false}
+      />
+    </picture>
   );
 }
