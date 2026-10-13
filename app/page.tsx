@@ -24,6 +24,7 @@ import { WinningAdsShowcase } from "@/components/marketing/WinningAdsShowcase";
 import { getShowcaseCreatives } from "@/lib/showcaseServer";
 import { DEMO_CREATIVES } from "@/lib/demoReports";
 import { FounderGlass, FounderScene } from "@/components/marketing/FounderSection";
+import { BeforeAfter } from "@/components/marketing/BeforeAfter";
 
 // Re-check the showcase table every 5 minutes so admin uploads appear
 // on the public homepage without a redeploy.
@@ -109,10 +110,13 @@ export default async function LandingPage() {
       {/* FEATURE CAROUSEL — four premium cards: what's working, ad accounts, what's holding it back, winning ads */}
       <FeatureCarousel />
       {STARTER_TRIAL.enabled && (
-        <div className="bg-[#08080B] px-6 pb-20 sm:pb-24">
+        <div className="bg-[#08080B] px-6 pb-10 sm:pb-12">
           <TrialCallout title="Turn creative insights into your next test." label="Start for $1" placement="features" />
         </div>
       )}
+
+      {/* BEFORE → AFTER — visual-first comparison, directly under the features CTA */}
+      <BeforeAfter />
 
       {/* HOW IT WORKS — scroll-driven four-step timeline (nav "How It Works" target) */}
       <HowItWorks />
