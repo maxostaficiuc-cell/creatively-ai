@@ -1,180 +1,123 @@
 import { NextResponse } from "next/server";
 import { revalidatePath } from "next/cache";
 import { createAdminClient } from "@/lib/supabase/admin";
-import { getShowcaseAdmin } from "@/lib/showcaseServer";
-import { LIBRARY_COLUMNS } from "@/lib/library";
-import { LIBRARY_SEED } from "@/lib/librarySeed";
+import { adminGuard, cleanAngles, httpsUrl, serviceReady, str } from "@/lib/libraryAdmin";
+import { LIBRARY_BUCKET, LIBRARY_COLUMNS } from "@/lib/library";
+import { metaAdLibraryConfigured, verifyStaticImageAd, MetaAdLibraryError } from "@/lib/metaAdLibrary";
 
-// Admin-only management of the Winning Ads library.
-// Every handler first checks the signed-in user is listed in SHOWCASE_ADMIN_EMAILS,
-// then uses the service-role client (server only; never sent to the browser).
+// Admin-only management of the Winning Ads library (static image ads only).
+// New entries are added through /api/admin/library/import (image upload +
+// Meta Ad Library check). This route lists, edits text/categories,
+// publishes/hides, re-checks and deletes.
+// Every handler checks SHOWCASE_ADMIN_EMAILS first, then uses the service-role
+// client (server only; never sent to the browser).
 
 export const runtime = "nodejs";
 
-async function guard() {
-  const admin = await getShowcaseAdmin();
-  if (admin.ok) return null;
-  const status = admin.reason === "not-signed-in" ? 401 : admin.reason === "not-configured" ? 503 : 403;
-  return NextResponse.json({ error: admin.reason === "forbidden" ? "Not allowed." : admin.reason }, { status });
-}
-
-const serviceReady = () => Boolean(process.env.SUPABASE_SERVICE_ROLE_KEY && process.env.NEXT_PUBLIC_SUPABASE_URL);
-
+// Only descriptive fields can be edited here. The image, its Meta Ad Library
+// link and the media-type check are fixed at import and can't be changed.
 const TEXT_FIELDS: Record<string, number> = {
-  brand: 80, title: 160, industry: 60, platform: 40, summary: 600, hook: 600, visual_strategy: 600, offer: 400,
-  messaging: 600, cta: 300, why_study: 600, test_idea: 600, headline: 120, source_label: 80, attribution: 200, evidence_note: 600,
+  brand: 80, title: 160, industry: 60, platform: 60, summary: 600, hook: 600, visual_strategy: 600, offer: 400,
+  messaging: 600, cta: 300, why_study: 600, test_idea: 600, headline: 300, ad_copy: 3000, cta_text: 60, attribution: 200, evidence_note: 600,
 };
-
-function str(v: unknown, max: number): string | null {
-  if (typeof v !== "string") return null;
-  const t = v.trim().slice(0, max);
-  return t.length ? t : null;
-}
-
-function httpsUrl(v: unknown): string | null {
-  const s = str(v, 500);
-  if (!s) return null;
-  try {
-    const u = new URL(s);
-    return u.protocol === "https:" ? u.toString() : null;
-  } catch {
-    return null;
-  }
-}
-
-/** Builds a clean row from untrusted JSON. Returns an error message when something required is wrong. */
-function toRow(body: Record<string, unknown>, partial: boolean): { row?: Record<string, unknown>; error?: string } {
-  const row: Record<string, unknown> = {};
-  for (const [k, max] of Object.entries(TEXT_FIELDS)) if (k in body) row[k] = str(body[k], max);
-  if ("slug" in body) {
-    const slug = str(body.slug, 80)?.toLowerCase().replace(/[^a-z0-9-]+/g, "-").replace(/^-|-$/g, "");
-    if (!slug) return { error: "Slug is required (letters, numbers, dashes)." };
-    row.slug = slug;
-  }
-  if ("format" in body) {
-    if (!["image", "video", "carousel"].includes(String(body.format))) return { error: "Format must be image, video or carousel." };
-    row.format = body.format;
-  }
-  if ("label" in body) {
-    if (!["verified_winner", "strong_structure", "inspiration"].includes(String(body.label))) return { error: "Unknown label." };
-    row.label = body.label;
-  }
-  if ("preview_kind" in body) {
-    if (!["youtube", "image", "none"].includes(String(body.preview_kind))) return { error: "Unknown preview type." };
-    row.preview_kind = body.preview_kind;
-  }
-  if ("youtube_id" in body) {
-    const id = str(body.youtube_id, 20);
-    if (id && !/^[A-Za-z0-9_-]{11}$/.test(id)) return { error: "YouTube ID must be the 11-character video ID." };
-    row.youtube_id = id;
-  }
-  if ("angles" in body) {
-    const raw = Array.isArray(body.angles) ? body.angles : String(body.angles ?? "").split(",");
-    row.angles = raw.map((a) => String(a).trim().toLowerCase().replace(/\s+/g, "-")).filter(Boolean).slice(0, 8);
-  }
-  for (const k of ["source_url", "evidence_url", "image_url"]) {
-    if (k in body) {
-      const u = httpsUrl(body[k]);
-      if (body[k] && !u) return { error: `${k.replace("_", " ")} must be an https:// link.` };
-      row[k] = u;
-    }
-  }
-  for (const k of ["year", "sort_order", "image_width", "image_height"]) {
-    if (k in body) {
-      const n = body[k] === "" || body[k] === null ? null : Math.round(Number(body[k]));
-      row[k] = n !== null && Number.isFinite(n) ? n : null;
-    }
-  }
-  if ("is_published" in body) row.is_published = Boolean(body.is_published);
-
-  if (!partial) {
-    for (const k of ["slug", "brand", "title", "industry", "platform", "format", "summary", "source_url"]) {
-      if (!row[k]) return { error: `${k.replace("_", " ")} is required.` };
-    }
-  }
-  if (row.label === "verified_winner" && (!row.evidence_url || !row.evidence_note) && !partial) {
-    return { error: "Verified Winner needs an evidence link and a quoted result." };
-  }
-  return { row };
-}
 
 function done() {
   revalidatePath("/winning-ads");
 }
 
-/** GET — every entry, including unpublished ones. */
+/** GET — every entry (including hidden ones) + whether the Meta API token is configured. */
 export async function GET() {
-  const denied = await guard();
+  const denied = await adminGuard();
   if (denied) return denied;
   if (!serviceReady()) return NextResponse.json({ error: "SUPABASE_SERVICE_ROLE_KEY is not set." }, { status: 503 });
   const { data, error } = await createAdminClient()
     .from("library_creatives")
     .select(LIBRARY_COLUMNS)
-    .order("sort_order", { ascending: true })
-    .order("created_at", { ascending: true });
-  if (error) return NextResponse.json({ error: error.message }, { status: 500 });
-  return NextResponse.json({ items: data ?? [], seedCount: LIBRARY_SEED.length });
+    .order("created_at", { ascending: false });
+  if (error) return NextResponse.json({ error: /image_path|media_check|ad_library/.test(error.message) ? "Run supabase/migration-014-library-image-ads-only.sql first." : error.message }, { status: 500 });
+  return NextResponse.json({ items: data ?? [], metaConfigured: metaAdLibraryConfigured() });
 }
 
-/** POST — create an entry, or { action: "restore-seed" } to re-add any missing curated examples. */
+/** POST { action: "recheck", id } — re-confirms an API-imported ad with Meta (image-only + active status). */
 export async function POST(req: Request) {
-  const denied = await guard();
+  const denied = await adminGuard();
   if (denied) return denied;
   if (!serviceReady()) return NextResponse.json({ error: "SUPABASE_SERVICE_ROLE_KEY is not set." }, { status: 503 });
-  const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
-  if (!body) return NextResponse.json({ error: "Bad request." }, { status: 400 });
+  const body = (await req.json().catch(() => null)) as { action?: unknown; id?: unknown } | null;
+  if (body?.action !== "recheck") return NextResponse.json({ error: "Unknown action." }, { status: 400 });
+  const id = str(body.id, 64);
+  if (!id) return NextResponse.json({ error: "Missing id." }, { status: 400 });
   const db = createAdminClient();
-
-  if (body.action === "restore-seed") {
-    // Idempotent: existing slugs are left untouched (admin edits are never overwritten).
-    const { data, error } = await db
-      .from("library_creatives")
-      .upsert(LIBRARY_SEED, { onConflict: "slug", ignoreDuplicates: true })
-      .select("id");
+  const { data: row } = await db.from("library_creatives").select("ad_library_id, meta_page_id").eq("id", id).maybeSingle();
+  if (!row?.ad_library_id || !row.meta_page_id) return NextResponse.json({ error: "Only ads imported through the Meta API can be re-checked." }, { status: 400 });
+  try {
+    const v = await verifyStaticImageAd(row.ad_library_id, row.meta_page_id);
+    const now = new Date().toISOString();
+    const patch = v.ok
+      ? { meta_active: v.ad.active, meta_checked_at: now, media_checked_at: now, updated_at: now }
+      : { is_published: false, meta_active: null, meta_checked_at: now, updated_at: now }; // no longer confirmed → hidden
+    const { data, error } = await db.from("library_creatives").update(patch).eq("id", id).select(LIBRARY_COLUMNS).single();
     if (error) return NextResponse.json({ error: error.message }, { status: 500 });
     done();
-    return NextResponse.json({ added: data?.length ?? 0 });
+    return NextResponse.json({ item: data, confirmed: v.ok, reason: v.ok ? null : v.reason });
+  } catch (e) {
+    const status = e instanceof MetaAdLibraryError ? e.status : 502;
+    return NextResponse.json({ error: e instanceof Error ? e.message : "Meta check failed." }, { status });
   }
-
-  const { row, error: bad } = toRow(body, false);
-  if (bad || !row) return NextResponse.json({ error: bad }, { status: 400 });
-  const { data, error } = await db.from("library_creatives").insert(row).select(LIBRARY_COLUMNS).single();
-  if (error) return NextResponse.json({ error: error.code === "23505" ? "That slug is already used." : error.message }, { status: 400 });
-  done();
-  return NextResponse.json({ item: data }, { status: 201 });
 }
 
-/** PATCH — { id, ...fields } updates an entry (edit, recategorize, publish/unpublish). */
+/** PATCH — { id, ...fields } edits text/category/label or publishes/hides an entry. */
 export async function PATCH(req: Request) {
-  const denied = await guard();
+  const denied = await adminGuard();
   if (denied) return denied;
   if (!serviceReady()) return NextResponse.json({ error: "SUPABASE_SERVICE_ROLE_KEY is not set." }, { status: 503 });
   const body = (await req.json().catch(() => null)) as Record<string, unknown> | null;
   const id = str(body?.id, 64);
   if (!body || !id) return NextResponse.json({ error: "Missing id." }, { status: 400 });
-  const { row, error: bad } = toRow(body, true);
-  if (bad || !row) return NextResponse.json({ error: bad }, { status: 400 });
-  delete row.id;
+
+  const row: Record<string, unknown> = {};
+  for (const [k, max] of Object.entries(TEXT_FIELDS)) if (k in body) row[k] = str(body[k], max);
+  for (const k of ["brand", "title", "industry", "platform", "summary"]) if (k in row && !row[k]) return NextResponse.json({ error: `${k} can't be empty.` }, { status: 400 });
+  if ("angles" in body) row.angles = cleanAngles(body.angles);
+  if ("label" in body) {
+    if (!["verified_winner", "strong_structure", "inspiration"].includes(String(body.label))) return NextResponse.json({ error: "Unknown label." }, { status: 400 });
+    row.label = body.label;
+  }
+  if ("evidence_url" in body) {
+    const u = httpsUrl(body.evidence_url);
+    if (body.evidence_url && !u) return NextResponse.json({ error: "Evidence link must be https://." }, { status: 400 });
+    row.evidence_url = u;
+  }
+  if ("sort_order" in body) row.sort_order = Math.round(Number(body.sort_order)) || 0;
+  if ("is_published" in body) row.is_published = Boolean(body.is_published);
   row.updated_at = new Date().toISOString();
+
   const { data, error } = await createAdminClient().from("library_creatives").update(row).eq("id", id).select(LIBRARY_COLUMNS).single();
   if (error) {
-    const msg = /verified_needs_evidence/.test(error.message) ? "Verified Winner needs an evidence link and a quoted result." : error.message;
+    const msg = /verified_needs_evidence/.test(error.message)
+      ? "Verified Winner needs an evidence link and a quoted result."
+      : /publish_requirements/.test(error.message)
+      ? "This entry can't be published: it needs a stored image, a Meta Ad Library link and a media-type check."
+      : error.message;
     return NextResponse.json({ error: msg }, { status: 400 });
   }
   done();
   return NextResponse.json({ item: data });
 }
 
-/** DELETE — { id } removes an entry (and anyone's saves of it). */
+/** DELETE — { id } removes an entry, its stored image, and anyone's saves of it. */
 export async function DELETE(req: Request) {
-  const denied = await guard();
+  const denied = await adminGuard();
   if (denied) return denied;
   if (!serviceReady()) return NextResponse.json({ error: "SUPABASE_SERVICE_ROLE_KEY is not set." }, { status: 503 });
   const body = (await req.json().catch(() => null)) as { id?: unknown } | null;
   const id = str(body?.id, 64);
   if (!id) return NextResponse.json({ error: "Missing id." }, { status: 400 });
-  const { error } = await createAdminClient().from("library_creatives").delete().eq("id", id);
+  const db = createAdminClient();
+  const { data: row } = await db.from("library_creatives").select("image_path").eq("id", id).maybeSingle();
+  const { error } = await db.from("library_creatives").delete().eq("id", id);
   if (error) return NextResponse.json({ error: error.message }, { status: 500 });
+  if (row?.image_path) await db.storage.from(LIBRARY_BUCKET).remove([row.image_path]);
   done();
   return NextResponse.json({ ok: true });
 }

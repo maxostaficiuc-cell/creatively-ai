@@ -20,7 +20,7 @@ export default async function WinningAdsPage({ searchParams }: { searchParams: R
   const result = await loadLibrary(supabase, user.id, filters);
 
   return (
-    <AppShell profile={profile ?? null} greeting="Winning Ads" subtitle="Curated ad creatives to study, save and borrow ideas from.">
+    <AppShell profile={profile ?? null} greeting="Winning Ads" subtitle="Real static image ads from Meta Ad Library to study, save and borrow ideas from.">
       <LibraryBrowser result={result} filters={filters} />
     </AppShell>
   );
