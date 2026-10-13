@@ -225,7 +225,7 @@ export function FeatureCarousel() {
   };
 
   return (
-    <section ref={sectionRef} id="features" aria-labelledby="fc-title" className="fc-section relative scroll-mt-24 overflow-hidden bg-[#08080B] pb-20 pt-8 sm:pb-28">
+    <section ref={sectionRef} id="features" aria-labelledby="fc-title" className="fc-section relative scroll-mt-24 overflow-hidden bg-[#08080B] pb-10 pt-8 sm:pb-14">
       {/* ambient aurora */}
       <div aria-hidden className="pointer-events-none absolute inset-0">
         <div className="fc-aurora fc-aurora-a" />
