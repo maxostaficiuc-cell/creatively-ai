@@ -137,7 +137,13 @@ export function PricingCards() {
                 </div>
               ) : (
                 <Link
-                  href={`/signup?plan=${plan.id}`}
+                  // Pro and Business: pay first, create the account after (see app/checkout/start).
+                  href={
+                    plan.id === "Pro" || plan.id === "Business"
+                      ? `/checkout/start?plan=${plan.id}&interval=${annual ? "annual" : "monthly"}`
+                      : `/signup?plan=${plan.id}`
+                  }
+                  prefetch={false}
                   className={`mt-7 flex w-full items-center justify-center rounded-xl px-5 py-3 text-sm font-medium transition-all ${
                     plan.highlight
                       ? "bg-gradient-to-b from-brand-light to-brand text-white shadow-glow hover:brightness-110"

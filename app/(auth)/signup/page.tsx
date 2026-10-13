@@ -91,8 +91,7 @@ function SignupForm() {
             </p>
             {paidFirst && (
               <p className="mt-3 text-sm text-ink-secondary">
-                Your Starter plan activates as soon as you confirm — as long as this is the email you used at
-                checkout.
+                Your plan activates as soon as you confirm — as long as this is the email you used at checkout.
               </p>
             )}
           </div>
@@ -113,7 +112,7 @@ function SignupForm() {
           {paidFirst && (
             <p className="mt-4 rounded-xl border border-brand/30 bg-brand/[0.07] px-3.5 py-2.5 text-xs leading-relaxed text-ink-secondary">
               <span className="font-medium text-ink-primary">Use the same email you paid with.</span> That&apos;s how
-              we attach your Starter plan to your new account.
+              we attach your plan to your new account.
             </p>
           )}
 

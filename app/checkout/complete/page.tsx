@@ -15,7 +15,7 @@ export default async function CheckoutCompletePage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  // Paid first ($1 trial) → no account yet. We can't (and don't) claim the
+  // Paid first ($1 trial, Pro or Business) → no account yet. We can't (and don't) claim the
   // payment succeeded here; the verified webhook decides that. We just explain
   // the next step: create the account with the email used at checkout.
   if (!user) {
@@ -25,10 +25,11 @@ export default async function CheckoutCompletePage() {
         <h1 className="mt-3 text-2xl font-semibold tracking-tight text-ink-primary">Create your Creatively.ai account</h1>
         <p className="mt-3 max-w-md text-sm leading-relaxed text-ink-secondary">
           Sign up with <span className="font-medium text-ink-primary">the same email you used at checkout</span>.
-          Your Starter plan is attached to that email and activates as soon as you confirm it.
+          Your plan is attached to that email and activates as soon as you confirm it. If you close this page,
+          you can come back and sign up later without paying again.
         </p>
         <Link
-          href="/signup?plan=Starter&paid=1"
+          href="/signup?paid=1"
           className="mt-7 inline-flex h-12 items-center rounded-full bg-gradient-to-b from-brand-light to-brand px-7 text-sm font-semibold text-white shadow-glow transition hover:brightness-110"
         >
           Create my account
