@@ -19,6 +19,7 @@ import {
 import { Logo } from "@/components/ui/Logo";
 import type { Profile } from "@/lib/types";
 import { weeklyAllowanceFor } from "@/lib/types";
+import { creditCapFor } from "@/lib/bonusCredits";
 import { CreditBar, CreditCount, CreditDelta } from "@/components/dashboard/CreditsContext";
 
 const mainLinks = [
@@ -85,7 +86,7 @@ function NavSection({
 export function Sidebar({ profile }: { profile: Profile | null }) {
   const pathname = usePathname();
   const credits = profile?.ai_credits ?? 0;
-  const creditLimit = weeklyAllowanceFor(profile?.plan ?? "Pro");
+  const creditLimit = creditCapFor(weeklyAllowanceFor(profile?.plan ?? "Pro"), profile);
 
   const displayName = profile?.full_name || "there";
   const initial = displayName.trim().charAt(0).toUpperCase() || "U";

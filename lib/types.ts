@@ -14,6 +14,8 @@ export type Profile = {
   whop_membership_id: string | null;
   cancel_at_period_end: boolean;
   ai_credits: number;
+  /** Unspent bonus credits on top of the weekly allowance (migration-013). */
+  bonus_credits?: number;
   credits_reset_at: string;
   notifications_enabled: boolean;
   created_at: string;
