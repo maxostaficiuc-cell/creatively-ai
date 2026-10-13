@@ -9,25 +9,25 @@ import {
   BadgeCheck,
   ExternalLink,
   Lightbulb,
-  Play,
+  ImageIcon,
+  ShieldCheck,
   Search,
   X,
   RotateCw,
   Quote,
 } from "lucide-react";
 import {
-  FORMAT_TEXT,
   LABEL_HELP,
   LABEL_TEXT,
+  MEDIA_CHECK_TEXT,
   SORTS,
   angleText,
-  youtubeEmbed,
-  youtubeThumb,
+  isRecentlyVerifiedActive,
   type LibraryCreative,
 } from "@/lib/library";
 import type { LibraryFilters, LibraryResult } from "@/lib/libraryServer";
 
-type FilterKey = "industry" | "platform" | "format" | "angle";
+type FilterKey = "industry" | "platform" | "angle";
 
 export function LibraryBrowser({ result, filters }: { result: LibraryResult; filters: LibraryFilters }) {
   const router = useRouter();
@@ -138,12 +138,11 @@ export function LibraryBrowser({ result, filters }: { result: LibraryResult; fil
 
   const { items, facets, total } = result;
   const active = items.find((i) => i.slug === openSlug) ?? null;
-  const hasFilters = !!(filters.q || filters.industry || filters.platform || filters.format || filters.angle || filters.saved);
+  const hasFilters = !!(filters.q || filters.industry || filters.platform || filters.angle || filters.saved);
 
   const selects: { key: FilterKey; label: string; options: { value: string; label: string }[] }[] = [
     { key: "industry", label: "Industry", options: facets.industries.map((v) => ({ value: v, label: v })) },
     { key: "platform", label: "Platform", options: facets.platforms.map((v) => ({ value: v, label: v })) },
-    { key: "format", label: "Format", options: facets.formats.map((v) => ({ value: v, label: FORMAT_TEXT[v as keyof typeof FORMAT_TEXT] ?? v })) },
     { key: "angle", label: "Creative angle", options: facets.angles.map((v) => ({ value: v, label: angleText(v) })) },
   ];
 
@@ -202,7 +201,7 @@ export function LibraryBrowser({ result, filters }: { result: LibraryResult; fil
             type="button"
             onClick={() => {
               setQ("");
-              push({ q: "", industry: "", platform: "", format: "", angle: "", saved: "" });
+              push({ q: "", industry: "", platform: "", angle: "", saved: "" });
             }}
             className="text-brand-light hover:underline"
           >
@@ -213,8 +212,20 @@ export function LibraryBrowser({ result, filters }: { result: LibraryResult; fil
 
       {items.length === 0 ? (
         <StateCard
-          title={filters.saved && !filters.q && !filters.industry && !filters.platform && !filters.format && !filters.angle ? "Nothing saved yet" : "No creatives match these filters"}
-          body={filters.saved ? "Tap the bookmark on any creative to keep it here for later." : "Try a broader search or clear a filter."}
+          title={
+            !hasFilters
+              ? "No image ads published yet"
+              : filters.saved && !filters.q && !filters.industry && !filters.platform && !filters.angle
+              ? "Nothing saved yet"
+              : "No creatives match these filters"
+          }
+          body={
+            !hasFilters
+              ? "Real static image ads from Meta Ad Library are being added. Each one is checked to be an image ad before it appears here."
+              : filters.saved
+              ? "Tap the bookmark on any creative to keep it here for later."
+              : "Try a broader search or clear a filter."
+          }
         />
       ) : (
         <div className={`columns-1 gap-4 transition-opacity sm:columns-2 xl:columns-3 ${pending ? "opacity-60" : ""}`} aria-busy={pending}>
@@ -225,8 +236,8 @@ export function LibraryBrowser({ result, filters }: { result: LibraryResult; fil
       )}
 
       <p className="pt-2 text-center text-[11px] leading-relaxed text-ink-muted">
-        Videos play from the brands&apos; own YouTube channels. Print ads link to their original source. Unless marked Verified Winner,
-        no performance claim is made. Browsing never uses credits.
+        Static image ads from real brands, sourced from Meta Ad Library — each links to its original listing. Appearing in the Ad
+        Library is not proof of performance; only ads marked Verified Winner have publicly reported results. Browsing never uses credits.
       </p>
 
       {active && <DetailPanel item={active} saved={saved.has(active.id)} onSave={() => toggleSave(active)} onClose={() => open(null)} />}
@@ -295,55 +306,30 @@ function LabelBadge({ label, solid }: { label: LibraryCreative["label"]; solid?:
 }
 
 function Preview({ item, large }: { item: LibraryCreative; large?: boolean }) {
-  if (item.preview_kind === "youtube" && item.youtube_id) {
+  const [failed, setFailed] = useState(false);
+  const ratio = item.image_width && item.image_height ? `${item.image_width} / ${item.image_height}` : "4 / 5";
+  if (!item.image_url || failed) {
+    // Never shown as a valid ad: the image asset could not be loaded.
     return (
-      <div className="relative aspect-video w-full overflow-hidden bg-black">
-        <YoutubeThumb id={item.youtube_id} alt={`${item.brand} — ${item.title} (video thumbnail)`} label={item.brand} />
-        <span className="absolute inset-0 bg-gradient-to-t from-black/50 via-transparent to-transparent" />
-        <span className={`absolute left-1/2 top-1/2 flex -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-full bg-black/60 text-white ring-1 ring-white/20 backdrop-blur transition-transform group-hover:scale-110 ${large ? "h-16 w-16" : "h-11 w-11"}`}>
-          <Play size={large ? 22 : 16} className="ml-0.5" fill="currentColor" />
-        </span>
+      <div className="flex w-full flex-col items-center justify-center gap-2 bg-base-surface text-xs text-ink-muted" style={{ aspectRatio: ratio }}>
+        <ImageIcon size={18} /> Image unavailable — open the original in Meta Ad Library
       </div>
     );
   }
-  if (item.preview_kind === "image" && item.image_url) {
-    return (
-      // eslint-disable-next-line @next/next/no-img-element
+  return (
+    <div className="relative w-full overflow-hidden bg-base-surface" style={{ aspectRatio: ratio, maxHeight: large ? "70vh" : undefined }}>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
         src={item.image_url}
-        alt={`${item.brand} — ${item.title}`}
+        alt={`${item.brand} — static image ad${item.headline ? `: ${item.headline}` : ""}`}
         width={item.image_width ?? undefined}
         height={item.image_height ?? undefined}
-        loading="lazy"
-        className="lib-thumb h-auto w-full object-cover"
+        loading={large ? "eager" : "lazy"}
+        decoding="async"
+        onError={() => setFailed(true)}
+        className={`lib-thumb h-full w-full ${large ? "object-contain" : "object-cover"}`}
       />
-    );
-  }
-  // Print ads we don't re-host: show the headline as type, link to the original.
-  return (
-    <div className={`relative flex w-full flex-col justify-between overflow-hidden bg-[radial-gradient(120%_80%_at_0%_0%,rgba(139,92,246,0.16),transparent_60%),#101014] p-5 ${large ? "aspect-[16/10]" : "aspect-[4/5]"}`}>
-      <span className="text-[10px] font-medium uppercase tracking-[0.18em] text-ink-muted">{item.platform} ad · {item.year ?? ""}</span>
-      <p className={`font-semibold leading-[1.05] tracking-tight text-ink-primary ${large ? "text-5xl" : "text-[2.4rem]"}`}>{item.headline ?? item.title}</p>
-      <span className="flex items-center gap-1.5 text-[11px] text-ink-muted">
-        <ExternalLink size={11} /> Original ad at {item.source_label ?? "source"}
-      </span>
     </div>
-  );
-}
-
-/** YouTube's thumbnail; if it can't load, a quiet branded placeholder instead of broken-image text. */
-function YoutubeThumb({ id, alt, label }: { id: string; alt: string; label: string }) {
-  const [failed, setFailed] = useState(false);
-  if (failed) {
-    return (
-      <span className="flex h-full w-full items-end bg-[radial-gradient(120%_90%_at_0%_0%,rgba(139,92,246,0.22),transparent_60%),#0d0d11] p-4 text-sm font-medium text-ink-secondary">
-        {label}
-      </span>
-    );
-  }
-  return (
-    // eslint-disable-next-line @next/next/no-img-element
-    <img src={youtubeThumb(id)} alt={alt} loading="lazy" decoding="async" onError={() => setFailed(true)} className="lib-thumb h-full w-full object-cover" />
   );
 }
 
@@ -379,8 +365,9 @@ function LibraryCard({
           <h3 className="mt-1 font-medium leading-snug text-ink-primary">{item.title}</h3>
           <p className="mt-2 line-clamp-3 text-sm leading-relaxed text-ink-secondary">{item.summary}</p>
           <div className="mt-3 flex flex-wrap gap-1.5">
-            <Chip>{FORMAT_TEXT[item.format]}</Chip>
+            <Chip>Static Image Ad</Chip>
             <Chip>{item.platform}</Chip>
+            {isRecentlyVerifiedActive(item) && <Chip>Active in Ad Library</Chip>}
             {item.angles.slice(0, 2).map((a) => (
               <Chip key={a}>{angleText(a)}</Chip>
             ))}
@@ -407,7 +394,6 @@ function Chip({ children }: { children: React.ReactNode }) {
 }
 
 function DetailPanel({ item, saved, onSave, onClose }: { item: LibraryCreative; saved: boolean; onSave: () => void; onClose: () => void }) {
-  const [playing, setPlaying] = useState(false);
   const closeRef = useRef<HTMLButtonElement>(null);
 
   useEffect(() => {
@@ -422,7 +408,6 @@ function DetailPanel({ item, saved, onSave, onClose }: { item: LibraryCreative; 
     };
   }, [onClose]);
 
-  useEffect(() => setPlaying(false), [item.id]);
 
   const rows = useMemo(
     () =>
@@ -460,32 +445,11 @@ function DetailPanel({ item, saved, onSave, onClose }: { item: LibraryCreative; 
 
         <div className="p-5 sm:p-6">
           <div className="overflow-hidden rounded-xl border border-base-border">
-            {item.preview_kind === "youtube" && item.youtube_id ? (
-              playing ? (
-                <div className="aspect-video w-full bg-black">
-                  <iframe
-                    src={youtubeEmbed(item.youtube_id)}
-                    title={`${item.brand} — ${item.title}`}
-                    className="h-full w-full"
-                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                    allowFullScreen
-                    referrerPolicy="strict-origin-when-cross-origin"
-                  />
-                </div>
-              ) : (
-                <button type="button" onClick={() => setPlaying(true)} className="group block w-full" aria-label={`Play ${item.title}`}>
-                  <Preview item={item} large />
-                </button>
-              )
-            ) : (
-              <a href={item.source_url} target="_blank" rel="noopener noreferrer" className="block">
-                <Preview item={item} large />
-              </a>
-            )}
+            <Preview item={item} large />
           </div>
 
           <p className="mt-5 text-xs uppercase tracking-wide text-ink-muted">
-            {item.brand} · {item.industry} · {FORMAT_TEXT[item.format]} · {item.platform}
+            {item.brand} · {item.industry} · Static image · {item.platform}
           </p>
           <h2 id="lib-detail-title" className="mt-1 text-xl font-semibold text-ink-primary">
             {item.title}
@@ -513,6 +477,49 @@ function DetailPanel({ item, saved, onSave, onClose }: { item: LibraryCreative; 
             <p className="mt-5 rounded-xl border border-base-border bg-base-card p-3 text-xs text-ink-muted">{LABEL_HELP[item.label]}</p>
           )}
 
+          {(item.headline || item.ad_copy || item.cta_text) && (
+            <div className="mt-6">
+              <h3 className="text-sm font-medium text-ink-primary">Ad copy as published</h3>
+              <dl className="mt-3 divide-y divide-base-border rounded-xl border border-base-border bg-base-card">
+                {(
+                  [
+                    ["Primary text", item.ad_copy],
+                    ["Headline", item.headline],
+                    ["CTA button", item.cta_text],
+                  ] as const
+                )
+                  .filter(([, v]) => !!v)
+                  .map(([k, v]) => (
+                    <div key={k} className="grid gap-1 px-4 py-3 sm:grid-cols-[150px_1fr] sm:gap-4">
+                      <dt className="text-xs font-medium uppercase tracking-wide text-ink-muted">{k}</dt>
+                      <dd className="whitespace-pre-line text-sm leading-relaxed text-ink-secondary">{v}</dd>
+                    </div>
+                  ))}
+              </dl>
+            </div>
+          )}
+
+          <div className="mt-4 rounded-xl border border-base-border bg-base-card p-4 text-xs leading-relaxed text-ink-secondary">
+            <p className="flex items-center gap-1.5 font-medium text-ink-primary">
+              <ShieldCheck size={13} className="text-brand-light" /> Source
+            </p>
+            <ul className="mt-2 space-y-1">
+              {item.ad_library_id && <li>Meta Ad Library ID: <span className="font-mono text-ink-primary">{item.ad_library_id}</span></li>}
+              {item.media_check && (
+                <li>
+                  {MEDIA_CHECK_TEXT[item.media_check]}
+                  {item.media_checked_at ? ` (${new Date(item.media_checked_at).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })})` : ""}.
+                </li>
+              )}
+              {item.delivery_start && <li>Started running: {new Date(item.delivery_start).toLocaleDateString(undefined, { day: "numeric", month: "short", year: "numeric" })}</li>}
+              {isRecentlyVerifiedActive(item) ? (
+                <li>Active in Ad Library when last checked ({new Date(item.meta_checked_at as string).toLocaleDateString(undefined, { day: "numeric", month: "short" })}).</li>
+              ) : (
+                <li className="text-ink-muted">Current delivery status not verified recently — check the Ad Library listing.</li>
+              )}
+            </ul>
+          </div>
+
           {rows.length > 0 && (
             <div className="mt-6">
               <h3 className="text-sm font-medium text-ink-primary">Creative breakdown</h3>
@@ -538,12 +545,12 @@ function DetailPanel({ item, saved, onSave, onClose }: { item: LibraryCreative; 
           )}
 
           <a
-            href={item.source_url}
+            href={item.ad_library_url ?? item.source_url}
             target="_blank"
             rel="noopener noreferrer"
             className="mt-6 inline-flex items-center gap-2 rounded-xl border border-base-border px-4 py-2.5 text-sm text-ink-primary transition-colors hover:border-brand/40"
           >
-            View original{item.source_label ? ` · ${item.source_label}` : ""} <ExternalLink size={14} />
+            View in Meta Ad Library <ExternalLink size={14} />
           </a>
         </div>
       </div>
