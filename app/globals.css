@@ -1282,18 +1282,18 @@ body {
    scroll position, so the whole scene plays forwards and backwards with the
    scrollbar. [data-static] = reduced motion / no JS: the finished state.
    ═══════════════════════════════════════════════════════════════════════════ */
+.fd-scene { --fit: 1; position: relative; overflow-x: clip; }
 .fd-section {
-  --fit: 1;
   position: relative;
-  height: 250vh;
+  height: 200vh;
   background:
     radial-gradient(120% 60% at 50% 0%, rgba(8, 8, 11, 0) 0%, rgba(4, 4, 6, 0.9) 70%),
     #050507;
   border-top: 1px solid rgba(255, 255, 255, 0.05);
   overflow-x: clip;
 }
-@media (max-width: 640px) { .fd-section { height: 185vh; } }
-.fd-section[data-static] { height: auto; }
+@media (max-width: 640px) { .fd-section { height: 170vh; } }
+.fd-scene[data-static] .fd-section { height: auto; }
 
 .fd-stage {
   position: sticky; top: 0;
@@ -1302,7 +1302,7 @@ body {
   padding-top: 72px; /* floating site nav */
   overflow: hidden;
 }
-.fd-section[data-static] .fd-stage { position: relative; height: auto; padding: 120px 16px 96px; }
+.fd-scene[data-static] .fd-stage { position: relative; height: auto; padding: 120px 16px 96px; }
 
 /* atmosphere */
 .fd-words { position: absolute; inset: 0; pointer-events: none; }
@@ -1348,45 +1348,55 @@ body {
   transform: scale(var(--fit)); transform-origin: 50% 45%;
 }
 .fd-kicker {
+  display: flex; gap: 26px; margin-bottom: 16px;
   font-size: 12px; font-weight: 600; letter-spacing: 0.2em; text-transform: uppercase;
   color: #A78BFA; opacity: var(--enter);
 }
+.fd-kicker span:first-child { margin-right: -0.2em; } /* optical: trailing letter-spacing */
 
-/* glass + stream */
-.fd-pour {
-  display: block; width: 240px; height: 200px; margin-top: 6px; margin-bottom: -3px;
-  overflow: visible; position: relative; z-index: 3;
-  opacity: var(--enter);
-  transform: translateY(calc((1 - var(--enter)) * -18px));
+/* glass (lives in the section above) */
+.fd-glass-slot { display: flex; justify-content: center; margin-top: 56px; pointer-events: none; }
+.fd-glass-svg {
+  display: block; width: 240px; height: 200px; overflow: visible;
+  opacity: var(--genter);
+  transform: translateY(calc((1 - var(--genter)) * 18px));
 }
-@media (max-width: 640px) { .fd-pour { width: 192px; height: 160px; } }
+@media (max-width: 640px) { .fd-glass-svg { width: 192px; height: 160px; } .fd-glass-slot { margin-top: 40px; } }
 .fd-glass { transform: rotate(var(--angle)); }
 .fd-wine { transform: rotate(calc(-1 * var(--angle))); }
 .fd-wine-body, .fd-wine-surface { transform: translateY(var(--level)); }
 .fd-wine-body { opacity: 0.92; }
-.fd-glass-aura { fill: #8B5CF6; opacity: calc(0.1 * var(--enter) * (1 - 0.6 * var(--stop))); }
+.fd-glass-aura { fill: #8B5CF6; opacity: calc(0.12 * var(--genter) * (1 - 0.6 * var(--stop))); }
 .fd-glass-bowl { fill: rgba(255, 255, 255, 0.05); stroke: rgba(255, 255, 255, 0.55); stroke-width: 1.1; }
 .fd-glass-rim { fill: none; stroke: rgba(255, 255, 255, 0.75); stroke-width: 1; }
 .fd-glass-shine { fill: none; stroke: rgba(255, 255, 255, 0.5); stroke-width: 1.6; stroke-linecap: round; }
 .fd-glass-stem { fill: rgba(255, 255, 255, 0.4); }
 .fd-glass-foot { fill: rgba(255, 255, 255, 0.14); stroke: rgba(255, 255, 255, 0.45); stroke-width: 0.8; }
 
-.fd-stream path {
-  fill: none; stroke-linecap: round;
-  stroke-dasharray: 1 1;
-  stroke-dashoffset: calc(1 - var(--pour) - var(--stop));
+/* the pour: one element across both sections; position + length come from JS */
+.fd-stream {
+  position: absolute; z-index: 30; pointer-events: none;
+  left: var(--sx, 50%); top: var(--sy, 0px); height: var(--sh, 0px);
+  width: 3px; margin-left: -1.5px; border-radius: 3px;
+  background: linear-gradient(180deg, #EDE9FE, #A78BFA 30%, #8B5CF6);
+  box-shadow: 0 0 10px 2px rgba(139, 92, 246, 0.55), 0 0 26px 4px rgba(139, 92, 246, 0.25);
+  overflow: hidden;
 }
-.fd-stream-glow { stroke: #8B5CF6; stroke-width: 8; opacity: 0.4; filter: url(#fd-soft); }
-.fd-stream-core { stroke: url(#fd-stream); stroke-width: 2.6; }
-.fd-stream .fd-stream-flow {
-  stroke: rgba(255, 255, 255, 0.8); stroke-width: 1;
-  stroke-dasharray: 0.035 0.085;
-  /* only once the stream has reached the card, so the dots never run ahead of it */
-  opacity: calc((var(--pour) - 0.85) * 6.6 * (1 - var(--stop)));
-  animation: fd-flow 0.8s linear infinite;
+.fd-stream::after {
+  content: ""; position: absolute; inset: 0;
+  background: repeating-linear-gradient(180deg, rgba(255, 255, 255, 0.85) 0 6px, transparent 6px 22px);
+  opacity: 0.55;
+  animation: fd-flow 0.7s linear infinite;
 }
-@keyframes fd-flow { from { stroke-dashoffset: 0; } to { stroke-dashoffset: -0.12; } }
-.fd-splash { fill: #A78BFA; opacity: calc((var(--pour) - 0.8) * 4.5 * (1 - var(--stop))); }
+@keyframes fd-flow { from { background-position: 0 0; } to { background-position: 0 22px; } }
+.fd-scene[data-static] .fd-stream { display: none; }
+.fd-splash {
+  position: absolute; left: 50%; top: -6px; z-index: 4; pointer-events: none;
+  width: 70px; height: 14px; margin-left: -35px; border-radius: 50%;
+  background: radial-gradient(closest-side, rgba(196, 181, 253, 0.95), rgba(139, 92, 246, 0.4) 60%, transparent);
+  filter: blur(2px);
+  opacity: calc((var(--pour) - 0.9) * 10 * (1 - var(--stop)));
+}
 
 /* card */
 .fd-card-wrap { position: relative; width: clamp(290px, 25vw, 344px); }
@@ -1475,10 +1485,10 @@ body {
 }
 @media (max-width: 640px) { .fd-bunny { --size: 32px; --peek-x: 15px; --out-x: 19px; } }
 .fd-ear { transform-box: fill-box; transform-origin: 50% 100%; }
-.fd-section[data-peek="1"] .fd-ear-r { animation: fd-ear 0.7s ease-in-out 2; }
-.fd-section[data-landed="1"] .fd-ear-l { animation: fd-ear 0.7s ease-in-out 1; }
+.fd-scene[data-peek="1"] .fd-ear-r { animation: fd-ear 0.7s ease-in-out 2; }
+.fd-scene[data-landed="1"] .fd-ear-l { animation: fd-ear 0.7s ease-in-out 1; }
 @keyframes fd-ear { 0%, 100% { transform: rotate(0); } 40% { transform: rotate(-14deg); } 70% { transform: rotate(6deg); } }
 
 @media (prefers-reduced-motion: reduce) {
-  .fd-section *, .fd-section *::before, .fd-section *::after { animation: none !important; transition: none !important; }
+  .fd-scene *, .fd-scene *::before, .fd-scene *::after { animation: none !important; transition: none !important; }
 }
