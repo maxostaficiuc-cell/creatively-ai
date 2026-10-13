@@ -7,6 +7,7 @@ import { TopBar } from "@/components/dashboard/TopBar";
 import { UpgradePrompt } from "@/components/dashboard/UpgradePrompt";
 import type { Profile } from "@/lib/types";
 import { weeklyAllowanceFor } from "@/lib/types";
+import { creditCapFor } from "@/lib/bonusCredits";
 import { CreditsProvider } from "@/components/dashboard/CreditsContext";
 
 export function AppShell({
@@ -23,7 +24,7 @@ export function AppShell({
   const [mobileOpen, setMobileOpen] = useState(false);
 
   return (
-    <CreditsProvider initialBalance={profile?.ai_credits ?? 0} allowance={weeklyAllowanceFor(profile?.plan ?? "Pro")}>
+    <CreditsProvider initialBalance={profile?.ai_credits ?? 0} allowance={creditCapFor(weeklyAllowanceFor(profile?.plan ?? "Pro"), profile)}>
     <div className="flex min-h-screen bg-base-bg">
       <div className="hidden lg:block">
         <Sidebar profile={profile} />

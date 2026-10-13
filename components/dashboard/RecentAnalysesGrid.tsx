@@ -29,8 +29,17 @@ function timeAgo(dateStr: string): string {
 export function RecentAnalysesGrid({ creatives }: { creatives: Creative[] }) {
   return (
     <div>
-      <h2 className="font-medium text-ink-primary">Recent Analyses</h2>
-      <p className="mt-1 text-sm text-ink-secondary">Your latest creative intelligence reports.</p>
+      <div className="flex items-end justify-between gap-3">
+        <div>
+          <h2 className="font-medium text-ink-primary">Recent Analyses</h2>
+          <p className="mt-1 text-sm text-ink-secondary">Your latest creative intelligence reports.</p>
+        </div>
+        {creatives.length > 0 && (
+          <Link href="/my-creatives" className="shrink-0 text-sm text-brand-light hover:underline">
+            View all
+          </Link>
+        )}
+      </div>
 
       {creatives.length === 0 ? (
         <div className="mt-4">
@@ -42,11 +51,12 @@ export function RecentAnalysesGrid({ creatives }: { creatives: Creative[] }) {
         </div>
       ) : (
         <div className="mt-4 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
-          {creatives.map((c) => (
+          {creatives.map((c, i) => (
             <Link
               key={c.id}
               href={`/my-creatives/${c.id}`}
-              className="group overflow-hidden rounded-2xl border border-base-border bg-base-card transition-all duration-200 ease-out hover:-translate-y-1 hover:border-brand/30 hover:shadow-glow"
+              style={{ animationDelay: `${120 + i * 50}ms` }}
+              className="ov-reveal group overflow-hidden rounded-2xl border border-base-border bg-base-card transition-all duration-200 ease-out hover:-translate-y-1 hover:border-brand/30 hover:shadow-glow"
             >
               <div className="overflow-hidden">
                 <CreativeThumb
@@ -66,7 +76,7 @@ export function RecentAnalysesGrid({ creatives }: { creatives: Creative[] }) {
                   {c.summary || "Analyzed creative"}
                 </p>
                 <p className="mt-1 text-xs text-ink-muted">
-                  {c.platform || "Meta Ads"} · {c.file_type === "video" ? "Video" : "Static"}
+                  {c.platform ? `${c.platform} · ` : ""}{c.file_type === "video" ? "Video" : "Static"}
                 </p>
                 <div className="mt-3 flex items-center justify-between border-t border-base-border pt-3 text-xs">
                   <span className="text-ink-muted">Analyzed {timeAgo(c.created_at)}</span>

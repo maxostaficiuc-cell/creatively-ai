@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { creditCapFor } from "@/lib/bonusCredits";
 import { useRouter } from "next/navigation";
 import { Check, X, TrendingUp, CreditCard, AlertTriangle } from "lucide-react";
 import type { Profile } from "@/lib/types";
@@ -66,7 +67,8 @@ function PlanSummaryCard({
   onBuyCredits: () => void;
 }) {
   const plan = getPlan(profile.plan || "Pro");
-  const totalCredits = plan.weeklyCredits ?? 0;
+  // Weekly allowance plus any unspent bonus credits (e.g. the early-customer reward).
+  const totalCredits = creditCapFor(plan.weeklyCredits ?? 0, profile);
   // profile.ai_credits is kept correct by the weekly reset logic (see
   // lib/profile.ts) — never fabricated or clamped here.
   const remaining = Math.min(profile.ai_credits ?? totalCredits, totalCredits);
@@ -135,7 +137,10 @@ function PlanSummaryCard({
         </div>
         <div>
           <p className="text-xs text-ink-muted">Weekly Credits</p>
-          <p className="mt-1 text-sm font-medium text-ink-primary">{totalCredits.toLocaleString()}</p>
+          <p className="mt-1 text-sm font-medium text-ink-primary">{(plan.weeklyCredits ?? 0).toLocaleString()}</p>
+          {totalCredits > (plan.weeklyCredits ?? 0) && (
+            <p className="mt-0.5 text-[11px] text-brand-light">+{(totalCredits - (plan.weeklyCredits ?? 0)).toLocaleString()} bonus credits</p>
+          )}
           {plan.fourWeekCredits && (
             <p className="mt-0.5 text-[11px] text-ink-muted">{plan.fourWeekCredits} / 4-week period</p>
           )}

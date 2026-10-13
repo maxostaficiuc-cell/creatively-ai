@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { weeklyAllowanceFor } from "@/lib/types";
+import { bonusOf, hasBonusColumn, remainingBonus } from "@/lib/bonusCredits";
 import type { Profile } from "@/lib/types";
 
 /**
@@ -37,9 +38,13 @@ export async function getFreshProfile(
     // Never trust a stale non-zero balance on an unpaid account — force it
     // to 0 every time this runs, regardless of how it got there.
     if (profile.ai_credits !== 0) {
+      const zero: Record<string, number> = { ai_credits: 0 };
+      // Keep a record of any bonus that was still unspent, so it comes back
+      // if the account pays again (it is never usable while unpaid).
+      if (hasBonusColumn(profile)) zero.bonus_credits = remainingBonus(bonusOf(profile), profile.ai_credits);
       const { data: updated } = await writer
         .from("profiles")
-        .update({ ai_credits: 0 })
+        .update(zero)
         .eq("id", userId)
         .select("*")
         .single<Profile>();
@@ -51,19 +56,25 @@ export async function getFreshProfile(
   const resetAt = new Date(profile.credits_reset_at);
   const now = new Date();
   const allowance = weeklyAllowanceFor(profile.plan);
+  const bonus = bonusOf(profile);
+  const windowPassed = now >= resetAt;
 
   // Two conditions trigger a reset: the weekly window has passed, OR the
-  // stored balance is somehow above what the plan allows (this catches
-  // stale data left over from before weekly limits existed, without
-  // waiting for the next calendar reset).
-  const needsReset = now >= resetAt || profile.ai_credits > allowance;
+  // stored balance is somehow above what the plan allows plus any bonus
+  // credits (this catches stale data left over from before weekly limits
+  // existed, without waiting for the next calendar reset).
+  const needsReset = windowPassed || profile.ai_credits > allowance + bonus;
 
   if (needsReset) {
     const nextReset = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
+    // Unspent bonus survives the reset; the allowance is refilled as before.
+    const bonusLeft = windowPassed ? remainingBonus(bonus, profile.ai_credits) : bonus;
+    const reset: Record<string, unknown> = { ai_credits: allowance + bonusLeft, credits_reset_at: nextReset.toISOString() };
+    if (hasBonusColumn(profile)) reset.bonus_credits = bonusLeft;
 
     const { data: updated } = await writer
       .from("profiles")
-      .update({ ai_credits: allowance, credits_reset_at: nextReset.toISOString() })
+      .update(reset)
       .eq("id", userId)
       .select("*")
       .single<Profile>();

@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { createHmac, timingSafeEqual } from "crypto";
 import { createAdminClient } from "@/lib/supabase/admin";
+import { bonusOf, hasBonusColumn, remainingBonus } from "@/lib/bonusCredits";
 import { weeklyAllowanceFor } from "@/lib/types";
 import { ourPlanFromWhopPlanId } from "@/lib/whop-plans";
 import { sendLoopsEvent } from "@/lib/loops";
@@ -124,13 +125,18 @@ async function grantPlanByEmail(email: string, planId: string, membershipId: str
   const allowance = weeklyAllowanceFor(planId);
   const nextReset = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
+  // select("*") so this keeps working before migration-013 adds bonus_credits.
   const { data: profile } = await supabase
     .from("profiles")
-    .select("id")
+    .select("*")
     .ilike("email", email)
     .maybeSingle();
 
   if (!profile) return false;
+
+  // Any unspent bonus credits (e.g. the early-customer reward) are kept on
+  // top of the plan allowance; without a bonus this is exactly the allowance.
+  const bonusLeft = remainingBonus(bonusOf(profile), profile.subscription_status === "active" ? profile.ai_credits : bonusOf(profile));
 
   // This is the ONLY place in the codebase that sets subscription_status
   // to 'active' — reachable only after this route has verified a real
@@ -139,7 +145,7 @@ async function grantPlanByEmail(email: string, planId: string, membershipId: str
   const update: Record<string, unknown> = {
     plan: planId,
     subscription_status: "active",
-    ai_credits: allowance,
+    ai_credits: allowance + bonusLeft,
     credits_reset_at: nextReset,
     // A fresh grant/renewal always clears any pending cancellation —
     // covers both a brand-new subscription and a renewal after the user
@@ -147,6 +153,7 @@ async function grantPlanByEmail(email: string, planId: string, membershipId: str
     cancel_at_period_end: false,
   };
   if (membershipId) update.whop_membership_id = membershipId;
+  if (hasBonusColumn(profile)) update.bonus_credits = bonusLeft;
 
   await supabase.from("profiles").update(update).eq("id", profile.id);
 
@@ -178,16 +185,17 @@ async function revokeByEmail(email: string, status: "cancelled" | "past_due"): P
   const supabase = createAdminClient();
   const { data: profile } = await supabase
     .from("profiles")
-    .select("id")
+    .select("*")
     .ilike("email", email)
     .maybeSingle();
 
   if (!profile) return false;
 
-  await supabase
-    .from("profiles")
-    .update({ subscription_status: status, ai_credits: 0, cancel_at_period_end: false })
-    .eq("id", profile.id);
+  const revoke: Record<string, unknown> = { subscription_status: status, ai_credits: 0, cancel_at_period_end: false };
+  // Remember any unspent bonus so it returns if they subscribe again.
+  if (hasBonusColumn(profile)) revoke.bonus_credits = remainingBonus(bonusOf(profile), profile.ai_credits);
+
+  await supabase.from("profiles").update(revoke).eq("id", profile.id);
 
   return true;
 }

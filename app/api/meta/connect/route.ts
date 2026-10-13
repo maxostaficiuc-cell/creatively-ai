@@ -1,10 +1,11 @@
 import { NextResponse } from "next/server";
 import { createClient } from "@/lib/supabase/server";
-import { isMetaConfigured } from "@/lib/meta/client";
+import { getIntegrations } from "@/lib/integrations";
 
-// Starts the real Meta OAuth flow. Requires META_APP_ID to be set — if it
-// isn't, this route is never reachable because the "Connect Meta Ads"
-// button on /accounts shows a setup state instead of linking here.
+// Starts the real Meta OAuth flow — only when the Meta integration is
+// configured AND switched live (see lib/integrations.ts). Otherwise the user
+// goes back to Ad Performance, which explains it's coming soon; nobody is
+// sent into an unfinished OAuth flow by typing this URL.
 export async function GET(request: Request) {
   const supabase = createClient();
   const {
@@ -13,8 +14,8 @@ export async function GET(request: Request) {
 
   if (!user) return NextResponse.redirect(new URL("/login", request.url));
 
-  if (!isMetaConfigured()) {
-    return NextResponse.redirect(new URL("/accounts?error=meta_not_configured", request.url));
+  if (getIntegrations().find((i) => i.id === "meta")?.status !== "available") {
+    return NextResponse.redirect(new URL("/accounts", request.url));
   }
 
   const { origin } = new URL(request.url);
