@@ -27,6 +27,8 @@ export default async function AdminHealthPage({ searchParams }: { searchParams: 
   const events = onlyOpen ? h.events.filter((e) => !e.resolved_at) : h.events;
   const count = (cat: string) => h.events.filter((e) => e.category === cat && e.severity !== "info").length;
   const canResolve = hasRole(admin, "admin");
+  // The log is "on" as soon as the system_events table exists (migration 016); zero rows just means no failures yet.
+  const logOn = !h.eventsError;
   const link = (patch: { range?: string; open?: string }) => {
     const p = new URLSearchParams();
     const r = patch.range ?? range;
@@ -48,9 +50,9 @@ export default async function AdminHealthPage({ searchParams }: { searchParams: 
       {h.eventsError ? <div className="mb-4"><Notice tone="error">{h.eventsError}</Notice></div> : null}
       {!h.eventsError && !h.eventsSince ? (
         <div className="mb-4">
-          <Notice title="Error logging has just started">
-            The structured error log begins when migration 016 is deployed. Failures before that were only written to Netlify&apos;s function logs (Netlify → Logs → Functions)
-            and aren&apos;t shown here. The ledger- and table-based checks below do include older data.
+          <Notice title="Error logging is on — nothing has failed since it started">
+            Failures are logged here from the moment migration 016 was run. Anything earlier was only written to Netlify&apos;s function logs (Netlify → Logs → Functions).
+            The ledger- and table-based checks below also include older data.
           </Notice>
         </div>
       ) : null}
@@ -60,9 +62,9 @@ export default async function AdminHealthPage({ searchParams }: { searchParams: 
         <Stat label="Failed image generations" value={fmtNum(h.failedGenerations.length)} tone={h.failedGenerations.length ? "warn" : undefined} source="strategy_generations in status 'failed', last updated in the window (up to 50)." />
         <Stat label="Stuck / delayed jobs" value={fmtNum(h.stuckReservations.length + h.stuckGenerations.length)} tone={h.stuckReservations.length + h.stuckGenerations.length ? "bad" : "good"} sub="Right now" source="Credit reservations still 'reserved' after 3 minutes (they auto-release on the user's next request) plus image generations stuck in 'generating' for over 5 minutes." />
         <Stat label="Payment webhooks processed" value={h.webhooksProcessed == null ? NA : fmtNum(h.webhooksProcessed)} sub={h.lastWebhookAt ? `Last ${fmtAgo(h.lastWebhookAt)}` : "None yet"} source="Verified Whop events recorded in webhook_events in the window. Rejected or failed deliveries appear in the error log below." />
-        <Stat label="AI provider errors" value={h.eventsSince ? fmtNum(count("ai_provider")) : NA} unavailable={!h.eventsSince} tone={count("ai_provider") ? "warn" : undefined} source="system_events with category ai_provider (Anthropic / Gemini failures, timeouts, rate limits)." />
-        <Stat label="Webhook failures" value={h.eventsSince ? fmtNum(count("webhook")) : NA} unavailable={!h.eventsSince} tone={count("webhook") ? "bad" : undefined} source="system_events with category webhook: rejected signatures (throttled to 1/min), unknown plans, handler errors, unapplied grants." />
-        <Stat label="Credit errors" value={h.eventsSince ? fmtNum(count("credits")) : NA} unavailable={!h.eventsSince} tone={count("credits") ? "bad" : undefined} source="system_events with category credits: ledger errors and refunds that couldn't be confirmed." />
+        <Stat label="AI provider errors" value={logOn ? fmtNum(count("ai_provider")) : NA} unavailable={!logOn} tone={count("ai_provider") ? "warn" : undefined} source="system_events with category ai_provider (Anthropic / Gemini failures, timeouts, rate limits)." />
+        <Stat label="Webhook failures" value={logOn ? fmtNum(count("webhook")) : NA} unavailable={!logOn} tone={count("webhook") ? "bad" : undefined} source="system_events with category webhook: rejected signatures (throttled to 1/min), unknown plans, handler errors, unapplied grants." />
+        <Stat label="Credit errors" value={logOn ? fmtNum(count("credits")) : NA} unavailable={!logOn} tone={count("credits") ? "bad" : undefined} source="system_events with category credits: ledger errors and refunds that couldn't be confirmed." />
         <Stat label="Auth problems" value={NA} unavailable sub="See Supabase → Logs → Auth" source="Sign-in failures happen inside Supabase Auth, which keeps its own logs. The app doesn't receive them, so they can't be shown here." />
       </div>
 

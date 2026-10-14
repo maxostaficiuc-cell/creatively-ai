@@ -129,11 +129,32 @@ export const PAYMENT_FILTERS: Record<string, { label: string; substatuses: strin
   refunded: { label: "Refunds", substatuses: ["refunded", "partially_refunded", "auto_refunded"] },
 };
 
+export type PaymentState = "succeeded" | "pending" | "failed" | "refunded" | "other";
+
 /**
- * Payments created since `since`, newest first, following cursors up to `maxPages`.
+ * One state per payment, from Whop's substatus when present, otherwise its status.
+ * (Whop's list endpoint can't filter by substatus, so filtering happens here.)
+ */
+export function paymentState(p: Pick<WhopPayment, "substatus" | "status" | "refunded_amount">): PaymentState {
+  const sub = p.substatus ?? "";
+  for (const k of ["succeeded", "pending", "failed", "refunded"] as const) if (PAYMENT_FILTERS[k].substatuses.includes(sub)) return k;
+  if (sub) return "other";
+  const st = p.status ?? "";
+  if (st === "paid") return (p.refunded_amount ?? 0) > 0 ? "refunded" : "succeeded";
+  if (st === "open" || st === "pending" || st === "draft" || st === "authorized") return "pending";
+  if (st === "uncollectible" || st === "void" || st === "unresolved") return "failed";
+  return "other";
+}
+
+export function matchesPaymentFilter(p: WhopPayment, filter: keyof typeof PAYMENT_FILTERS): boolean {
+  return filter === "all" || paymentState(p) === filter;
+}
+
+/**
+ * All payments created since `since`, newest first, following cursors up to `maxPages`.
  * `complete` is false when there were more pages than we read.
  */
-export async function listWhopPayments(opts: { since: Date; filter: keyof typeof PAYMENT_FILTERS; maxPages?: number }): Promise<{ ok: true; rows: WhopPayment[]; complete: boolean } | WhopError> {
+export async function listWhopPayments(opts: { since: Date; maxPages?: number }): Promise<{ ok: true; rows: WhopPayment[]; complete: boolean } | WhopError> {
   const rows: WhopPayment[] = [];
   let after: string | null = null;
   const maxPages = opts.maxPages ?? 10;
@@ -143,7 +164,6 @@ export async function listWhopPayments(opts: { since: Date; filter: keyof typeof
       ["order", "created_at"],
       ["direction", "desc"],
       ["created_after", opts.since.toISOString()],
-      ...PAYMENT_FILTERS[opts.filter].substatuses.map((x) => ["substatuses", x] as [string, string]),
     ];
     if (after) params.push(["after", after]);
     const r = await whopGet("/payments", params);
@@ -213,12 +233,12 @@ export function summarisePayments(rows: WhopPayment[]) {
   const by: Record<string, { gross: number; refunded: number; count: number }> = {};
   let succeeded = 0, failed = 0, pending = 0, refunds = 0;
   for (const p of rows) {
-    const sub = p.substatus ?? "";
-    if (PAYMENT_FILTERS.failed.substatuses.includes(sub)) failed++;
-    if (PAYMENT_FILTERS.pending.substatuses.includes(sub)) pending++;
-    if (PAYMENT_FILTERS.refunded.substatuses.includes(sub)) refunds++;
-    if (sub === "succeeded") succeeded++;
-    if ((sub === "succeeded" || PAYMENT_FILTERS.refunded.substatuses.includes(sub)) && p.total != null && p.currency) {
+    const state = paymentState(p);
+    if (state === "failed") failed++;
+    if (state === "pending") pending++;
+    if (state === "refunded") refunds++;
+    if (state === "succeeded") succeeded++;
+    if ((state === "succeeded" || state === "refunded") && p.total != null && p.currency) {
       const c = (by[p.currency] ??= { gross: 0, refunded: 0, count: 0 });
       c.gross += p.total;
       c.refunded += p.refunded_amount ?? 0;

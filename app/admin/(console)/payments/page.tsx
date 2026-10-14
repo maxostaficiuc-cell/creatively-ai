@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { requireAdminPage } from "@/lib/admin/auth";
 import { listBillingEvents, listPendingGrants, listSubscribers, parseRange, RANGE_LABEL, sinceFor, type Range } from "@/lib/admin/data";
-import { listWhopMemberships, listWhopPayments, PAYMENT_FILTERS, summarisePayments, whopReadConfigured } from "@/lib/admin/whop";
+import { listWhopMemberships, listWhopPayments, matchesPaymentFilter, PAYMENT_FILTERS, paymentState, summarisePayments, whopReadConfigured, type WhopPayment } from "@/lib/admin/whop";
 import { fmtDate, fmtDateTime, fmtMoney, fmtNum, shortId } from "@/lib/admin/format";
 import { Badge, Empty, Notice, PageHeader, Panel, Segmented, Stat, subscriptionBadge, Table, Td } from "@/components/admin/console/ui";
 
@@ -20,12 +20,10 @@ const MEMBERSHIP_FILTERS: Record<string, { label: string; statuses: string[] }> 
   ended: { label: "Cancelled / expired", statuses: ["canceled", "expired", "completed"] },
 };
 
-function substatusBadge(s: string | null) {
-  if (!s) return <Badge>unknown</Badge>;
-  if (s === "succeeded") return <Badge color="green">succeeded</Badge>;
-  if (PAYMENT_FILTERS.refunded.substatuses.includes(s)) return <Badge color="amber">{s.replace(/_/g, " ")}</Badge>;
-  if (PAYMENT_FILTERS.failed.substatuses.includes(s)) return <Badge color="red">{s.replace(/_/g, " ")}</Badge>;
-  return <Badge>{s.replace(/_/g, " ")}</Badge>;
+function substatusBadge(p: WhopPayment) {
+  const state = paymentState(p);
+  const label = (p.substatus ?? p.status ?? "unknown").replace(/_/g, " ");
+  return <Badge color={state === "succeeded" ? "green" : state === "refunded" ? "amber" : state === "failed" ? "red" : "gray"}>{label}</Badge>;
 }
 
 type SP = { view?: string; range?: string; status?: string; m?: string };
@@ -82,7 +80,7 @@ export default async function AdminPaymentsPage({ searchParams }: { searchParams
 }
 
 async function PaymentsView({ range, status, href }: { range: Range; status: keyof typeof PAYMENT_FILTERS; href: (p: Partial<SP>) => string }) {
-  const res = await listWhopPayments({ since: sinceFor(range), filter: status });
+  const res = await listWhopPayments({ since: sinceFor(range) });
   const controls = (
     <div className="mb-4 flex flex-wrap gap-2">
       <Segmented active={range} items={(["7d", "30d", "90d"] as Range[]).map((r) => ({ key: r, label: r, href: href({ range: r }) }))} />
@@ -97,8 +95,10 @@ async function PaymentsView({ range, status, href }: { range: Range; status: key
       </>
     );
   }
+  // Totals always cover every payment in the window; the status filter only narrows the table.
   const sum = summarisePayments(res.rows);
   const currencies = Object.entries(sum.byCurrency);
+  const rows = res.rows.filter((p) => matchesPaymentFilter(p, status));
   return (
     <>
       {controls}
@@ -106,7 +106,7 @@ async function PaymentsView({ range, status, href }: { range: Range; status: key
         <Stat
           label="Collected (gross)"
           value={currencies.length ? currencies.map(([c, v]) => fmtMoney(v.gross, c)).join(" · ") : fmtMoney(0, "usd")}
-          sub={status === "all" ? `${RANGE_LABEL[range]}` : "Within this filter"}
+          sub={RANGE_LABEL[range]}
           source="Sum of Whop payment totals for succeeded and refunded payments created in the window, per currency, exactly as Whop reports them (provider data, read live)."
         />
         <Stat label="Refunded" value={currencies.length ? currencies.map(([c, v]) => fmtMoney(v.refunded, c)).join(" · ") : fmtMoney(0, "usd")} source="Sum of refunded_amount on those payments, as reported by Whop." />
@@ -115,18 +115,18 @@ async function PaymentsView({ range, status, href }: { range: Range; status: key
       </div>
       {!res.complete ? <div className="mt-3"><Notice tone="warn">More than {res.rows.length} payments matched — totals cover the newest {res.rows.length}. Narrow the date range for exact totals.</Notice></div> : null}
       <Panel title="Payments" subtitle="From Whop · newest first · amounts in each payment's currency" className="mt-4" bodyClassName="p-0">
-        {res.rows.length === 0 ? (
+        {rows.length === 0 ? (
           <Empty title="No payments in this window">Nothing matched in Whop for {RANGE_LABEL[range].toLowerCase()} with this filter.</Empty>
         ) : (
           <Table head={["Created", "Customer", "Plan", "Amount", "Status", "Reason", "Refunded", "Paid", "Payment", "Membership"]} minWidth={1240}>
-            {res.rows.map((p) => (
+            {rows.map((p) => (
               <tr key={p.id}>
                 <Td>{fmtDateTime(p.created_at)}</Td>
                 <Td className="max-w-[220px] truncate text-white">{p.email ?? "Not available"}</Td>
                 <Td>{p.plan ? `${p.plan} · ${p.interval}` : p.product ?? shortId(p.plan_id)}</Td>
                 <Td className="tabular-nums text-white">{fmtMoney(p.total, p.currency)}</Td>
                 <Td>
-                  {substatusBadge(p.substatus)}
+                  {substatusBadge(p)}
                   {p.failure_message ? <span className="mt-1 block max-w-[200px] truncate text-[11px] text-ink-muted" title={p.failure_message}>{p.failure_message}</span> : null}
                 </Td>
                 <Td>{p.billing_reason?.replace(/_/g, " ") ?? "—"}</Td>
