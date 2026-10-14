@@ -83,9 +83,8 @@ export default async function AdminOverviewPage({ searchParams }: { searchParams
         />
         <Stat
           label="Paid activations"
-          value={billingSince ? fmtNum(o.paid_activations) : NA}
-          unavailable={!billingSince}
-          sub={billingSince ? `Recorded since ${fmtDateTime(billingSince)}` : "Recorded from migration 016 onward"}
+          value={fmtNum(o.paid_activations)}
+          sub={billingSince ? `Recorded since ${fmtDateTime(billingSince)}` : "No verified webhook received yet"}
           source="Distinct buyers with a verified Whop membership.activated webhook in the window (table billing_events). Only events received after migration 016 was deployed exist, so earlier conversions aren't included."
         />
         <Stat
@@ -123,10 +122,9 @@ export default async function AdminOverviewPage({ searchParams }: { searchParams
         <Stat label="Failed brand analyses" value={fmtNum(o.failed_strategies)} tone={o.failed_strategies ? "warn" : undefined} source="brand_strategies rows in status 'failed', last updated in the window." />
         <Stat
           label="Logged system errors"
-          value={healthSince ? fmtNum(o.system_errors) : NA}
-          unavailable={!healthSince}
+          value={fmtNum(o.system_errors)}
           tone={o.system_errors ? "bad" : undefined}
-          sub={healthSince ? <Link href="/admin/health" className="text-brand-light hover:underline">Open System health →</Link> : "Logging starts with migration 016"}
+          sub={<Link href="/admin/health" className="text-brand-light hover:underline">{healthSince ? "Open System health →" : "None logged yet →"}</Link>}
           source="Errors written to system_events (webhook, AI provider, analysis, generation and credit failures). This log starts when migration 016 is deployed; earlier failures were only in hosting logs."
         />
       </div>
