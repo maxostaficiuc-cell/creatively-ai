@@ -40,6 +40,11 @@ export type Creative = {
   report: CreativeReport | null;
   is_free_report: boolean;
   created_at: string;
+  /** "generated" for ads made with Creative Strategy (migration-015); otherwise an analysis. */
+  source?: string;
+  strategy_id?: string | null;
+  generation_id?: string | null;
+  ad_copy?: { headline?: string; primary_text?: string; cta?: string; concept?: { name: string; angle: string; audience: string } | null; brand?: string | null; aspect_ratio?: string; style?: string } | null;
 };
 
 export type AdAccount = {
@@ -63,6 +68,8 @@ import { PLANS, planAfter } from "@/lib/pricing";
 
 export const CREDIT_COST_IMAGE = 100;
 export const CREDIT_COST_VIDEO = 500;
+/** One AI-generated ad image (Creative Strategy). Charged only when the image is delivered. */
+export const CREDIT_COST_GENERATED_IMAGE = 100;
 
 export const PLAN_WEEKLY_CREDITS: Record<string, number> = Object.fromEntries(
   PLANS.filter((p) => p.weeklyCredits !== null).map((p) => [p.id, p.weeklyCredits as number])

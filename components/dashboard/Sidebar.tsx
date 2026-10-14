@@ -5,6 +5,7 @@ import { usePathname } from "next/navigation";
 import {
   LayoutGrid,
   Sparkles,
+  Target,
   Trophy,
   FolderOpen,
   BarChart2,
@@ -25,6 +26,7 @@ import { CreditBar, CreditCount, CreditDelta } from "@/components/dashboard/Cred
 const mainLinks = [
   { href: "/dashboard", label: "Overview", icon: LayoutGrid },
   { href: "/analyze", label: "Analyze Creative", icon: Sparkles },
+  { href: "/creative-strategy", label: "Creative Strategy", icon: Target },
   { href: "/winning-ads", label: "Winning Ads", icon: Trophy },
   { href: "/my-creatives", label: "My Creatives", icon: FolderOpen },
 ];
