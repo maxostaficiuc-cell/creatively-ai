@@ -31,15 +31,6 @@ import { StrategyShowcase } from "@/components/marketing/StrategyShowcase";
 // on the public homepage without a redeploy.
 export const revalidate = 300;
 
-const scoreBreakdown = [
-  { label: "Hook", value: 91 },
-  { label: "Visual", value: 84 },
-  { label: "Offer", value: 89 },
-  { label: "CTA", value: 76 },
-  { label: "Clarity", value: 92 },
-  { label: "Conversion Potential", value: 83 },
-];
-
 const honestExamples = [
   { score: 94, verdict: "Strong — ready to test", tone: "green" as const },
   { score: 67, verdict: "Promising — needs improvement", tone: "orange" as const },
@@ -156,51 +147,6 @@ export default async function LandingPage() {
             label="Try the Analyzer for $1"
             placement="analyzer"
           />
-        </div>
-      </section>
-
-      {/* SCORE EXPLANATION */}
-      <section className="border-t border-white/5 px-6 py-24">
-        <div className="mx-auto max-w-4xl">
-          <div className="text-center">
-            <h2 className="mx-auto max-w-xl text-3xl font-semibold tracking-tight text-ink-primary sm:text-4xl">
-              A score that tells you where the creative stands.
-            </h2>
-            <p className="mx-auto mt-4 max-w-xl text-ink-secondary">
-              Creatively.ai evaluates the elements that influence attention, clarity, persuasion,
-              and conversion potential.
-            </p>
-          </div>
-
-          <div data-reveal className="mt-12 rounded-2xl border border-base-border bg-base-card p-8">
-            <div className="flex items-center justify-between">
-              <p className="text-sm text-ink-secondary">Creative Score</p>
-              <p className="text-2xl font-semibold text-ink-primary">
-                <ScoreCounter value={87} />
-                <span className="text-base text-ink-muted"> / 100</span>
-              </p>
-            </div>
-            <div className="mt-6 space-y-4">
-              {scoreBreakdown.map((s, i) => (
-                <div key={s.label}>
-                  <div className="mb-1.5 flex items-center justify-between text-xs">
-                    <span className="text-ink-secondary">{s.label}</span>
-                    <span className="text-ink-primary">{s.value}</span>
-                  </div>
-                  <div className="h-1.5 w-full overflow-hidden rounded-full bg-base-border">
-                    <div
-                      data-reveal-bar
-                      className="h-full rounded-full bg-gradient-to-r from-brand to-brand-light"
-                      style={{ width: `${s.value}%`, ["--d" as string]: i }}
-                    />
-                  </div>
-                </div>
-              ))}
-            </div>
-          </div>
-          <p className="mt-5 text-center text-xs text-ink-muted">
-            The score is a diagnostic tool — not a guarantee of performance.
-          </p>
         </div>
       </section>
 
