@@ -6,6 +6,7 @@ import { getFreshProfile } from "@/lib/profile";
 import { getConnectedAdAccount } from "@/lib/meta/client";
 import { AppShell } from "@/components/dashboard/AppShell";
 import { CreativeReportView } from "@/components/marketing/CreativeReportView";
+import { GeneratedCreativeView } from "@/components/strategy/GeneratedCreativeView";
 import type { Creative } from "@/lib/types";
 
 export default async function CreativeDetailPage({ params }: { params: { id: string } }) {
@@ -42,7 +43,9 @@ export default async function CreativeDetailPage({ params }: { params: { id: str
           <ArrowLeft size={14} /> Back to My Creatives
         </Link>
 
-        {creative.report ? (
+        {creative.source === "generated" ? (
+          <GeneratedCreativeView creative={creative} />
+        ) : creative.report ? (
           <CreativeReportView
             report={creative.report}
             imageUrl={creative.file_url}

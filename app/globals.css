@@ -1685,3 +1685,22 @@ body {
   .reward-sheen, .ap-pulse { animation: none !important; }
   .lib-card:hover .lib-thumb { transform: none; }
 }
+
+/* ── Creative Strategy ─────────────────────────────────────────────────────── */
+@keyframes cs-shimmer { from { background-position: -200% 0; } to { background-position: 200% 0; } }
+@keyframes cs-sheet-in { from { opacity: 0; transform: translateY(18px) scale(0.99); } to { opacity: 1; transform: none; } }
+.cs-stage { animation: ov-rise 0.5s cubic-bezier(0.16, 1, 0.3, 1) backwards; }
+.cs-reveal { animation: ov-rise 0.55s cubic-bezier(0.16, 1, 0.3, 1) backwards; }
+.cs-item { animation: ov-rise 0.5s cubic-bezier(0.16, 1, 0.3, 1) backwards; }
+.cs-sheet { animation: cs-sheet-in 0.3s cubic-bezier(0.16, 1, 0.3, 1) backwards; }
+.cs-card { box-shadow: 0 0 0 1px rgba(139, 92, 246, 0.06), 0 30px 80px -50px rgba(139, 92, 246, 0.55); }
+.cs-shimmer {
+  background: linear-gradient(100deg, rgba(255, 255, 255, 0.02) 30%, rgba(167, 139, 250, 0.08) 50%, rgba(255, 255, 255, 0.02) 70%) #111114;
+  background-size: 200% 100%;
+  animation: cs-shimmer 1.8s linear infinite;
+}
+.cs-img { animation: ov-fade 0.5s ease-out backwards; }
+@media (prefers-reduced-motion: reduce) {
+  .cs-stage, .cs-reveal, .cs-item, .cs-sheet, .cs-img { animation: none !important; }
+  .cs-shimmer { animation: none !important; }
+}
