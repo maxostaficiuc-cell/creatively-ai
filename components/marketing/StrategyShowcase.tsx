@@ -1,12 +1,10 @@
 "use client";
 
 import { useEffect, useRef } from "react";
-import { ArrowRight, Check, Sparkles } from "lucide-react";
-import { ButtonLink } from "@/components/ui/Button";
-import { ScrollToButton } from "@/components/marketing/ScrollToButton";
+import { Check, Sparkles } from "lucide-react";
 import { AdMock } from "@/components/marketing/strategy/AdMock";
 import { AnalyzeButton, ConceptCard, IllustrationTag, SnapshotRow, UrlField } from "@/components/marketing/strategy/Mocks";
-import { AD_VARIANTS, CONCEPTS, DEMO_BRAND, ILLUSTRATION_NOTE, PROGRESS_STEPS, SELECTED_CONCEPT, SNAPSHOT, SUGGESTED_COPY } from "@/lib/strategyShowcase";
+import { AD_VARIANTS, CONCEPTS, DEMO_BRAND, PROGRESS_STEPS, SELECTED_CONCEPT, SNAPSHOT, SUGGESTED_COPY } from "@/lib/strategyShowcase";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // "From your brand to your next ad." — Creative Strategy showcase (homepage).
@@ -223,20 +221,6 @@ export function StrategyShowcase() {
           </div>
         </div>
 
-        <p className="mx-auto mt-10 max-w-2xl text-center text-xs leading-relaxed text-ink-muted">
-          {ILLUSTRATION_NOTE} Recommendations depend on what your website and public profile actually show. Every generated ad is a draft to review
-          before you run it, and each image uses credits from your plan.
-        </p>
-
-        <div data-reveal className="mt-8 flex flex-col items-center justify-center gap-3 sm:flex-row">
-          <ButtonLink href="/creative-strategy" className="w-full px-7 py-3.5 text-base sm:w-auto">
-            Explore Creative Strategy <ArrowRight size={16} />
-          </ButtonLink>
-          <ScrollToButton target="how-it-works" className="w-full px-7 py-3.5 text-base sm:w-auto">
-            See how it works
-          </ScrollToButton>
-        </div>
-        <p className="mt-3 text-center text-xs text-ink-muted">Included with paid plans. You&apos;ll log in or create an account first.</p>
       </div>
     </section>
   );

@@ -63,4 +63,3 @@ export const SUGGESTED_COPY = {
   cta: "Shop now",
 };
 
-export const ILLUSTRATION_NOTE = "Illustration of the product screens with a fictional brand — not real customer output.";
