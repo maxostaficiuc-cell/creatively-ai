@@ -1,8 +1,9 @@
 import { forwardRef } from "react";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Sparkles } from "lucide-react";
 import { ButtonLink } from "@/components/ui/Button";
 import { GetFreeReportButton } from "@/components/marketing/GetFreeReportButton";
 import { TrialButton } from "@/components/marketing/TrialButton";
+import { ScrollToButton } from "@/components/marketing/ScrollToButton";
 import { STARTER_TRIAL, TRIAL_TERMS } from "@/lib/starterTrial";
 
 /** Headline, supporting copy and the two hero CTAs. */
@@ -26,7 +27,7 @@ export const HeroHeadline = forwardRef<HTMLDivElement, { className?: string; sty
           className="mx-auto mt-4 max-w-[330px] animate-fade-in-up text-pretty text-[15px] leading-relaxed text-[#9A9AA5] sm:mt-6 sm:max-w-[560px] sm:text-[clamp(15px,1.25vw,18px)]"
           style={{ animationDelay: "120ms" }}
         >
-          Upload your ad and discover what&apos;s working, what&apos;s holding it back, and exactly what to test next.
+          Analyze your ads. Understand your brand. Discover new creative ideas and turn them into ads.
         </p>
         <div
           className="mx-auto mt-6 flex max-w-[360px] animate-fade-in-up flex-col items-stretch justify-center gap-2.5 sm:mt-8 sm:max-w-none sm:flex-row sm:items-center sm:gap-3"
@@ -49,11 +50,25 @@ export const HeroHeadline = forwardRef<HTMLDivElement, { className?: string; sty
             Explore winning ads
           </ButtonLink>
         </div>
-        {STARTER_TRIAL.enabled && (
-          <p className="mt-3 animate-fade-in-up text-xs text-[#8A8A95]" style={{ animationDelay: "220ms" }}>
-            {TRIAL_TERMS}
-          </p>
-        )}
+        {/* Trial terms (when the $1 offer exists) and the Creative Strategy link share one
+            line, so the hero keeps its original height on desktop. */}
+        <div
+          className="mt-3 flex animate-fade-in-up flex-wrap items-center justify-center gap-x-3 gap-y-1.5 text-xs text-[#8A8A95]"
+          style={{ animationDelay: "220ms" }}
+        >
+          {STARTER_TRIAL.enabled && (
+            <>
+              <p>{TRIAL_TERMS}</p>
+              <span aria-hidden className="hidden h-3 w-px bg-white/15 sm:block" />
+            </>
+          )}
+          <ScrollToButton target="creative-strategy" variant="link" className="rounded-full text-[12.5px]">
+            <Sparkles size={13} className="text-brand-light" aria-hidden />
+            <span className="font-medium text-brand-light">New</span>
+            <span>Explore Creative Strategy</span>
+            <ArrowRight size={13} aria-hidden />
+          </ScrollToButton>
+        </div>
       </div>
     );
   }

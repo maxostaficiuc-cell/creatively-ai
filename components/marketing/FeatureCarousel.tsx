@@ -14,7 +14,13 @@ import {
   TrendingUp,
   LayoutGrid,
   Bookmark,
+  Wand2,
+  Globe,
+  Lightbulb,
+  ImagePlus,
 } from "lucide-react";
+import { AdMock } from "@/components/marketing/strategy/AdMock";
+import { AD_VARIANTS, CONCEPTS, DEMO_BRAND } from "@/lib/strategyShowcase";
 import {
   BACK_CALLOUTS,
   BUFFY_AD,
@@ -28,8 +34,8 @@ import {
 } from "@/lib/tourExamples";
 
 /*
- * Feature carousel — four portrait cards (Holo-style proportions) showing what
- * Creatively.ai does: what's working, account data, what's holding an ad back,
+ * Feature carousel — five portrait cards (Holo-style proportions) showing what
+ * Creatively.ai does: what’s working, Creative Strategy, account data, what’s holding an ad back,
  * and the winning-ads library.
  *
  * Motion (all disabled for prefers-reduced-motion):
@@ -44,13 +50,14 @@ import {
 
 const AUTOPLAY_MS = 5600;
 const RESUME_AFTER_INTERACTION_MS = 9000;
-const TILT = [-2.4, 1.9, -1.7, 2.3];
+const TILT = [-2.4, 1.9, -1.7, 2.3, -2.0];
 
 type Tone = { rgb: string; text: string };
 const GREEN: Tone = { rgb: "34,197,94", text: "#4ADE80" };
 const VIOLET: Tone = { rgb: "139,92,246", text: "#A78BFA" };
 const RED: Tone = { rgb: "244,63,94", text: "#FB7185" };
 const BLUE: Tone = { rgb: "96,165,250", text: "#93C5FD" };
+const FUCHSIA: Tone = { rgb: "217,70,239", text: "#F0ABFC" };
 
 type Slide = {
   id: string;
@@ -60,6 +67,8 @@ type Slide = {
   iconBg: string;
   title: [string, string];
   body: string;
+  /** where the visual starts (default 44% of the card) — for a longer body */
+  visualTop?: string;
   Visual: (p: { active: boolean }) => JSX.Element;
 };
 
@@ -73,6 +82,17 @@ const SLIDES: Slide[] = [
     title: ["Ads that", "sell."],
     body: "Spot what’s working in your ad creative and understand which elements make it stronger.",
     Visual: SellVisual,
+  },
+  {
+    id: "strategy",
+    file: "ai-creative-strategy",
+    tone: FUCHSIA,
+    icon: Wand2,
+    iconBg: "linear-gradient(145deg,#F0ABFC,#A21CAF)",
+    title: ["AI Creative", "Strategy."],
+    body: "Turn your website or social profile into a tailored advertising strategy. Discover creative angles, develop stronger messaging, and generate ad variations built around your brand.",
+    visualTop: "47%",
+    Visual: StrategyVisual,
   },
   {
     id: "accounts",
@@ -318,7 +338,7 @@ export function FeatureCarousel() {
                 </div>
 
                 {/* visual */}
-                <div className="absolute inset-x-0 bottom-0 top-[44%] z-10">
+                <div className="absolute inset-x-0 bottom-0 z-10" style={{ top: s.visualTop ?? "44%" }}>
                   <s.Visual active={isActive} />
                 </div>
               </div>
@@ -804,3 +824,88 @@ function LibraryVisual({ active }: { active: boolean }) {
     </div>
   );
 }
+
+/* ───────────────────────── AI Creative Strategy ───────────────────────── */
+/* Three benefits, each with a miniature of the real screen it refers to.   */
+/* The ads are SVG illustrations for a fictional brand (lib/strategyShowcase). */
+function StrategyVisual() {
+  const rows = [
+    {
+      icon: Globe,
+      title: "Brand-aware recommendations",
+      text: "Build ideas around the available product information, positioning, and visual identity.",
+      mini: (
+        <div className="flex min-w-0 gap-[1.2cqw]">
+          {[DEMO_BRAND.website.replace("https://", ""), DEMO_BRAND.social.replace("https://", "")].map((u) => (
+            <span key={u} className="min-w-0 truncate rounded-full border border-white/[0.09] bg-black/30 px-[1.8cqw] py-[0.5cqw] text-[max(7.5px,2.2cqw)] text-white/70">
+              {u}
+            </span>
+          ))}
+        </div>
+      ),
+    },
+    {
+      icon: Lightbulb,
+      title: "Creative concepts",
+      text: "Explore different hooks, messages, offers, and visual directions.",
+      mini: (
+        <div className="flex min-w-0 gap-[1.2cqw] overflow-hidden">
+          {CONCEPTS.slice(0, 3).map((c, i) => (
+            <span
+              key={c.angle}
+              className={`shrink-0 rounded-full border px-[1.8cqw] py-[0.5cqw] text-[max(7.5px,2.2cqw)] ${i === 1 ? "border-[rgba(217,70,239,0.5)] bg-[rgba(217,70,239,0.16)] text-white" : "border-white/[0.08] bg-white/[0.03] text-white/60"}`}
+            >
+              {c.angle}
+            </span>
+          ))}
+        </div>
+      ),
+    },
+    {
+      icon: ImagePlus,
+      title: "Ad generation",
+      text: "Turn a selected concept into multiple creative variations with suggested copy.",
+      mini: (
+        <div className="flex items-end gap-[1.4cqw]">
+          {AD_VARIANTS.map((v) => (
+            <div key={v.ratio} className="overflow-hidden rounded-[1.2cqw] ring-1 ring-white/15" style={{ width: v.ratio === "9:16" ? "7.6cqw" : v.ratio === "1:1" ? "11cqw" : "10.4cqw" }}>
+              <AdMock ratio={v.ratio} lines={v.lines} cta={v.cta} />
+            </div>
+          ))}
+          <span className="pb-[0.4cqw] text-[max(7px,2cqw)] text-white/40">Illustration</span>
+        </div>
+      ),
+    },
+  ];
+  return (
+    <div className="relative flex h-full w-full flex-col justify-end gap-[2cqw] px-[5%] pb-[5%]">
+      {rows.map((r, i) => {
+        const Icon = r.icon;
+        return (
+          <div
+            key={r.title}
+            className="fc-in flex gap-[2.6cqw] rounded-[3cqw] border border-white/[0.09] p-[2.6cqw]"
+            style={{
+              background: "linear-gradient(180deg, rgba(30,22,40,0.94), rgba(15,12,22,0.95))",
+              boxShadow: `0 4cqw 9cqw -5cqw rgba(0,0,0,0.9), inset 0 1px 0 rgba(255,255,255,0.05)`,
+              ["--d" as string]: `${240 + i * 160}ms`,
+            }}
+          >
+            <span
+              className="flex h-[7cqw] w-[7cqw] shrink-0 items-center justify-center rounded-[2cqw]"
+              style={{ background: `rgba(${FUCHSIA.rgb},0.16)`, color: FUCHSIA.text, boxShadow: `inset 0 0 0 1px rgba(${FUCHSIA.rgb},0.3)` }}
+            >
+              <Icon className="h-[3.8cqw] w-[3.8cqw]" />
+            </span>
+            <div className="min-w-0 flex-1">
+              <p className="text-[max(9.5px,2.9cqw)] font-semibold leading-tight text-white">{r.title}</p>
+              <p className="mt-[0.6cqw] text-[max(8.5px,2.45cqw)] leading-[1.35] text-white/60">{r.text}</p>
+              <div className="mt-[1.4cqw]">{r.mini}</div>
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
