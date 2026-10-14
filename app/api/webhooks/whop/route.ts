@@ -5,6 +5,8 @@ import { bonusOf, hasBonusColumn, remainingBonus } from "@/lib/bonusCredits";
 import { weeklyAllowanceFor } from "@/lib/types";
 import { ourPlanFromWhopPlanId } from "@/lib/whop-plans";
 import { sendLoopsEvent } from "@/lib/loops";
+import { recordSystemEvent, throttle } from "@/lib/systemEvents";
+import { recordBillingEvent } from "@/lib/billingEvents";
 
 // Real Whop webhook handling — verifies the signature per the Standard
 // Webhooks spec Whop uses, then updates the paying user's plan and resets
@@ -206,6 +208,10 @@ export async function POST(request: Request) {
   if (!process.env.WHOP_WEBHOOK_SECRET) {
     // Log-only detail, never exposed to the caller.
     console.error(`[whop-webhook ${receivedAt}] WHOP_WEBHOOK_SECRET is not configured`);
+    const skipped = throttle("whop-webhook:not-configured");
+    if (skipped !== null) {
+      await recordSystemEvent({ category: "webhook", source: "whop-webhook", code: "not_configured", message: "WHOP_WEBHOOK_SECRET is not set; deliveries are rejected (503)." });
+    }
     return NextResponse.json({ error: "Webhook not configured" }, { status: 503 });
   }
 
@@ -221,6 +227,17 @@ export async function POST(request: Request) {
     // header vs bad signature vs stale timestamp — since that detail is
     // only useful to us, logged below, and not to a potential attacker).
     console.error(`[whop-webhook ${receivedAt}] signature verification failed`);
+    // Throttled: anyone can send unsigned requests, so at most one row per minute.
+    const skipped = throttle("whop-webhook:bad-signature");
+    if (skipped !== null) {
+      await recordSystemEvent({
+        category: "webhook",
+        severity: "warning",
+        source: "whop-webhook",
+        code: "signature_failed",
+        message: `Rejected a delivery that failed signature or timestamp verification${skipped ? ` (+${skipped} more since the last record)` : ""}.`,
+      });
+    }
     return NextResponse.json({ error: "Invalid signature" }, { status: 401 });
   }
 
@@ -231,12 +248,16 @@ export async function POST(request: Request) {
     return NextResponse.json({ ok: true, duplicate: true });
   }
 
+  // For the admin Payments page (billing_events) — what this event did.
+  let outcome = "ignored";
+  let recordedPlan: string | null = null;
   try {
     if (event.type === "payment.succeeded" || event.type === "membership.activated") {
       const email = readEmail(event.data);
       const whopPlanId = readPlanId(event.data);
       const ourPlan = whopPlanId ? ourPlanFromWhopPlanId(whopPlanId) : null;
       const membershipId = readMembershipId(event.data);
+      recordedPlan = ourPlan;
 
       if (email && ourPlan) {
         // Was this account already active before this event? (Used only to send
@@ -260,6 +281,10 @@ export async function POST(request: Request) {
         }
         // No account yet (paid first) → keep the grant until they sign up.
         const parked = matched ? false : await parkPendingGrant(email, ourPlan, membershipId);
+        outcome = matched ? "granted" : parked ? "parked" : "no_account";
+        if (!matched && !parked) {
+          await recordSystemEvent({ category: "webhook", source: "whop-webhook", code: "grant_not_applied", message: `${event.type}: paid event matched no account and could not be parked for signup.`, refId: event.id });
+        }
         console.log(
           `[whop-webhook ${receivedAt}] ${event.id}: ${
             matched ? "granted" : parked ? "no account yet — grant parked for signup" : "no matching account for"
@@ -267,13 +292,18 @@ export async function POST(request: Request) {
         );
       } else if (!ourPlan) {
         console.error(`[whop-webhook ${receivedAt}] ${event.id}: unrecognized plan_id ${whopPlanId}`);
+        outcome = "unknown_plan";
+        await recordSystemEvent({ category: "webhook", source: "whop-webhook", code: "unknown_plan", message: `${event.type}: Whop plan id ${whopPlanId ?? "(none)"} is not mapped to a Creatively.ai plan; no access was granted.`, refId: event.id });
       } else {
         console.error(`[whop-webhook ${receivedAt}] ${event.id}: no email on payload`);
+        outcome = "no_email";
+        await recordSystemEvent({ category: "webhook", severity: "warning", source: "whop-webhook", code: "no_email", message: `${event.type}: payload had no buyer email; no access was granted.`, refId: event.id });
       }
     } else if (event.type === "membership.deactivated") {
       const email = readEmail(event.data);
       if (email) {
         const matched = await revokeByEmail(email, "cancelled");
+        outcome = matched ? "revoked" : "no_account";
         // Cancelled before ever creating an account → drop the parked grant.
         if (!matched) {
           await createAdminClient().from("pending_grants").delete().eq("email", email.trim().toLowerCase());
@@ -285,10 +315,12 @@ export async function POST(request: Request) {
       // the first place, so there's nothing to revoke. Logged so failed
       // charges are visible without exposing payment details.
       console.log(`[whop-webhook ${receivedAt}] ${event.id}: payment.failed, no account change`);
+      outcome = "no_change";
     } else if (event.type === "payment.pending") {
       // Same — access is only granted on a confirmed success event, never
       // on pending.
       console.log(`[whop-webhook ${receivedAt}] ${event.id}: payment.pending, no account change`);
+      outcome = "no_change";
     } else {
       console.log(`[whop-webhook ${receivedAt}] ${event.id}: no handler for event type ${event.type}, ignoring`);
     }
@@ -296,8 +328,10 @@ export async function POST(request: Request) {
     await markProcessed(event.id, event.type);
   } catch (err) {
     console.error(`[whop-webhook ${receivedAt}] ${event.id}: handler threw:`, err);
+    await recordSystemEvent({ category: "webhook", source: "whop-webhook", code: "handler_failed", message: `${event.type}: ${err instanceof Error ? err.message : String(err)} (Whop will retry)`, refId: event.id });
     return NextResponse.json({ error: "Handler failed" }, { status: 500 });
   }
 
+  await recordBillingEvent(event, outcome, recordedPlan);
   return NextResponse.json({ ok: true });
 }

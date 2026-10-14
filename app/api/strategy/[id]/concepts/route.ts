@@ -1,3 +1,4 @@
+import { recordSystemEvent } from "@/lib/systemEvents";
 import { NextResponse } from "next/server";
 import { buildConcepts } from "@/lib/strategyAI";
 import { AnalysisError } from "@/lib/analyzeCreative";
@@ -31,6 +32,7 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
     return NextResponse.json({ strategy: data });
   } catch (e) {
     const code = e instanceof AnalysisError ? e.code : "ai_failed";
+    await recordSystemEvent({ category: "ai_provider", source: "api/strategy/[id]/concepts", code, message: `Creative Strategy concepts step failed (${code}).`, userId: auth.userId });
     return jsonError(code === "ai_timeout" ? 504 : 502, "The AI couldn't finish the concepts step. Please try again.", { code });
   }
 }

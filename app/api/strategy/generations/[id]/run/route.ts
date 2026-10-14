@@ -1,3 +1,4 @@
+import { recordSystemEvent } from "@/lib/systemEvents";
 import { NextResponse } from "next/server";
 import { generateAdImage, geminiConfigured, ImageGenError } from "@/lib/geminiImage";
 import { imagePrompt } from "@/lib/strategyAI";
@@ -61,6 +62,16 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
   const fail = async (status: number, message: string, code: string, released: boolean) => {
     await db.from("strategy_generations").update({ status: "failed", error: message.slice(0, 300), updated_at: new Date().toISOString() }).eq("id", g.id);
     log("run_failed", { id: g.id, code, ms: Date.now() - t0 });
+    if (status >= 500 || status === 429 || !released) {
+      await recordSystemEvent({
+        category: code === "ledger_error" ? "credits" : code === "storage_failed" || code === "missing_strategy" ? "image_generation" : "ai_provider",
+        source: "api/strategy/generations/run",
+        code,
+        message: `Image generation failed (${code}, HTTP ${status})${released ? "" : "; credit refund not confirmed, stale-reservation cleanup will return it"}.`,
+        userId,
+        refId: g.id,
+      });
+    }
     return jsonError(status, message, { code, charged: released ? false : null });
   };
 

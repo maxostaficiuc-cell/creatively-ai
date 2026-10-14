@@ -1,3 +1,4 @@
+import { recordSystemEvent } from "@/lib/systemEvents";
 import { NextResponse } from "next/server";
 import { randomUUID } from "node:crypto";
 import { buildVariations } from "@/lib/strategyAI";
@@ -66,6 +67,7 @@ export async function POST(req: Request, { params }: { params: { id: string } })
     return NextResponse.json({ generations: await withImageUrls(auth.db, data as never), estimate: needed });
   } catch (e) {
     const code = e instanceof AnalysisError ? e.code : "ai_failed";
+    await recordSystemEvent({ category: "ai_provider", source: "api/strategy/[id]/batch", code, message: `Creative Strategy variation copy failed (${code}).`, userId: auth.userId });
     return jsonError(code === "ai_timeout" ? 504 : 502, "The AI couldn't write the variations. No credits were used — please try again.", { code });
   }
 }

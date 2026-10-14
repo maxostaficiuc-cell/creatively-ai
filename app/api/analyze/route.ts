@@ -1,6 +1,7 @@
 import { NextResponse } from "next/server";
 import { randomUUID } from "crypto";
 import { createClient } from "@/lib/supabase/server";
+import { recordSystemEvent } from "@/lib/systemEvents";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getFreshProfile } from "@/lib/profile";
 import { CREDIT_COST_IMAGE, CREDIT_COST_VIDEO } from "@/lib/types";
@@ -52,13 +53,27 @@ export async function POST(request: Request) {
   const t0 = Date.now();
   let requestId: string = randomUUID();
   let uid = "anon";
+  let userId: string | null = null;
   // Set once credits are reserved, so even an unexpected crash tries to give them back.
   let releaseOnCrash: (() => Promise<boolean>) | null = null;
   const log = (stage: string, extra: Record<string, unknown> = {}) =>
     console.log(JSON.stringify({ evt: "analyze", rid: requestId, uid, stage, ms: Date.now() - t0, ...extra }));
 
-  const fail = (code: AnalyzeErrorCode, status: number, extra: Partial<AnalyzeErrorBody> = {}) => {
+  const fail = async (code: AnalyzeErrorCode, status: number, extra: Partial<AnalyzeErrorBody> = {}) => {
     const def = ANALYZE_ERRORS[code];
+    // Server-side and AI-provider failures go to the admin System Health log
+    // (ids and codes only — never the upload or the report).
+    // extra.ref is set only for AI-provider failures ("part:reason", our own diagnostic tag).
+    if (status >= 500 || code.startsWith("ai_") || extra.ref || extra.charged === null) {
+      await recordSystemEvent({
+        category: extra.ref || code.startsWith("ai_") ? "ai_provider" : "analysis",
+        source: "api/analyze",
+        code,
+        message: `Analysis failed (${code}, HTTP ${status}${extra.ref ? `, ${extra.ref}` : ""})${extra.charged === null ? "; credit refund not confirmed, stale-reservation cleanup will return it" : ""}.`,
+        userId: userId ?? null,
+        refId: requestId,
+      });
+    }
     const body: AnalyzeErrorBody = {
       error: def.message,
       code,
@@ -78,6 +93,7 @@ export async function POST(request: Request) {
     } = await supabase.auth.getUser();
     if (!user) return fail("session_expired", 401);
     uid = user.id.slice(0, 8);
+    userId = user.id;
 
     // ── read + validate the upload ─────────────────────────────────────
     let form: FormData;
