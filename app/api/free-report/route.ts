@@ -10,7 +10,7 @@ import {
   completePendingClaim,
   releasePendingClaim,
 } from "@/lib/freeReport";
-import { sendLoopsEvent } from "@/lib/loops";
+import { sendLoopsEvent, upsertLoopsContact } from "@/lib/loops";
 import { verifyTurnstileToken } from "@/lib/turnstile";
 
 export const runtime = "nodejs";
@@ -107,6 +107,20 @@ export async function POST(request: Request) {
   } catch (err) {
     console.error("free-report: turnstile verification threw:", err);
     // Don't hard-block real users over a bot-check outage — proceed.
+  }
+
+  // Every free-report request from someone who ticked the opt-in lands in Loops
+  // as a contact (name + email), even if they already used their free report.
+  // Without the tick, nothing is sent to Loops — the lead is still saved with
+  // the report in Supabase (creatives.lead_name / lead_email).
+  if (emailConsent) {
+    await upsertLoopsContact({
+      email,
+      fullName: name,
+      source: "Free report",
+      userGroup: "Free report lead",
+      mailingListId: process.env.LOOPS_FREE_REPORT_LIST_ID || null,
+    });
   }
 
   const ip = getClientIp(request);

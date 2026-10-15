@@ -59,6 +59,49 @@ export async function loopsContactExists(email: string): Promise<boolean> {
   }
 }
 
+/**
+ * Create or update a contact in Loops (PUT /contacts/update creates the contact
+ * when it doesn't exist yet). Only call this when the visitor ticked the email
+ * opt-in in this request. Best-effort: never throws, never blocks for more than
+ * the request timeout.
+ *
+ * `subscribed` is deliberately not sent: Loops recommends leaving it out unless
+ * you mean to resubscribe someone, so a contact who unsubscribed earlier stays
+ * unsubscribed even if they request another free report.
+ */
+export async function upsertLoopsContact(params: {
+  email: string;
+  fullName?: string;
+  /** Shown as "Source" in Loops (default contact property). */
+  source: string;
+  /** Shown as "User group" in Loops (default contact property). */
+  userGroup: string;
+  /** Optional Loops mailing list id to add the contact to. */
+  mailingListId?: string | null;
+}): Promise<boolean> {
+  if (!apiKey()) return false;
+  const parts = (params.fullName || "").trim().split(/\s+/).filter(Boolean);
+  const body: Record<string, unknown> = {
+    email: params.email,
+    source: params.source,
+    userGroup: params.userGroup,
+  };
+  if (parts.length) body.firstName = parts[0].slice(0, 100);
+  if (parts.length > 1) body.lastName = parts.slice(1).join(" ").slice(0, 100);
+  if (params.mailingListId) body.mailingLists = { [params.mailingListId]: true };
+  try {
+    const res = await call("/contacts/update", { method: "PUT", body: JSON.stringify(body) });
+    if (res && !res.ok) {
+      console.error(`loops: contact upsert failed with ${res.status}`);
+      return false;
+    }
+    return !!res;
+  } catch (err) {
+    console.error("loops: contact upsert threw:", err instanceof Error ? err.message : err);
+    return false;
+  }
+}
+
 export async function sendLoopsEvent(params: {
   email: string;
   eventName: LoopsEventName;
