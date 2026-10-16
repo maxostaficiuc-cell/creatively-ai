@@ -174,6 +174,33 @@ export type CreativeReport = {
   variations?: VariationBrief[];
   audiences?: AudienceProfile[];
   campaign?: CampaignDetail;
+  /** Present only on video reports: what was sampled, scene breakdown and audio. */
+  video?: VideoDetails;
+};
+
+export type VideoScene = { start: number; end: number; shows: string; on_screen_text: string; readability: string };
+export type VideoTranscriptLine = { start: number; end: number; text: string };
+export type VideoAudio = {
+  /** analyzed = the soundtrack was listened to; no_audio = the file has no usable sound; not_analyzed = audio wasn't processed (see note). */
+  status: "analyzed" | "no_audio" | "not_analyzed";
+  note: string;
+  speech: boolean;
+  transcript: VideoTranscriptLine[];
+  spoken_hook: string;
+  sound: string;
+  consistency: string;
+};
+export type VideoDetails = {
+  duration: number;
+  width: number;
+  height: number;
+  /** Timestamps (seconds) of the frames the analysis actually looked at. */
+  frame_times: number[];
+  scenes: VideoScene[];
+  opening: string;
+  pacing: string;
+  closing: string;
+  audio: VideoAudio;
 };
 
 export const SIGNAL_LABELS = [
@@ -205,7 +232,7 @@ const VOICE = `VOICE — you are a senior performance creative strategist writin
 - If text is unreadable or cropped, say so instead of guessing.
 - Stay within the word limits. Shorter is better.`;
 
-// Five focused calls run in parallel. One big call took most of the 30s
+// Seven focused calls run in parallel. One big call took most of the 30s
 // serverless limit on its own; smaller calls finish in a fraction of that and
 // a failure in an optional part no longer sinks the whole report.
 
@@ -239,7 +266,7 @@ Return ONLY a JSON object, no other text:
 
 const FINDINGS_PROMPT = `${VOICE}
 
-TASK — point to the specific elements of this single ad image that help or hurt it, then list what works and what to fix.
+TASK — point to the specific elements of this single ad image that help or hurt it, and list what works.
 
 Return ONLY a JSON object, no other text:
 {
@@ -249,13 +276,26 @@ Return ONLY a JSON object, no other text:
   "strength_items": [
     {"title": "<max 6 words>", "evidence": "<what is visible, max 18 words>", "why": "<why it helps, max 18 words>", "keep": "<how to keep it in new versions, max 14 words>", "annotation": "<annotation id or null>"}
   ],
-  "fix_items": [
-    {"issue": "<max 8 words>", "where": "<where in the ad>", "why": "<why it matters, max 20 words>", "fix": "<what to change, max 20 words>", "example": "<concrete copy or layout example, max 16 words>", "priority": "<High|Medium|Low>", "effort": "<Quick|Moderate|Substantial>", "impact": "<expected effect as a hypothesis, max 14 words>", "annotation": "<annotation id or null>"}
-  ],
   "positive_factors": [<2-4 strings, max 14 words each: what lifts the quality>],
   "negative_factors": [<2-4 strings, max 14 words each: what holds it back>]
 }
-RULES: annotations 3-6, only for elements you can clearly see; boxes are approximate and must sit over the element (x, y = centre; 0,0 is top-left). strength_items 2-4. fix_items 3-5, most important first.`;
+RULES: annotations 3-6, only for elements you can clearly see; boxes are approximate and must sit over the element (x, y = centre; 0,0 is top-left). strength_items 2-4.`;
+
+// The fixes used to be part of the findings call, which made it the longest
+// required reply and the one that most often ran out of time ("findings:timeout").
+// They now come from their own parallel call; each fix names the element it is
+// about, and it is linked to that element's annotation when the report is merged.
+const FIXES_PROMPT = `${VOICE}
+
+TASK — list what to fix in this single ad image, most important first.
+
+Return ONLY a JSON object, no other text:
+{
+  "fix_items": [
+    {"issue": "<max 8 words>", "where": "<where in the ad>", "why": "<why it matters, max 20 words>", "fix": "<what to change, max 20 words>", "example": "<concrete copy or layout example, max 16 words>", "priority": "<High|Medium|Low>", "effort": "<Quick|Moderate|Substantial>", "impact": "<expected effect as a hypothesis, max 14 words>", "element": "<the element it is about: Headline|Product|Offer|Price|CTA|Logo|Proof|Supporting text|Visual, or null>"}
+  ]
+}
+RULES: fix_items 3-5, most important first.`;
 
 const SIGNALS_PROMPT = `${VOICE}
 
@@ -279,13 +319,26 @@ Return ONLY a JSON object, no other text:
 }
 RULES: hook_ideas 4-6, only categories that fit. ad_angles 3. improvements 4-6.`;
 
+// The plan used to be one call (variations, audiences, campaign and tests) and
+// was the longest reply of all; as an optional part it often ran out of time
+// and the report silently lost those sections. It is now two parallel calls.
 const PLAN_PROMPT = `${VOICE}
 
-TASK — plan what to make and test next for this ad image, and who it is for. Every idea must fit this exact product, offer and brand.
+TASK — plan what to make and test next for this ad image. Every idea must fit this exact product, offer and brand.
 
 Return ONLY a JSON object, no other text:
 {
   "variations": [ {"name": "<Variation A|Variation B|Variation C>", "focus": "<Hook|Benefit|Visual|Offer>", "headline": "<proposed headline, max 12 words>", "changes": "<what changes, max 20 words>", "why": "<max 16 words>", "hypothesis": "<max 14 words>", "keep": "<what stays the same, max 12 words>", "layout": "<layout direction a designer can follow, max 22 words>"} ],
+  "tests": [ {"name": "<Test A: short name>", "variable_isolated": "<the one variable>", "hypothesis": "<max 18 words>", "change": "<max 12 words>", "keep": "<max 12 words>", "primary_metric": "<max 6 words>", "secondary_metrics": "<max 8 words>", "interpret": "<how to read the result, max 18 words>"} ]
+}
+RULES: variations exactly 3 (A hook-focused, B benefit-focused, C visual or offer-focused). tests 3. No budgets or test durations.`;
+
+const AUDIENCE_PROMPT = `${VOICE}
+
+TASK — say who this ad image is for and how to run it. Every point must fit this exact product, offer and brand.
+
+Return ONLY a JSON object, no other text:
+{
   "audiences": [ {"type": "<Primary|Secondary>", "name": "<max 7 words>", "overview": "<max 20 words>", "motivations": [<2-3, max 7 words each>], "pain_points": [<2-3>], "objections": [<1-2>], "awareness": "<Unaware|Problem aware|Solution aware|Product aware|Most aware, plus a short reason>", "messaging": "<what to say to them, max 14 words>", "angle": "<best angle, max 8 words>", "evidence": "<what in the image suggests this, max 16 words>"} ],
   "campaign": {
     "objective": {"rec": "<max 8 words>", "why": "<max 18 words; if the business goal is unknown, phrase it as conditional>"},
@@ -293,10 +346,9 @@ Return ONLY a JSON object, no other text:
     "testing": {"test": "<which element to test, max 12 words>", "keep": "<what to keep constant, max 12 words>", "measure": "<outcome to measure, max 10 words>", "evidence": "<what result would support it, max 16 words>"},
     "placements": {"rec": "<max 10 words>", "why": "<based on aspect ratio and readability, max 16 words>"},
     "readiness": {"status": "<Ready to test|Test after fixes|Rework first>", "reasons": [<2 strings, max 12 words each>]}
-  },
-  "tests": [ {"name": "<Test A: short name>", "variable_isolated": "<the one variable>", "hypothesis": "<max 18 words>", "change": "<max 12 words>", "keep": "<max 12 words>", "primary_metric": "<max 6 words>", "secondary_metrics": "<max 8 words>", "interpret": "<how to read the result, max 18 words>"} ]
+  }
 }
-RULES: variations exactly 3 (A hook-focused, B benefit-focused, C visual or offer-focused). audiences 2 (one Primary, one Secondary); these are inferences from the image, not real targeting data. tests 3. No budgets or test durations.`;
+RULES: audiences 2 (one Primary, one Secondary); these are inferences from the image, not real targeting data. No budgets or test durations.`;
 
 // ── Errors ───────────────────────────────────────────────────────────────────
 
@@ -392,11 +444,11 @@ const SCHEMAS: Record<string, Schema> = {
   findings: obj({
     annotations: list(obj({ id: S, label: S, x: N, y: N, w: N, h: N, tone: S, note: S })),
     strength_items: list(obj({ title: S, evidence: S, why: S, keep: S, annotation: SN })),
-    fix_items: list(
-      obj({ issue: S, where: S, why: S, fix: S, example: S, priority: S, effort: S, impact: S, annotation: SN })
-    ),
     positive_factors: strs,
     negative_factors: strs,
+  }),
+  fixes: obj({
+    fix_items: list(obj({ issue: S, where: S, why: S, fix: S, example: S, priority: S, effort: S, impact: S, element: SN })),
   }),
   signals: obj({
     signal_scores: list(obj({ label: S, score: { type: ["integer", "null"] }, reason: S, improve: S })),
@@ -408,6 +460,20 @@ const SCHEMAS: Record<string, Schema> = {
   }),
   plan: obj({
     variations: list(obj({ name: S, focus: S, headline: S, changes: S, why: S, hypothesis: S, keep: S, layout: S })),
+    tests: list(
+      obj({
+        name: S,
+        variable_isolated: S,
+        hypothesis: S,
+        change: S,
+        keep: S,
+        primary_metric: S,
+        secondary_metrics: S,
+        interpret: S,
+      })
+    ),
+  }),
+  audience: obj({
     audiences: list(
       obj({
         type: S,
@@ -429,35 +495,25 @@ const SCHEMAS: Record<string, Schema> = {
       placements: obj({ rec: S, why: S }),
       readiness: obj({ status: S, reasons: strs }),
     }),
-    tests: list(
-      obj({
-        name: S,
-        variable_isolated: S,
-        hypothesis: S,
-        change: S,
-        keep: S,
-        primary_metric: S,
-        secondary_metrics: S,
-        interpret: S,
-      })
-    ),
   }),
 };
 
 /** Set when the configured model rejects structured outputs; later calls skip it. */
 let schemaUnsupported = false;
 
-type CallOpts = { deadline: number; maxTokens: number; tag: string };
+type CallOpts = { deadline: number; maxTokens: number; tag: string; schema?: Schema };
+type ImageInput = { base64: string; mediaType: string };
 
 /**
  * One Claude vision call that must return a JSON object. Never runs past
  * `deadline` (epoch ms). Retries once on rate limits, overload and malformed
  * output when there is enough time left for a second attempt.
  */
-async function callClaudeJSON(base64: string, mediaType: string, prompt: string, { deadline, maxTokens, tag }: CallOpts) {
-  const minForRetry = tag === "findings" || tag === "plan" ? 12000 : 9000; // rough ms a fresh attempt needs
+async function callClaudeJSON(images: ImageInput[], prompt: string, { deadline, maxTokens, tag, schema: schemaOverride }: CallOpts) {
+  const minForRetry = 9000; // rough ms a fresh attempt needs
   let attempt = 0;
-  let useSchema = !schemaUnsupported && !!SCHEMAS[tag];
+  const schema = schemaOverride ?? SCHEMAS[tag];
+  let useSchema = !schemaUnsupported && !!schema;
   for (;;) {
     attempt++;
     const remaining = deadline - Date.now();
@@ -478,12 +534,12 @@ async function callClaudeJSON(base64: string, mediaType: string, prompt: string,
           // Current Haiku model. Override without a code change via ANTHROPIC_MODEL.
           model: process.env.ANTHROPIC_MODEL || "claude-haiku-5-5",
           max_tokens: maxTokens,
-          ...(useSchema ? { output_config: { format: { type: "json_schema", schema: SCHEMAS[tag] } } } : {}),
+          ...(useSchema ? { output_config: { format: { type: "json_schema", schema } } } : {}),
           messages: [
             {
               role: "user",
               content: [
-                { type: "image", source: { type: "base64", media_type: mediaType || "image/jpeg", data: base64 } },
+                ...images.map((im) => ({ type: "image", source: { type: "base64", media_type: im.mediaType || "image/jpeg", data: im.base64 } })),
                 { type: "text", text: prompt },
               ],
             },
@@ -564,20 +620,19 @@ export type AnalysisMeta = { ms: number; parts: Record<string, "ok" | AnalysisEr
 
 /**
  * Runs the real analysis on an image, given its raw bytes, and never throws.
- * On failure it returns a clearly-labelled simulated report plus the reason,
- * so callers can refuse to charge or save it.
+ * On failure it returns NO report (result: null) plus the reason, so a caller
+ * can never save or show a placeholder as if it were an analysis.
  */
 export async function runCreativeAnalysis(
   bytes: Uint8Array,
   mediaType: string,
   opts: { deadline?: number } = {}
-): Promise<{ result: CreativeReport; isSimulated: boolean; error?: AnalysisError; meta?: AnalysisMeta }> {
+): Promise<
+  | { result: CreativeReport; isSimulated: false; error?: undefined; meta?: AnalysisMeta }
+  | { result: null; isSimulated: true; error: AnalysisError; meta?: AnalysisMeta }
+> {
   if (!process.env.ANTHROPIC_API_KEY) {
-    return {
-      result: simulatedResult("no_key"),
-      isSimulated: true,
-      error: new AnalysisError("ai_not_configured", "ANTHROPIC_API_KEY is not set"),
-    };
+    return { result: null, isSimulated: true, error: new AnalysisError("ai_not_configured", "ANTHROPIC_API_KEY is not set") };
   }
   try {
     const { report, meta } = await analyzeWithClaudeMeta(bytes, mediaType, opts);
@@ -585,7 +640,7 @@ export async function runCreativeAnalysis(
   } catch (err) {
     const e = err instanceof AnalysisError ? err : new AnalysisError("ai_failed", String(err));
     console.error(JSON.stringify({ evt: "ai_failed", code: e.code, retryable: e.retryable, detail: e.message.slice(0, 400) }));
-    return { result: simulatedResult("call_failed"), isSimulated: true, error: e };
+    return { result: null, isSimulated: true, error: e };
   }
 }
 
@@ -609,14 +664,17 @@ export async function analyzeWithClaudeMeta(
   const base64 = Buffer.from(bytes).toString("base64");
   const mt = sniffImageType(bytes) ?? mediaType;
 
+  const img = [{ base64, mediaType: mt }];
   const jobs = {
     // Generous caps: output rate limits count only tokens actually generated,
     // and a cut-off answer is useless, so there is no reason to cut close.
-    core: callClaudeJSON(base64, mt, CORE_PROMPT, { deadline, maxTokens: 4000, tag: "core" }),
-    findings: callClaudeJSON(base64, mt, FINDINGS_PROMPT, { deadline, maxTokens: 6000, tag: "findings" }),
-    signals: callClaudeJSON(base64, mt, SIGNALS_PROMPT, { deadline, maxTokens: 3000, tag: "signals" }),
-    ideas: callClaudeJSON(base64, mt, IDEAS_PROMPT, { deadline, maxTokens: 4000, tag: "ideas" }),
-    plan: callClaudeJSON(base64, mt, PLAN_PROMPT, { deadline, maxTokens: 6000, tag: "plan" }),
+    core: callClaudeJSON(img, CORE_PROMPT, { deadline, maxTokens: 4000, tag: "core" }),
+    findings: callClaudeJSON(img, FINDINGS_PROMPT, { deadline, maxTokens: 4000, tag: "findings" }),
+    fixes: callClaudeJSON(img, FIXES_PROMPT, { deadline, maxTokens: 4000, tag: "fixes" }),
+    signals: callClaudeJSON(img, SIGNALS_PROMPT, { deadline, maxTokens: 3000, tag: "signals" }),
+    ideas: callClaudeJSON(img, IDEAS_PROMPT, { deadline, maxTokens: 4000, tag: "ideas" }),
+    plan: callClaudeJSON(img, PLAN_PROMPT, { deadline, maxTokens: 4000, tag: "plan" }),
+    audience: callClaudeJSON(img, AUDIENCE_PROMPT, { deadline, maxTokens: 4000, tag: "audience" }),
   };
   const names = Object.keys(jobs) as (keyof typeof jobs)[];
   const settled = await Promise.allSettled(names.map((n) => jobs[n]));
@@ -634,18 +692,30 @@ export async function analyzeWithClaudeMeta(
   const meta = { ms: Date.now() - t0, parts };
   console.log(JSON.stringify({ evt: "ai_parts", ...meta }));
 
-  // The verdict and the findings are the report; without either there is nothing honest to show.
-  for (const n of ["core", "findings"] as const) {
+  // The verdict, the findings and the fixes are the report; without any of them there is nothing honest to show.
+  for (const n of ["core", "findings", "fixes"] as const) {
     const s = settled[names.indexOf(n)];
     if (s.status === "rejected") throw s.reason instanceof AnalysisError ? s.reason : new AnalysisError("ai_failed", String(s.reason));
   }
 
   const report = normalizeReport(
-    { ...out.core, ...out.findings },
-    { ...(out.ideas ?? {}), ...(out.plan ?? {}) },
+    { ...out.core, ...out.findings, fix_items: linkFixesToAnnotations(out.fixes?.fix_items, out.findings?.annotations) },
+    { ...(out.ideas ?? {}), ...(out.plan ?? {}), ...(out.audience ?? {}) },
     out.signals ?? null
   );
   return { report, meta };
+}
+
+/** Points each fix at the annotation for the element it names (same label), so "Inspect on creative" still works. */
+export function linkFixesToAnnotations(fixes: unknown, annotations: unknown): Record<string, unknown>[] {
+  const anns = Array.isArray(annotations) ? (annotations as Record<string, unknown>[]) : [];
+  return (Array.isArray(fixes) ? (fixes as Record<string, unknown>[]) : []).map(({ element, ...f }) => {
+    if (typeof f.annotation === "string") return f;
+    const el = typeof element === "string" ? element.trim().toLowerCase() : "";
+    const matches = el ? anns.filter((a) => typeof a.label === "string" && a.label.trim().toLowerCase() === el) : [];
+    const best = matches.find((a) => a.tone === "negative") ?? matches.find((a) => a.tone !== "positive") ?? matches[0];
+    return { ...f, annotation: typeof best?.id === "string" ? best.id : null };
+  });
 }
 
 // ── Normalisation: validate, clamp, and fill legacy fields ───────────────────
@@ -919,63 +989,165 @@ export function normalizeReport(
   };
 }
 
-/** Same simulated-result shape, used for videos (not yet really analyzed) too. */
-export function simulatedResult(reason: "no_key" | "call_failed" | "video" = "call_failed"): CreativeReport {
-  const score = 30 + Math.floor(Math.random() * 60);
-  const verdict_label: CreativeReport["verdict_label"] =
-    score >= 90 ? "Excellent" : score >= 80 ? "Strong" : score >= 60 ? "Average" : score >= 40 ? "Weak" : "Very Weak";
+// ── Video ────────────────────────────────────────────────────────────────────
+// Claude can't take a video file, so the browser samples representative frames
+// (opening, scene changes, middle, closing) with their timestamps and the same
+// six-part analysis runs on those frames, with prompts that ask for a
+// time-based reading. Audio is analyzed separately (lib/videoAudio.ts) and
+// attached to the report; nothing here guesses what was said.
 
-  const placeholder = "Simulated — connect a real AI provider for genuine, personalized analysis.";
-  const whatToTest =
-    reason === "no_key"
-      ? "Add an ANTHROPIC_API_KEY environment variable to enable real AI-powered analysis."
-      : reason === "video"
-      ? "Upload an image instead for a real AI-powered analysis."
-      : "The AI provider is configured, but the last request failed — this is often an Anthropic account issue (like an unfunded balance) rather than a code problem. Check the server logs for the exact reason, or try again in a moment.";
+export type VideoFrame = { t: number; base64: string; mediaType: string };
+export type VideoMeta = { duration: number; width: number; height: number };
 
-  return {
-    score,
-    verdict_label,
-    summary: placeholder,
-    whats_working: "This is a placeholder result — no real creative analysis has been performed on this file.",
-    whats_not: "No real creative analysis has been performed on this file.",
-    what_to_test: whatToTest,
-    executive_summary: placeholder,
-    biggest_strength: placeholder,
-    biggest_weakness: placeholder,
-    biggest_opportunity: placeholder,
-    campaign_readiness: placeholder,
-    strengths: [placeholder],
-    priority_fixes: [placeholder],
-    expected_impact: placeholder,
-    signal_scores: [
-      "Hook Strength", "Scroll-Stop Potential", "Message Clarity", "Visual Hierarchy",
-      "Offer Strength", "CTA Strength", "Audience Match", "Brand Consistency",
-      "Trust / Credibility", "Differentiation", "Emotional Appeal",
-      "Mobile Readability", "Creative Fatigue Risk",
-    ].map((label) => ({ label, score: Math.round((score / 10) * 10) / 10 })),
-    positive_factors: [placeholder],
-    negative_factors: [placeholder],
-    improvement_plan: [placeholder],
-    hook_analysis: placeholder,
-    hook_recommendations: [{ category: "Simulated", hooks: [placeholder] }],
-    new_ad_angles: [placeholder],
-    creative_improvements: [placeholder],
-    audience_inference: {
-      likely_audience: placeholder,
-      pain_points: [placeholder],
-      desires: [placeholder],
-      awareness_level: placeholder,
-    },
-    campaign_recommendations: {
-      objective: placeholder,
-      optimization_event: placeholder,
-      testing_strategy: placeholder,
-      placements: placeholder,
-    },
-    testing_plan: [{ name: "Test A: Current creative", variable_isolated: "Baseline" }],
-    creative_variations: [{ name: "Variation 1", angle: placeholder }],
-    final_recommendation: { verdict: "TEST FIRST", reason: placeholder },
-    creative_readiness_score: score,
-  };
+export const fmtTime = (sec: number) => {
+  const s = Math.max(0, Math.round(sec));
+  return `${Math.floor(s / 60)}:${String(s % 60).padStart(2, "0")}`;
+};
+
+function aspectLabel(w: number, h: number) {
+  if (!w || !h) return "";
+  const r = w / h;
+  const known: [string, number][] = [["9:16 vertical", 9 / 16], ["4:5 portrait", 4 / 5], ["1:1 square", 1], ["16:9 landscape", 16 / 9]];
+  const best = known.reduce((a, b) => (Math.abs(b[1] - r) < Math.abs(a[1] - r) ? b : a));
+  return Math.abs(best[1] - r) < 0.04 ? best[0] : `${w}×${h}`;
 }
+
+const toVideo = (p: string) =>
+  p
+    .replace(/this single ad image/g, "this video ad")
+    .replace(/this ad image/g, "this video ad")
+    .replace(/Quote on-image text exactly/g, "Quote on-screen text exactly")
+    .replace(/look at the whole image again, including small print and corners/g, "look at every frame again, including small print and corners")
+    .replace(/printed in the image/g, "shown on screen")
+    .replace(/visible in the image/g, "visible in the frames")
+    .replace(/if the image gives no evidence/g, "if the frames give no evidence")
+    .replace(/cannot be judged from the image/g, "cannot be judged from the frames")
+    .replace(/what in the image suggests this/g, "what in the video suggests this")
+    .replace(/inferences from the image/g, "inferences from the video");
+
+function videoHeader(frames: VideoFrame[], meta: VideoMeta) {
+  return `INPUT — ${frames.length} frames sampled from ONE video ad (length ${fmtTime(meta.duration)}${meta.width && meta.height ? `, ${meta.width}×${meta.height}` : ""}), attached in time order: ${frames
+    .map((f, i) => `#${i + 1} at ${fmtTime(f.t)}`)
+    .join(", ")}.
+These frames are all you can see. You cannot hear the audio, so say nothing about voiceover, music or dialogue.
+Judge the video as a whole: the opening hook (first ~3 seconds), how the scenes progress, on-screen text, the product demonstration, and the closing scene and CTA.
+When you refer to a moment, cite its timestamp (m:ss) from the list above. Never invent scenes, text or timestamps that aren't in these frames.`;
+}
+
+const VIDEO_FINDINGS_PROMPT = `${toVideo(VOICE)}
+
+TASK — break this video ad down scene by scene and say what works.
+
+Return ONLY a JSON object, no other text:
+{
+  "scenes": [ {"start": <seconds: the timestamp of the scene's first frame>, "end": <seconds: the next scene's first frame, or the video length>, "shows": "<what is on screen, max 18 words>", "on_screen_text": "<the exact on-screen text, or an empty string if none>", "readability": "<Good|Hard to read|No text, plus a short reason, max 10 words>"} ],
+  "opening": "<what happens in the first ~3 seconds and whether it stops the scroll, max 26 words>",
+  "pacing": "<pacing, transitions and visual variation across the frames, max 26 words>",
+  "closing": "<the closing scene and its CTA, max 22 words>",
+  "strength_items": [
+    {"title": "<max 6 words>", "evidence": "<what is visible, with its timestamp, max 18 words>", "why": "<why it helps, max 18 words>", "keep": "<how to keep it in new versions, max 14 words>", "annotation": null}
+  ],
+  "positive_factors": [<2-4 strings, max 14 words each: what lifts the quality>],
+  "negative_factors": [<2-4 strings, max 14 words each: what holds it back>]
+}
+RULES: scenes 1-8, in time order, using only the frame timestamps listed. Frames that show the same shot belong to one scene. strength_items 2-4.`;
+
+const VIDEO_SCHEMAS: Record<string, Schema> = {
+  video_core: SCHEMAS.core,
+  video_findings: obj({
+    scenes: list(obj({ start: N, end: N, shows: S, on_screen_text: S, readability: S })),
+    opening: S,
+    pacing: S,
+    closing: S,
+    strength_items: list(obj({ title: S, evidence: S, why: S, keep: S, annotation: SN })),
+    positive_factors: strs,
+    negative_factors: strs,
+  }),
+  video_fixes: SCHEMAS.fixes,
+  video_signals: SCHEMAS.signals,
+  video_ideas: SCHEMAS.ideas,
+  video_plan: SCHEMAS.plan,
+  video_audience: SCHEMAS.audience,
+};
+
+function normalizeScenes(raw: unknown, duration: number): VideoScene[] {
+  const num = (v: unknown) => (typeof v === "number" && Number.isFinite(v) ? clamp(v, 0, duration || v) : null);
+  const scenes = arr<Record<string, unknown>>(raw)
+    .map((x) => ({ start: num(x.start), end: num(x.end), shows: str(x.shows), on_screen_text: str(x.on_screen_text), readability: str(x.readability) }))
+    .filter((x): x is VideoScene => x.start !== null && !!x.shows)
+    .map((x) => ({ ...x, end: x.end !== null && x.end >= x.start ? x.end : x.start }))
+    .sort((a, b) => a.start - b.start)
+    .slice(0, 8);
+  // A scene ends where the next one starts.
+  return scenes.map((x, i) => ({ ...x, end: i + 1 < scenes.length ? Math.max(x.start, Math.min(x.end || scenes[i + 1].start, scenes[i + 1].start)) : Math.max(x.end, x.start) }));
+}
+
+/**
+ * The real video analysis on sampled frames. THROWS an AnalysisError if the
+ * verdict, the scene findings or the fixes fail (same rule as images). The
+ * returned report has no audio yet: the caller attaches the audio result.
+ */
+export async function analyzeVideoWithClaudeMeta(
+  frames: VideoFrame[],
+  meta: VideoMeta,
+  { deadline = Date.now() + 23_000 }: { deadline?: number } = {}
+): Promise<{ report: CreativeReport; meta: AnalysisMeta }> {
+  if (!process.env.ANTHROPIC_API_KEY) throw new AnalysisError("ai_not_configured", "ANTHROPIC_API_KEY is not set");
+  if (!frames.length) throw new AnalysisError("ai_rejected_image", "No video frames were provided");
+  const t0 = Date.now();
+  const imgs = frames.map((f) => ({ base64: f.base64, mediaType: f.mediaType }));
+  const head = videoHeader(frames, meta);
+  const prompt = (p: string) => `${head}\n\n${p}`;
+  const core = toVideo(CORE_PROMPT).replace(
+    `"hook": {"text": "<exact headline, or 'No clear headline'>"`,
+    `"hook": {"text": "<the opening hook: the exact on-screen text in the first ~3 seconds, or a short description of the opening shot if there is no text>"`
+  );
+  const fixes = toVideo(FIXES_PROMPT).replace(`"where": "<where in the ad>"`, `"where": "<timestamp or range (m:ss) and the element>"`);
+  const jobs = {
+    core: callClaudeJSON(imgs, prompt(core), { deadline, maxTokens: 4000, tag: "video_core", schema: VIDEO_SCHEMAS.video_core }),
+    findings: callClaudeJSON(imgs, prompt(VIDEO_FINDINGS_PROMPT), { deadline, maxTokens: 4000, tag: "video_findings", schema: VIDEO_SCHEMAS.video_findings }),
+    fixes: callClaudeJSON(imgs, prompt(fixes), { deadline, maxTokens: 4000, tag: "video_fixes", schema: VIDEO_SCHEMAS.video_fixes }),
+    signals: callClaudeJSON(imgs, prompt(toVideo(SIGNALS_PROMPT)), { deadline, maxTokens: 3000, tag: "video_signals", schema: VIDEO_SCHEMAS.video_signals }),
+    ideas: callClaudeJSON(imgs, prompt(toVideo(IDEAS_PROMPT)), { deadline, maxTokens: 4000, tag: "video_ideas", schema: VIDEO_SCHEMAS.video_ideas }),
+    plan: callClaudeJSON(imgs, prompt(toVideo(PLAN_PROMPT)), { deadline, maxTokens: 4000, tag: "video_plan", schema: VIDEO_SCHEMAS.video_plan }),
+    audience: callClaudeJSON(imgs, prompt(toVideo(AUDIENCE_PROMPT)), { deadline, maxTokens: 4000, tag: "video_audience", schema: VIDEO_SCHEMAS.video_audience }),
+  };
+  const names = Object.keys(jobs) as (keyof typeof jobs)[];
+  const settled = await Promise.allSettled(names.map((n) => jobs[n]));
+  const out: Partial<Record<keyof typeof jobs, Record<string, unknown>>> = {};
+  const parts: AnalysisMeta["parts"] = {};
+  settled.forEach((r, i) => {
+    const n = names[i];
+    if (r.status === "fulfilled") {
+      out[n] = r.value;
+      parts[n] = "ok";
+    } else parts[n] = r.reason instanceof AnalysisError ? r.reason.code : "ai_failed";
+  });
+  const am = { ms: Date.now() - t0, parts };
+  console.log(JSON.stringify({ evt: "ai_parts", kind: "video", frames: frames.length, ...am }));
+  for (const n of ["core", "findings", "fixes"] as const) {
+    const r = settled[names.indexOf(n)];
+    if (r.status === "rejected") throw r.reason instanceof AnalysisError ? r.reason : new AnalysisError("ai_failed", String(r.reason));
+  }
+  const f = out.findings ?? {};
+  const report = normalizeReport(
+    { ...out.core, strength_items: f.strength_items, positive_factors: f.positive_factors, negative_factors: f.negative_factors, annotations: [], fix_items: linkFixesToAnnotations(out.fixes?.fix_items, []) },
+    { ...(out.ideas ?? {}), ...(out.plan ?? {}), ...(out.audience ?? {}) },
+    out.signals ?? null
+  );
+  // Facts we measured ourselves win over the model's reading.
+  report.format = ["Video", aspectLabel(meta.width, meta.height), fmtTime(meta.duration)].filter(Boolean).join(", ");
+  report.video = {
+    duration: Math.round(meta.duration * 10) / 10,
+    width: meta.width,
+    height: meta.height,
+    frame_times: frames.map((x) => Math.round(x.t * 10) / 10),
+    scenes: normalizeScenes(f.scenes, meta.duration),
+    opening: str(f.opening),
+    pacing: str(f.pacing),
+    closing: str(f.closing),
+    audio: { status: "not_analyzed", note: "Audio was not analyzed.", speech: false, transcript: [], spoken_hook: "", sound: "", consistency: "" },
+  };
+  return { report, meta: am };
+}
+

@@ -45,6 +45,18 @@ export default async function CreativeDetailPage({ params }: { params: { id: str
 
         {creative.source === "generated" ? (
           <GeneratedCreativeView creative={creative} />
+        ) : creative.is_simulated ? (
+          // Saved before real video analysis existed: a placeholder, not an analysis of this file.
+          // Its score and text were never real, so none of it is shown.
+          <div role="status" className="rounded-2xl border border-base-border bg-base-card p-6">
+            <p className="text-sm font-medium text-ink-primary">This file was not analyzed.</p>
+            <p className="mt-1.5 text-sm text-ink-secondary">
+              It was saved as a placeholder before {creative.file_type === "video" ? "video" : "this type of"} analysis was available, so there is no real report or score for it. No credits were used.
+            </p>
+            <Link href="/analyze" className="mt-4 inline-flex text-sm font-medium text-brand-light hover:underline">
+              Analyze it again →
+            </Link>
+          </div>
         ) : creative.report ? (
           <CreativeReportView
             report={creative.report}

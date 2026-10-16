@@ -34,7 +34,7 @@ export function StrategyClient(props: {
   const [generations, setGenerations] = useState<Generation[]>(props.initialGenerations);
   const [phase, setPhase] = useState<Phase>(props.initialStrategy ? (props.initialStrategy.status === "ready" ? "results" : "working") : "input");
   const [steps, setSteps] = useState<StepState[]>(["pending", "pending", "pending"]);
-  const [error, setError] = useState<{ message: string; retry: (() => void) | null } | null>(null);
+  const [error, setError] = useState<{ message: string; title?: string; retry: (() => void) | null } | null>(null);
   const [sourceProblem, setSourceProblem] = useState<{ sources: SourceReport[]; fallback: string } | null>(null);
   const [input, setInput] = useState<InputState>({
     websiteUrl: props.initialStrategy?.website_url ?? "",
@@ -66,6 +66,14 @@ export function StrategyClient(props: {
     return { ok: res.ok, status: res.status, data };
   };
 
+  /** One automatic retry when an AI step fails for a temporary reason (steps are idempotent, nothing is charged). */
+  const callStep = async (url: string, init: RequestInit) => {
+    const r = await call(url, init);
+    if (r.ok || ![502, 503, 504].includes(r.status) || r.data.retryable === false) return r;
+    await new Promise((res) => setTimeout(res, 1500));
+    return call(url, init);
+  };
+
   /** Runs the audience and concepts steps for a profiled strategy (skips steps already done). */
   const continueSteps = useCallback(
     async (s: Strategy) => {
@@ -75,20 +83,20 @@ export function StrategyClient(props: {
       setSteps(["done", cur.audience?.length ? "done" : "pending", "pending"]);
       if (!cur.audience?.length) {
         setSteps(["done", "active", "pending"]);
-        const r = await call(`/api/strategy/${cur.id}/audience`, { method: "POST" });
+        const r = await callStep(`/api/strategy/${cur.id}/audience`, { method: "POST" });
         if (!r.ok) {
           setSteps(["done", "failed", "pending"]);
-          setError({ message: String(r.data.error ?? "The audience step failed."), retry: () => continueSteps(cur) });
+          setError({ message: String(r.data.error ?? "The audience step failed."), title: r.data.title ? String(r.data.title) : undefined, retry: () => continueSteps(cur) });
           return;
         }
         cur = r.data.strategy as Strategy;
         setStrategy(cur);
       }
       setSteps(["done", "done", "active"]);
-      const r2 = await call(`/api/strategy/${cur.id}/concepts`, { method: "POST" });
+      const r2 = await callStep(`/api/strategy/${cur.id}/concepts`, { method: "POST" });
       if (!r2.ok) {
         setSteps(["done", "done", "failed"]);
-        setError({ message: String(r2.data.error ?? "The concepts step failed."), retry: () => continueSteps(cur) });
+        setError({ message: String(r2.data.error ?? "The concepts step failed."), title: r2.data.title ? String(r2.data.title) : undefined, retry: () => continueSteps(cur) });
         return;
       }
       cur = r2.data.strategy as Strategy;
@@ -121,7 +129,7 @@ export function StrategyClient(props: {
     if (input.notes) form.append("socialNotes", input.notes);
     for (const f of input.files) form.append("screenshots", f);
     if (parentId) form.append("parentId", parentId);
-    const r = await call("/api/strategy/analyze", { method: "POST", body: form });
+    const r = await callStep("/api/strategy/analyze", { method: "POST", body: form });
     busy.current = false;
     if (!r.ok) {
       if (r.data.fieldErrors) setFieldErrors(r.data.fieldErrors as Record<string, string>);
@@ -136,7 +144,7 @@ export function StrategyClient(props: {
         return;
       }
       setSteps(["failed", "pending", "pending"]);
-      setError({ message: String(r.data.error ?? "The analysis failed."), retry: () => analyze(parentId) });
+      setError({ message: String(r.data.error ?? "The analysis failed."), title: r.data.title ? String(r.data.title) : undefined, retry: () => analyze(parentId) });
       return;
     }
     const s = r.data.strategy as Strategy;
@@ -216,7 +224,11 @@ export function StrategyClient(props: {
           {error && (
             <div role="alert" className="mt-6 rounded-2xl border border-accent-red/30 bg-accent-red/5 p-4 text-sm text-ink-primary">
               <p className="flex items-start gap-2">
-                <AlertCircle size={16} className="mt-0.5 shrink-0 text-accent-red" /> {error.message}
+                <AlertCircle size={16} className="mt-0.5 shrink-0 text-accent-red" />
+                <span>
+                  {error.title && <span className="block font-semibold">{error.title}</span>}
+                  {error.message}
+                </span>
               </p>
               <div className="mt-3 flex gap-2">
                 {error.retry && (

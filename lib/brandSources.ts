@@ -171,11 +171,11 @@ export async function readWebsite(input: string, deadline: number): Promise<{ re
     }
     const thin = main.text.replace(/\s+/g, " ").length < 300;
     // Up to two real images (the share image / product shots) so the AI can see the visual identity.
+    // Fetched in parallel (not one after another) so reading the site leaves the AI step its time.
     const images: SourceImage[] = [];
-    for (const u of main.imageUrls) {
-      if (images.length >= 2 || deadline - Date.now() < 5000) break;
-      const img = await fetchImage(u, deadline);
-      if (img) images.push(img);
+    if (deadline - Date.now() >= 5000) {
+      const got = await Promise.all(main.imageUrls.slice(0, 4).map((u) => fetchImage(u, deadline)));
+      for (const img of got) if (img && images.length < 2) images.push(img);
     }
     report.status = thin ? "partial" : "retrieved";
     report.pages = pages;

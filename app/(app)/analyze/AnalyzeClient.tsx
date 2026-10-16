@@ -9,12 +9,14 @@ import { CreativeReportView } from "@/components/marketing/CreativeReportView";
 import { OutOfCreditsModal } from "@/components/dashboard/OutOfCreditsModal";
 import { useCredits } from "@/components/dashboard/CreditsContext";
 import type { Creative } from "@/lib/types";
-import { CREDIT_COST_IMAGE } from "@/lib/types";
-import { ANALYZE_ERRORS, type AnalyzeErrorBody, type AnalyzeErrorCode } from "@/lib/analyzeErrors";
+import { CREDIT_COST_IMAGE, CREDIT_COST_VIDEO } from "@/lib/types";
+import { ANALYZE_ERRORS, MAX_VIDEO_BYTES, type AnalyzeErrorBody, type AnalyzeErrorCode } from "@/lib/analyzeErrors";
 import { prepareImageForUpload } from "@/lib/imagePrep";
+import { extractVideoFrames, type ExtractedVideo } from "@/lib/videoFrames";
+import { createClient as createBrowserSupabase } from "@/lib/supabase/client";
 
 type Phase = "idle" | "ready" | "scanning" | "results";
-type Stage = "preparing" | "analyzing" | "done";
+type Stage = "preparing" | "uploading" | "analyzing" | "done";
 
 type FailState = {
   code: AnalyzeErrorCode;
@@ -61,6 +63,8 @@ export function AnalyzeClient({ credits: initialCredits }: { credits: number }) 
   const requestIdRef = useRef<string | null>(null);
   /** Upload-ready version of the file (resized once, reused on retry). */
   const preparedRef = useRef<{ src: File; out: File } | null>(null);
+  /** A video's sampled frames and its storage path (read and uploaded once, reused on retry). */
+  const videoRef = useRef<{ src: File; extracted: ExtractedVideo; path: string | null } | null>(null);
 
   function clearTimers() {
     timers.current.forEach((t) => clearTimeout(t));
@@ -73,6 +77,7 @@ export function AnalyzeClient({ credits: initialCredits }: { credits: number }) 
     busy.current = false;
     requestIdRef.current = null;
     preparedRef.current = null;
+    videoRef.current = null;
     setPhase("idle");
     setFile(null);
     setPreviewUrl(null);
@@ -87,7 +92,7 @@ export function AnalyzeClient({ credits: initialCredits }: { credits: number }) 
   function pickFile(f: File) {
     resetAll();
     setFile(f);
-    if (f.type.startsWith("image/")) setPreviewUrl(URL.createObjectURL(f));
+    if (f.type.startsWith("image/") || f.type.startsWith("video/")) setPreviewUrl(URL.createObjectURL(f));
     setPhase("ready");
   }
 
@@ -99,16 +104,15 @@ export function AnalyzeClient({ credits: initialCredits }: { credits: number }) 
   }
 
   const isVideoFile = !!file?.type.startsWith("video/");
-  // Videos get a labelled preview result and are not charged.
-  const cost = isVideoFile ? 0 : CREDIT_COST_IMAGE;
+  const cost = isVideoFile ? CREDIT_COST_VIDEO : CREDIT_COST_IMAGE;
 
   /** One HTTP attempt. Never throws; always resolves to a typed outcome. */
-  async function send(upload: File, requestId: string): Promise<
+  async function send(fill: (form: FormData) => void, requestId: string): Promise<
     | { ok: true; creative: Creative; charged: number; remaining: number | null; transactionId: string | null; replay: boolean }
     | { ok: false; body: AnalyzeErrorBody | null; status: number; indeterminate: boolean }
   > {
     const form = new FormData();
-    form.append("file", upload);
+    fill(form);
     form.append("requestId", requestId);
     let res: Response;
     try {
@@ -164,30 +168,85 @@ export function AnalyzeClient({ credits: initialCredits }: { credits: number }) 
     timers.current.push(setTimeout(() => setAnchors([true, true, false]), 2400));
     timers.current.push(setTimeout(() => setAnchors([true, true, true]), 3600));
 
-    // Resize once; a retry reuses the same upload.
-    if (!preparedRef.current || preparedRef.current.src !== file) {
-      preparedRef.current = { src: file, out: await prepareImageForUpload(file) };
+    let fill: (form: FormData) => void;
+    if (isVideoFile) {
+      // Videos: read representative frames here in the browser, upload the
+      // original once to the user's own storage folder, then analyze.
+      const stop = (code: AnalyzeErrorCode) => {
+        clearTimers();
+        busy.current = false;
+        const def = ANALYZE_ERRORS[code];
+        setFail({ code, title: def.title, message: def.message, retryable: def.retryable, charged: false, reference: null });
+        setPhase("ready");
+      };
+      if (file.size > MAX_VIDEO_BYTES) return stop("file_too_large");
+      if (!videoRef.current || videoRef.current.src !== file) {
+        try {
+          videoRef.current = { src: file, extracted: await extractVideoFrames(file), path: null };
+        } catch {
+          return stop("video_unreadable");
+        }
+      }
+      const v = videoRef.current;
+      if (!v.path) {
+        setStage("uploading");
+        const sb = createBrowserSupabase();
+        const { data: auth } = await sb.auth.getUser();
+        if (!auth.user) return stop("session_expired");
+        const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_").slice(-80) || "video";
+        const path = `${auth.user.id}/videos/${Date.now()}-${safeName}`;
+        const { error } = await sb.storage.from("creatives").upload(path, file, { contentType: file.type || "video/mp4", upsert: false });
+        if (error) {
+          const tooBig = /exceeded|too large|payload/i.test(error.message) || (error as { statusCode?: string }).statusCode === "413";
+          return stop(tooBig ? "file_too_large" : "storage_failed");
+        }
+        v.path = path;
+      }
+      const { extracted, path } = v as { extracted: ExtractedVideo; path: string };
+      fill = (form) => {
+        form.append("videoPath", path);
+        form.append("duration", String(extracted.duration));
+        form.append("width", String(extracted.width));
+        form.append("height", String(extracted.height));
+        form.append("frameTimes", JSON.stringify(extracted.frames.map((f) => f.t)));
+        extracted.frames.forEach((f, i) => form.append("frames", new File([f.blob], `frame-${i + 1}.jpg`, { type: "image/jpeg" })));
+      };
+    } else {
+      // Resize once; a retry reuses the same upload.
+      if (!preparedRef.current || preparedRef.current.src !== file) {
+        preparedRef.current = { src: file, out: await prepareImageForUpload(file) };
+      }
+      const upload = preparedRef.current.out;
+      fill = (form) => form.append("file", upload);
     }
-    const upload = preparedRef.current.out;
     setStage("analyzing");
 
     const requestId = requestIdRef.current ?? newRequestId();
     requestIdRef.current = requestId;
 
-    let outcome = await send(upload, requestId);
+    let outcome = await send(fill, requestId);
     // Recover instead of duplicating: the same request may still be finishing,
     // or the provider asked us to wait a moment. Bounded, same request id.
+    let autoRetried = false;
     for (let i = 0; i < 4 && !outcome.ok; i++) {
       const code = outcome.body?.code;
+      // One automatic retry for a temporary AI failure, only once the server has
+      // confirmed nothing was charged. Same request id, so it can never charge twice.
+      if (!autoRetried && outcome.body?.charged === false && outcome.body?.retryable !== false && (code === "ai_timeout" || code === "ai_unavailable" || code === "ai_bad_response")) {
+        autoRetried = true;
+        await wait(1500);
+        outcome = await send(fill, requestId);
+        continue;
+      }
       const shortWait = code === "rate_limited" && (outcome.body?.retryAfter ?? 3) <= 10;
       if (code === "in_progress" || shortWait) {
         await wait(code === "in_progress" ? 5000 : Math.max(1500, (outcome.body?.retryAfter ?? 3) * 1000));
-        outcome = await send(upload, requestId);
+        outcome = await send(fill, requestId);
         continue;
       }
       if (outcome.indeterminate && i === 0) {
         await wait(2000);
-        outcome = await send(upload, requestId);
+        outcome = await send(fill, requestId);
         continue;
       }
       break;
@@ -254,16 +313,14 @@ export function AnalyzeClient({ credits: initialCredits }: { credits: number }) 
         <div className="rounded-2xl border border-base-border bg-base-card p-6 text-center text-sm text-ink-secondary">
           You have <span className="font-medium text-ink-primary">{credits.toLocaleString()}</span> AI credits.{" "}
           {file && phase === "ready" ? (
-            isVideoFile ? (
-              <>Video analysis is in preview and isn&apos;t charged.</>
-            ) : (
-              <>
-                This image analysis uses <span className="font-medium text-ink-primary">{CREDIT_COST_IMAGE} credits</span>, charged only
-                when your report is ready.
-              </>
-            )
+            <>
+              This {isVideoFile ? "video" : "image"} analysis uses <span className="font-medium text-ink-primary">{cost} credits</span>, charged only
+              when your report is ready.
+            </>
           ) : (
-            <>Image analysis: {CREDIT_COST_IMAGE} credits, charged only when your report is ready.</>
+            <>
+              Image analysis: {CREDIT_COST_IMAGE} credits · video analysis: {CREDIT_COST_VIDEO} credits, charged only when your report is ready.
+            </>
           )}
         </div>
       )}
@@ -300,7 +357,7 @@ export function AnalyzeClient({ credits: initialCredits }: { credits: number }) 
             <br />
             or click to upload
           </p>
-          <p className="text-xs text-ink-muted">JPG, PNG, WebP or GIF. Large images are resized automatically.</p>
+          <p className="text-xs text-ink-muted">JPG, PNG, WebP or GIF. Large images are resized automatically. MP4, MOV or WebM videos up to 50 MB.</p>
         </div>
       )}
 
@@ -308,11 +365,13 @@ export function AnalyzeClient({ credits: initialCredits }: { credits: number }) 
       {phase === "ready" && (
         <div className="mx-auto max-w-md space-y-4">
           <div className="overflow-hidden rounded-2xl border border-base-border bg-base-card">
-            {previewUrl ? (
+            {previewUrl && isVideoFile ? (
+              <video src={previewUrl} controls muted playsInline preload="metadata" className="max-h-96 w-full bg-black object-contain" />
+            ) : previewUrl ? (
               <img src={previewUrl} alt="" className="max-h-96 w-full object-contain bg-black" />
             ) : (
               <div className="flex h-48 items-center justify-center text-sm text-ink-secondary">
-                {file?.name} (video)
+                {file?.name}
               </div>
             )}
           </div>
@@ -482,10 +541,16 @@ function ScannerPanel({
   const scanComplete = stage === "done";
   const status =
     stage === "preparing"
-      ? "Preparing your image…"
-      : elapsed < 20
-        ? "Reading the creative and writing your report…"
-        : "Still working, almost there…";
+      ? isVideo
+        ? "Reading frames from your video…"
+        : "Preparing your image…"
+      : stage === "uploading"
+        ? "Uploading your video…"
+        : elapsed < 20
+          ? isVideo
+            ? "Analyzing the frames and the soundtrack, then writing your report…"
+            : "Reading the creative and writing your report…"
+          : "Still working, almost there…";
   return (
     <div className="rounded-2xl border border-base-border bg-base-surface p-5 animate-fade-scale-in">
       <div className="mb-4 flex items-center gap-3">
@@ -522,7 +587,9 @@ function ScannerPanel({
           <span className="absolute bottom-0 right-0 h-5 w-5 border-b-2 border-r-2 border-accent-green/70 rounded-br-md" />
         </div>
 
-        {isVideo ? (
+        {isVideo && previewUrl ? (
+          <video src={previewUrl} muted playsInline preload="metadata" className="max-h-[480px] w-full object-contain" />
+        ) : isVideo ? (
           <div className="flex h-64 items-center justify-center text-sm text-ink-secondary">
             Preparing video…
           </div>
@@ -561,7 +628,7 @@ function ScannerPanel({
           )}
         </div>
         <span className="shrink-0 text-xs tabular-nums text-ink-secondary">
-          {scanComplete ? "Done" : `${elapsed}s · usually 15–25s`}
+          {scanComplete ? "Done" : `${elapsed}s · usually ${isVideo ? "20–40s" : "15–25s"}`}
         </span>
       </div>
     </div>

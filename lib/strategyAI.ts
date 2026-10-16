@@ -1,5 +1,5 @@
 // SERVER ONLY — the Creative Strategy AI steps (Claude), each small enough to
-// finish inside one serverless request:
+// finish inside one serverless request (long steps run as parallel calls):
 //   1. buildProfile   — sources → brand profile (every field marked by how we know it)
 //   2. buildAudience  — profile → audience segments
 //   3. buildConcepts  — profile + audience → opportunities + 4–6 ad concepts
@@ -17,14 +17,21 @@ const TRUTH_RULES = `Rules you must follow:
 
 /* ── 1. profile ─────────────────────────────────────────────────────────── */
 
-const PROFILE_SCHEMA = obj({
-  fields: obj(Object.fromEntries(PROFILE_FIELDS.map((f) => [f.key, FIELD]))),
+// The profile is written by parallel calls on the same sources: the brand
+// fields (in two groups, plus the summary) and the details (products, colors,
+// messages, gaps). One call
+// writing everything was the longest reply in the workflow and regularly ran
+// past the request's time budget ("The analysis took too long").
+// The eleven brand fields are split over two calls (with the summary in the first).
+const FIELD_GROUPS = [PROFILE_FIELDS.slice(0, 6), PROFILE_FIELDS.slice(6)];
+const fieldsSchema = (group: readonly { key: string }[], withSummary: boolean) =>
+  obj({ fields: obj(Object.fromEntries(group.map((f) => [f.key, FIELD]))), ...(withSummary ? { summary: S } : {}) });
+const PROFILE_DETAILS_SCHEMA = obj({
   colors: strs,
   products: list(obj({ name: S, detail: S, basis: BASIS })),
   consistent_messages: strs,
   discrepancies: strs,
   missing_info: strs,
-  summary: S,
 });
 
 export async function buildProfile(input: {
@@ -34,7 +41,7 @@ export async function buildProfile(input: {
   deadline: number;
 }): Promise<BrandProfile> {
   const ctx = Object.entries(input.userContext).filter(([, v]) => v?.trim());
-  const prompt = `You are a senior advertising strategist preparing a brand brief.
+  const head = `You are a senior advertising strategist preparing a brand brief.
 
 SOURCES (retrieved just now; some may be partial):
 ${input.sourcesText || "(no readable source text)"}
@@ -42,24 +49,36 @@ ${input.sourcesText || "(no readable source text)"}
 ${input.images.length ? `${input.images.length} image(s) are attached: ${input.images.map((i, n) => `#${n + 1} from ${i.origin}`).join(", ")}. Use them for visual identity and product presentation.` : "No images were available."}
 
 DETAILS THE USER TYPED (treat as confirmed by the user):
-${ctx.length ? ctx.map(([k, v]) => `- ${k}: ${v}`).join("\n") : "(none)"}
+${ctx.length ? ctx.map(([k, v]) => `- ${k}: ${v}`).join("\n") : "(none)"}`;
 
-Fill every field of the brand profile. For each field give:
+  const fieldsPrompt = (group: readonly { key: string; label: string }[], withSummary: boolean) => `${head}
+
+Fill these fields of the brand profile: ${group.map((f) => `${f.key} (${f.label})`).join(", ")}. For each field give:
 - value: one or two short sentences (max 40 words). If nothing supports it, value = "Unknown — not found in the sources".
 - basis: "verified" = stated explicitly in a source; "inferred" = a reasonable reading of what the sources show; "assumption" = a guess the user should confirm (or unknown); "confirmed" = taken from the user's own details.
 - source: where it came from ("website", "social profile", "screenshots", "your notes", "your details") or null.
 
-Also return:
+${withSummary ? "Also return:\n- summary: 2 sentences, plain language.\n\n" : ""}${TRUTH_RULES}`;
+
+  const detailsPrompt = `${head}
+
+Return these details about the brand:
 - colors: brand colors as hex codes ONLY if they appear in the sources/page code or are clearly visible in the images (max 5).
-- products: up to 6 actual products/services named in the sources, each with a short detail and its basis.
+- products: up to 6 actual products/services named in the sources, each with a short detail and its basis ("verified" = stated explicitly in a source; "inferred" = a reasonable reading; "assumption" = a guess; "confirmed" = from the user's own details).
 - consistent_messages: messages that repeat across sources (max 5).
 - discrepancies: where the website and social profile disagree (e.g. different prices, audiences, tone). Empty if only one source or none found. Never resolve a contradiction yourself.
 - missing_info: important things an advertiser needs that the sources don't say (e.g. price, shipping area, proof points), max 6.
-- summary: 2 sentences, plain language.
 
 ${TRUTH_RULES}`;
-  const out = (await claudeJSON({ prompt, images: input.images, schema: PROFILE_SCHEMA, maxTokens: 2600, deadline: input.deadline, tag: "profile" })) as unknown as BrandProfile;
-  return normalizeProfile(out);
+
+  const [f1, f2, details] = await Promise.all([
+    ...FIELD_GROUPS.map((g, i) =>
+      claudeJSON({ prompt: fieldsPrompt(g, i === 0), images: input.images, schema: fieldsSchema(g, i === 0), maxTokens: 1600, deadline: input.deadline, tag: `profile_fields_${i + 1}` })
+    ),
+    claudeJSON({ prompt: detailsPrompt, images: input.images, schema: PROFILE_DETAILS_SCHEMA, maxTokens: 1400, deadline: input.deadline, tag: "profile_details" }),
+  ]);
+  const fields = { ...((f1.fields as object) ?? {}), ...((f2.fields as object) ?? {}) };
+  return normalizeProfile({ ...(details as Partial<BrandProfile>), fields: fields as BrandProfile["fields"], summary: f1.summary as string });
 }
 
 export function normalizeProfile(p: Partial<BrandProfile>): BrandProfile {
@@ -129,25 +148,46 @@ ${TRUTH_RULES}`;
 
 /* ── 3. opportunities + concepts ────────────────────────────────────────── */
 
-const CONCEPTS_SCHEMA = obj({
+const OPPORTUNITIES_SCHEMA = obj({
   opportunities: list(obj({ angle: S, audience: S, core_message: S, why_test: S, hypothesis: S })),
+});
+const CONCEPT_LIST_SCHEMA = obj({
   concepts: list(
     obj({ name: S, angle: S, audience: S, hook: S, message: S, visual: S, emphasis: S, cta: S, placement: S, why: S, needs_confirmation: strs })
   ),
 });
 
+// Opportunities and concepts are written by three parallel calls (opportunities,
+// then concepts split by angle family so they stay different). A single call
+// writing all of it was too long to finish inside one request.
+const ANGLE_GROUPS = [
+  { n: 3, angles: "problem–solution, benefit-led, objection handling, use cases" },
+  {
+    n: 2,
+    angles:
+      "product demonstration, comparison, educational, social proof ONLY if real proof exists in the profile, offer-led ONLY if a real offer/price exists, founder/brand story ONLY if the sources tell one",
+  },
+];
+
 export async function buildConcepts(profile: BrandProfile, audience: AudienceSegment[], deadline: number): Promise<{ opportunities: Opportunity[]; concepts: Concept[] }> {
-  const prompt = `You are a senior performance creative strategist. Using ONLY this brand profile and audience, choose the advertising opportunities that genuinely fit this business, then write ad concepts for static image ads on Meta (Facebook/Instagram).
+  const head = `You are a senior performance creative strategist. Use ONLY this brand profile and audience. The ads are static image ads on Meta (Facebook/Instagram).
 
 BRAND PROFILE:
 ${profileText(profile)}
 
 AUDIENCE SEGMENTS:
-${audience.map((a) => `- ${a.name}: ${a.who}; wants: ${a.problem_or_desire}; message: ${a.message}`).join("\n") || "(none)"}
+${audience.map((a) => `- ${a.name}: ${a.who}; wants: ${a.problem_or_desire}; message: ${a.message}`).join("\n") || "(none)"}`;
 
-1) opportunities: 3 to 5. Pick only angles that fit (e.g. problem–solution, product demonstration, benefit-led, objection handling, social proof ONLY if real proof exists in the profile, offer-led ONLY if a real offer/price exists, founder/brand story ONLY if the sources tell one, comparison, educational, use cases). Each: angle, audience, core_message, why_test, hypothesis (each max 30 words).
+  const oppPrompt = `${head}
 
-2) concepts: 5 meaningfully different concepts (different angles, audiences or visual ideas — not rewordings). Each:
+Choose the advertising opportunities that genuinely fit this business.
+opportunities: 3 to 5. Pick only angles that fit (e.g. problem–solution, product demonstration, benefit-led, objection handling, social proof ONLY if real proof exists in the profile, offer-led ONLY if a real offer/price exists, founder/brand story ONLY if the sources tell one, comparison, educational, use cases). Each: angle, audience, core_message, why_test, hypothesis (each max 30 words).
+
+${TRUTH_RULES}`;
+
+  const conceptPrompt = (g: (typeof ANGLE_GROUPS)[number]) => `${head}
+
+Write ${g.n} ad concepts. Use angles from this group only: ${g.angles}. If an angle in the group doesn't fit this business, use another angle from the group. The concepts must be meaningfully different from each other (different angles, audiences or visual ideas — not rewordings). Each:
 - name: memorable concept name (max 5 words)
 - angle, audience (one of the segments above)
 - hook: the primary hook/headline (max 10 words)
@@ -161,7 +201,20 @@ ${audience.map((a) => `- ${a.name}: ${a.who}; wants: ${a.problem_or_desire}; mes
 Fit the business type: a SaaS product gets software-appropriate concepts (product UI, workflow outcomes), a physical product gets product-led visuals, a service gets outcome/process visuals.
 
 ${TRUTH_RULES}`;
-  const out = (await claudeJSON({ prompt, schema: CONCEPTS_SCHEMA, maxTokens: 3400, deadline, tag: "concepts" })) as { opportunities?: Opportunity[]; concepts?: Omit<Concept, "id">[] };
+
+  const [opp, ...groups] = await Promise.allSettled([
+    claudeJSON({ prompt: oppPrompt, schema: OPPORTUNITIES_SCHEMA, maxTokens: 1400, deadline, tag: "opportunities" }),
+    ...ANGLE_GROUPS.map((g, i) => claudeJSON({ prompt: conceptPrompt(g), schema: CONCEPT_LIST_SCHEMA, maxTokens: 2000, deadline, tag: `concepts_${i + 1}` })),
+  ]);
+  // Opportunities and at least one concept group are required; a missing group
+  // means fewer concepts, never invented ones.
+  if (opp.status === "rejected") throw opp.reason;
+  const okGroups = groups.flatMap((g, i) => (g.status === "fulfilled" ? [{ g: g.value, i }] : []));
+  if (!okGroups.length) throw (groups[0] as PromiseRejectedResult).reason;
+  const out = {
+    opportunities: (opp.value as { opportunities?: Opportunity[] }).opportunities,
+    concepts: okGroups.flatMap(({ g, i }) => ((g as { concepts?: Omit<Concept, "id">[] }).concepts ?? []).slice(0, ANGLE_GROUPS[i].n)),
+  };
   const str = (x: unknown, n = 400) => String(x ?? "").slice(0, n);
   return {
     opportunities: (out.opportunities ?? []).slice(0, 5).map((o) => ({ angle: str(o.angle, 120), audience: str(o.audience, 160), core_message: str(o.core_message), why_test: str(o.why_test), hypothesis: str(o.hypothesis) })),

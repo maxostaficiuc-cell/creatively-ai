@@ -35,6 +35,7 @@ import {
   TestingSection,
   VariationsSection,
   WhyScoreSection,
+  VideoSection,
 } from "@/components/report/sections";
 
 export const FINAL_VERDICT_TEXT: Record<
@@ -109,7 +110,9 @@ export function ReportExperience({
   const [ratio, setRatio] = useState(1);
   const [imgOk, setImgOk] = useState(true);
 
-  const image = imageUrl && imgOk ? imageUrl : null;
+  const isVideo = !!view.video;
+  const image = imageUrl && imgOk && !isVideo ? imageUrl : null;
+  const videoSrc = isVideo && imageUrl && imgOk ? imageUrl : null;
   const hasBreakdown = !!image && view.annotations.length > 0;
 
   const nav: NavItem[] = useMemo(() => {
@@ -117,16 +120,14 @@ export function ReportExperience({
       { id: "rp-overview", label: "Overview" },
       hasBreakdown && { id: "rp-breakdown", label: "Breakdown" },
       { id: "rp-summary", label: "Summary" },
+      isVideo && { id: "rp-video", label: "Video" },
       view.strengths.length > 0 && {
         id: "rp-strengths",
         label: "What's great",
       },
       view.fixes.length > 0 && { id: "rp-fixes", label: "Priority fixes" },
       view.signals.length > 0 && { id: "rp-signals", label: "Signals" },
-      (view.positive.length > 0 || view.negative.length > 0) && {
-        id: "rp-why",
-        label: "Why this score",
-      },
+      { id: "rp-why", label: "Why this score" },
       view.fixes.length > 0 && { id: "rp-improve", label: "Improve first" },
       { id: "rp-hooks", label: "Hooks" },
       (view.angles.length > 0 || view.improvements.length > 0) && {
@@ -144,7 +145,7 @@ export function ReportExperience({
       { id: "rp-next", label: "Next steps" },
     ];
     return items.filter(Boolean) as NavItem[];
-  }, [view, hasBreakdown]);
+  }, [view, hasBreakdown, isVideo]);
   const num = (id: string) => nav.findIndex((n) => n.id === id) + 1;
 
   /* ── reveal-once motion ─────────────────────────────────────────────── */
@@ -173,7 +174,21 @@ export function ReportExperience({
       { rootMargin: "0px 0px -6% 0px", threshold: 0.08 },
     );
     els.forEach((el) => !el.classList.contains("rv-in") && io.observe(el));
-    return () => io.disconnect();
+    // Elements that mount later (expanded content, re-rendered cards) are
+    // observed too, so nothing can stay invisible after the first pass.
+    const mo = new MutationObserver((muts) => {
+      for (const m of muts)
+        m.addedNodes.forEach((n) => {
+          if (!(n instanceof HTMLElement)) return;
+          const found = [n, ...Array.from(n.querySelectorAll<HTMLElement>("[data-rv]"))].filter((el) => el.hasAttribute("data-rv") && !el.classList.contains("rv-in"));
+          found.forEach((el) => io.observe(el));
+        });
+    });
+    mo.observe(root, { childList: true, subtree: true });
+    return () => {
+      io.disconnect();
+      mo.disconnect();
+    };
   }, [view]);
 
   /* ── navigation ─────────────────────────────────────────────────────── */
@@ -277,7 +292,16 @@ export function ReportExperience({
                 {has(view.format) && <Tag>{view.format}</Tag>}
                 {has(view.placement) && <Tag>{view.placement}</Tag>}
               </div>
-              {image ? (
+              {videoSrc ? (
+                <video
+                  src={videoSrc}
+                  controls
+                  playsInline
+                  preload="metadata"
+                  className="mx-auto block max-h-[520px] w-full max-w-[420px] rounded-xl border border-white/[0.08] bg-black/40 object-contain lg:max-w-none"
+                  onError={() => setImgOk(false)}
+                />
+              ) : image ? (
                 <button
                   type="button"
                   onClick={() => setZoom(true)}
@@ -440,6 +464,7 @@ export function ReportExperience({
           )}
 
           <SummarySection ctx={ctx} index={num("rp-summary")} />
+          {isVideo && <VideoSection ctx={ctx} index={num("rp-video")} />}
           {view.strengths.length > 0 && (
             <StrengthsSection ctx={ctx} index={num("rp-strengths")} />
           )}
@@ -449,9 +474,7 @@ export function ReportExperience({
           {view.signals.length > 0 && (
             <SignalsSection ctx={ctx} index={num("rp-signals")} />
           )}
-          {(view.positive.length > 0 || view.negative.length > 0) && (
-            <WhyScoreSection ctx={ctx} index={num("rp-why")} />
-          )}
+          <WhyScoreSection ctx={ctx} index={num("rp-why")} />
           {view.fixes.length > 0 && (
             <ImproveFirstSection ctx={ctx} index={num("rp-improve")} />
           )}

@@ -52,15 +52,15 @@ export default async function Page() {
                   <CreativeThumb url={c.file_url} fileType={c.file_type} />
                   <div className="flex items-center gap-3">
                     <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full border border-brand/40 text-sm font-semibold text-brand-light">
-                      {c.score ?? "—"}
+                      {c.is_simulated ? "—" : c.score ?? "—"}
                     </span>
                     <div>
-                      <p className="text-sm font-medium text-ink-primary">{c.summary || "Analyzed creative"}</p>
+                      <p className="text-sm font-medium text-ink-primary">{c.is_simulated ? "Not analyzed (placeholder)" : c.summary || "Analyzed creative"}</p>
                       <p className="mt-0.5 text-xs text-ink-muted">
                         {c.file_type === "video" ? "Video" : "Image"}
                         {c.platform ? ` · ${c.platform}` : ""} ·{" "}
                         {new Date(c.created_at).toLocaleDateString()}
-                        {c.is_simulated ? " · Simulated" : ""}
+
                       </p>
                     </div>
                   </div>
@@ -70,7 +70,7 @@ export default async function Page() {
                   <ArrowRight size={14} className="text-ink-muted" />
                 </div>
               </div>
-              {c.whats_working && (
+              {c.whats_working && !c.is_simulated && (
                 <div className="mt-4 grid gap-2 text-sm text-ink-secondary sm:grid-cols-3">
                   <p><span className="text-accent-green">Working:</span> {c.whats_working}</p>
                   <p><span className="text-accent-red">Not working:</span> {c.whats_not}</p>

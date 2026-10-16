@@ -74,4 +74,22 @@ export async function countLast24h(db: SupabaseClient, table: "brand_strategies"
   return count ?? 0;
 }
 
+/** The failure reply for an AI step that couldn't finish (after its automatic retry). */
+export function aiStepFailed(code: string, extra: Record<string, unknown> = {}) {
+  if (code === "ai_auth" || code === "ai_not_configured" || code === "ai_quota")
+    return jsonError(503, "Something on our side needs fixing before brand analyses can run again. We've logged it. Please try again later.", {
+      title: "Brand analysis is unavailable right now",
+      code,
+      retryable: false,
+      ...extra,
+    });
+  if (code === "ai_rate_limited")
+    return jsonError(429, "Our AI is handling a lot of requests right now. Please try again in a few seconds.", { code, ...extra });
+  return jsonError(code === "ai_timeout" ? 504 : 502, "We're still improving Creatively.ai, and occasionally an analysis may fail. Please try again.", {
+    title: "We couldn't complete your analysis this time.",
+    code,
+    ...extra,
+  });
+}
+
 export const log = (evt: string, data: Record<string, unknown> = {}) => console.log(JSON.stringify({ evt: `strategy_${evt}`, ...data }));
