@@ -5,7 +5,7 @@ import { normalizePublicUrl, SafeFetchError } from "@/lib/safeFetch";
 import { buildProfile } from "@/lib/strategyAI";
 import { claudeConfigured } from "@/lib/claudeJson";
 import { sniffImageType, AnalysisError } from "@/lib/analyzeCreative";
-import { countLast24h, jsonError, loadStrategy, log, requireActiveUser } from "@/lib/strategyServer";
+import { aiStepFailed, countLast24h, jsonError, loadStrategy, log, requireActiveUser } from "@/lib/strategyServer";
 import { CONTEXT_FIELDS, DAILY_ANALYSIS_LIMIT, STRATEGY_COLUMNS, type SourceReport } from "@/lib/strategyTypes";
 
 // Step 1 of Creative Strategy: read the website / social profile (server-side,
@@ -137,6 +137,6 @@ export async function POST(req: Request) {
     const code = e instanceof AnalysisError ? e.code : "ai_failed";
     log("profile_error", { code, msg: e instanceof Error ? e.message : String(e) });
     await recordSystemEvent({ category: "ai_provider", source: "api/strategy/analyze", code, message: `Creative Strategy brand analysis failed (${code}).`, userId });
-    return jsonError(code === "ai_rate_limited" ? 429 : code === "ai_timeout" ? 504 : 502, code === "ai_timeout" ? "The analysis took too long. Please try again." : "The AI couldn't finish the brand analysis. Please try again.", { code, sources: reports });
+    return aiStepFailed(code, { sources: reports });
   }
 }

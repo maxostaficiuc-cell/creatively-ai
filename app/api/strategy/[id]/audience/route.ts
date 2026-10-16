@@ -2,7 +2,7 @@ import { recordSystemEvent } from "@/lib/systemEvents";
 import { NextResponse } from "next/server";
 import { buildAudience } from "@/lib/strategyAI";
 import { AnalysisError } from "@/lib/analyzeCreative";
-import { jsonError, loadStrategy, log, requireActiveUser } from "@/lib/strategyServer";
+import { aiStepFailed, jsonError, loadStrategy, log, requireActiveUser } from "@/lib/strategyServer";
 import { STRATEGY_COLUMNS } from "@/lib/strategyTypes";
 
 // Step 2: audience segments from the (possibly user-edited) brand profile.
@@ -31,6 +31,6 @@ export async function POST(_req: Request, { params }: { params: { id: string } }
   } catch (e) {
     const code = e instanceof AnalysisError ? e.code : "ai_failed";
     await recordSystemEvent({ category: "ai_provider", source: "api/strategy/[id]/audience", code, message: `Creative Strategy audience step failed (${code}).`, userId: auth.userId });
-    return jsonError(code === "ai_timeout" ? 504 : 502, "The AI couldn't finish the audience step. Please try again.", { code });
+    return aiStepFailed(code);
   }
 }

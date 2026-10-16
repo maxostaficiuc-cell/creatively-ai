@@ -1,10 +1,12 @@
 // Error codes shared by /api/analyze and the Analyze page. The server only
 // ever sends these codes plus safe text; technical detail stays in its logs.
+// Genuine analysis failures (after the automatic retry) all use one message.
 
 export type AnalyzeErrorCode =
   | "session_expired"
   | "no_file"
   | "unsupported_type"
+  | "video_unreadable" // the video's frames couldn't be read
   | "file_too_large"
   | "upload_failed" // the file did not reach the server (network, size limit, platform error)
   | "storage_failed" // the server could not store the file
@@ -13,6 +15,7 @@ export type AnalyzeErrorCode =
   | "in_progress"
   | "rate_limited"
   | "ai_unavailable"
+  | "ai_config" // the AI service needs a fix on our side (key, account, model); retrying won't help
   | "ai_timeout"
   | "ai_rejected_image"
   | "ai_bad_response"
@@ -27,10 +30,16 @@ export const ANALYZE_ERRORS: Record<AnalyzeErrorCode, { kind: AnalyzeErrorKind; 
   unsupported_type: {
     kind: "file",
     title: "Unsupported file type",
-    message: "Upload a JPG, PNG, WebP or GIF image. iPhone HEIC photos need to be exported as JPG first.",
+    message: "Upload a JPG, PNG, WebP or GIF image, or an MP4, MOV or WebM video. iPhone HEIC photos need to be exported as JPG first.",
     retryable: false,
   },
-  file_too_large: { kind: "file", title: "File too large", message: "This file is too large to analyze. Use an image under 5 MB.", retryable: false },
+  video_unreadable: {
+    kind: "file",
+    title: "We couldn't read this video",
+    message: "Your browser couldn't read frames from this video. Try exporting it as an MP4 (H.264) and upload it again.",
+    retryable: false,
+  },
+  file_too_large: { kind: "file", title: "File too large", message: "This file is too large to analyze. Use an image under 5 MB or a video under 50 MB.", retryable: false },
   upload_failed: {
     kind: "upload",
     title: "Upload failed",
@@ -59,14 +68,20 @@ export const ANALYZE_ERRORS: Record<AnalyzeErrorCode, { kind: AnalyzeErrorKind; 
   },
   ai_unavailable: {
     kind: "analysis",
-    title: "Analysis couldn't be completed",
-    message: "The AI service is temporarily unavailable. Please try again shortly.",
+    title: "We couldn't complete your analysis this time.",
+    message: "We're still improving Creatively.ai, and occasionally an analysis may fail. Please try again.",
     retryable: true,
+  },
+  ai_config: {
+    kind: "analysis",
+    title: "Analysis is unavailable right now",
+    message: "Something on our side needs fixing before analyses can run again. We've logged it. Please try again later.",
+    retryable: false,
   },
   ai_timeout: {
     kind: "analysis",
-    title: "Analysis couldn't be completed",
-    message: "The analysis took too long to finish. Please try again.",
+    title: "We couldn't complete your analysis this time.",
+    message: "We're still improving Creatively.ai, and occasionally an analysis may fail. Please try again.",
     retryable: true,
   },
   ai_rejected_image: {
@@ -77,20 +92,20 @@ export const ANALYZE_ERRORS: Record<AnalyzeErrorCode, { kind: AnalyzeErrorKind; 
   },
   ai_bad_response: {
     kind: "analysis",
-    title: "Analysis couldn't be completed",
-    message: "The analysis came back incomplete. Please try again.",
+    title: "We couldn't complete your analysis this time.",
+    message: "We're still improving Creatively.ai, and occasionally an analysis may fail. Please try again.",
     retryable: true,
   },
   save_failed: {
     kind: "analysis",
-    title: "Analysis couldn't be completed",
-    message: "We couldn't save your report. Please try again.",
+    title: "We couldn't complete your analysis this time.",
+    message: "We're still improving Creatively.ai, and occasionally an analysis may fail. Please try again.",
     retryable: true,
   },
   server_error: {
     kind: "analysis",
-    title: "Analysis couldn't be completed",
-    message: "Something went wrong on our side. Please try again.",
+    title: "We couldn't complete your analysis this time.",
+    message: "We're still improving Creatively.ai, and occasionally an analysis may fail. Please try again.",
     retryable: true,
   },
 };
@@ -108,3 +123,6 @@ export type AnalyzeErrorBody = {
   /** Short support reference, e.g. "findings:cut_off". No secrets or internals. */
   ref?: string;
 };
+
+/** Largest video accepted. The browser uploads it straight to the user's storage folder. */
+export const MAX_VIDEO_BYTES = 50 * 1024 * 1024;

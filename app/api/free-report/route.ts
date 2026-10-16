@@ -195,12 +195,12 @@ export async function POST(request: Request) {
       console.error("free-report: analysis threw unexpectedly:", err);
       return fail("ANALYSIS_ERROR", 500);
     }
-    const { result, isSimulated } = analysis;
-    if (isSimulated) {
-      // No real analysis happened → don't save a placeholder or consume the
-      // free report (the finally block releases the lock so they can retry).
+    if (analysis.isSimulated) {
+      // No real analysis happened → nothing to save, and the free report isn't
+      // consumed (the finally block releases the lock so they can retry).
       return fail("ANALYSIS_ERROR", 503);
     }
+    const { result, isSimulated } = analysis;
 
     const supabase = createAdminClient();
     const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, "_");

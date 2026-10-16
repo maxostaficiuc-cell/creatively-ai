@@ -16,10 +16,13 @@ import type {
   SignalScore,
   StrengthItem,
   TestPlanItem,
+  VideoDetails,
   VariationBrief,
 } from "@/lib/analyzeCreative";
 
 export type ReportView = {
+  /** Video reports only: sampled frames, scenes and audio. */
+  video: VideoDetails | null;
   isV2: boolean;
   score: number;
   verdictLabel: CreativeReport["verdict_label"];
@@ -151,6 +154,7 @@ export function toReportView(r: CreativeReport): ReportView {
     verdictLabel: r.verdict_label,
     verdictText: r.verdict || r.summary,
     priorityAction: r.priority_action || fixes[0]?.fix || r.improvement_plan?.[0] || "",
+    video: r.video ?? null,
     format: r.format ?? "",
     placement: r.placement_guess ?? "",
     finalVerdict: r.final_recommendation?.verdict ?? "TEST FIRST",

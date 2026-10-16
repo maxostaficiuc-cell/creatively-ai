@@ -5,14 +5,15 @@ import { recordSystemEvent } from "@/lib/systemEvents";
 import { createAdminClient } from "@/lib/supabase/admin";
 import { getFreshProfile } from "@/lib/profile";
 import { CREDIT_COST_IMAGE, CREDIT_COST_VIDEO } from "@/lib/types";
-import { MAX_AI_IMAGE_BYTES, runCreativeAnalysis, sniffImageType, type AnalysisErrorCode } from "@/lib/analyzeCreative";
-import { ANALYZE_ERRORS, type AnalyzeErrorBody, type AnalyzeErrorCode } from "@/lib/analyzeErrors";
+import { AnalysisError, MAX_AI_IMAGE_BYTES, analyzeVideoWithClaudeMeta, runCreativeAnalysis, sniffImageType, type AnalysisErrorCode, type CreativeReport, type VideoFrame } from "@/lib/analyzeCreative";
+import { analyzeVideoAudio, MAX_INLINE_VIDEO_BYTES } from "@/lib/videoAudio";
+import { ANALYZE_ERRORS, MAX_VIDEO_BYTES, type AnalyzeErrorBody, type AnalyzeErrorCode } from "@/lib/analyzeErrors";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 export const maxDuration = 30;
 
-// The authenticated analyze endpoint used by the dashboard.
+// The authenticated analyze endpoint used by the dashboard (images and videos).
 //
 //   validate → reserve credits (atomic) → store file → AI analysis
 //            → save report → settle charge          (success: charged once)
@@ -29,11 +30,25 @@ const AI_BUDGET_MS = 23_000;
 const MAX_UPLOAD_BYTES = 8 * 1024 * 1024;
 const REQUEST_ID = /^[A-Za-z0-9-]{8,64}$/;
 const VIDEO_TYPES = new Set(["video/mp4", "video/quicktime", "video/webm"]);
+const MAX_FRAMES = 8;
+const MAX_FRAME_BYTES = 1.5 * 1024 * 1024;
+
+/** mp4 / mov ("ftyp" box) or webm (EBML header), from the file's bytes. */
+function sniffVideoType(b: Uint8Array): "video/mp4" | "video/quicktime" | "video/webm" | null {
+  if (b.length < 12) return null;
+  if (b[0] === 0x1a && b[1] === 0x45 && b[2] === 0xdf && b[3] === 0xa3) return "video/webm";
+  if (b[4] === 0x66 && b[5] === 0x74 && b[6] === 0x79 && b[7] === 0x70) {
+    const brand = String.fromCharCode(b[8], b[9], b[10], b[11]);
+    return brand === "qt  " ? "video/quicktime" : "video/mp4";
+  }
+  return null;
+}
 
 const AI_TO_HTTP: Record<AnalysisErrorCode, { code: AnalyzeErrorCode; status: number }> = {
-  ai_not_configured: { code: "ai_unavailable", status: 503 },
-  ai_auth: { code: "ai_unavailable", status: 503 },
-  ai_quota: { code: "ai_unavailable", status: 503 },
+  // Configuration / account problems: retrying can't fix these.
+  ai_not_configured: { code: "ai_config", status: 503 },
+  ai_auth: { code: "ai_config", status: 503 },
+  ai_quota: { code: "ai_config", status: 503 },
   ai_rate_limited: { code: "rate_limited", status: 429 },
   ai_unavailable: { code: "ai_unavailable", status: 503 },
   ai_timeout: { code: "ai_timeout", status: 504 },
@@ -105,22 +120,85 @@ export async function POST(request: Request) {
     }
     const rid = form.get("requestId");
     if (typeof rid === "string" && REQUEST_ID.test(rid)) requestId = rid;
-    const file = form.get("file");
     const platform = (form.get("platform") as string) || null;
-    if (!(file instanceof File) || file.size === 0) return fail("no_file", 400);
 
-    const isVideo = file.type.startsWith("video/");
-    if (isVideo && !VIDEO_TYPES.has(file.type)) return fail("unsupported_type", 415);
-    if (file.size > MAX_UPLOAD_BYTES) return fail("file_too_large", 413);
-
-    const bytes = new Uint8Array(await file.arrayBuffer());
-    const imageType = isVideo ? null : sniffImageType(bytes);
-    if (!isVideo && !imageType) return fail("unsupported_type", 415);
-    if (!isVideo && bytes.length > MAX_AI_IMAGE_BYTES) return fail("file_too_large", 413);
-    const contentType = isVideo ? file.type : (imageType as string);
+    // Videos are uploaded by the browser straight to the user's own storage
+    // folder (too large for this request); the request carries the storage
+    // path, the sampled frames with their timestamps, and the measured length.
+    const videoPathRaw = form.get("videoPath");
+    const isVideo = typeof videoPathRaw === "string" && videoPathRaw.length > 0;
+    let bytes = new Uint8Array();
+    let contentType = "";
+    let path = "";
+    let frames: VideoFrame[] = [];
+    let videoMeta = { duration: 0, width: 0, height: 0 };
+    let videoSize = 0;
+    if (isVideo) {
+      path = videoPathRaw as string;
+      const own = new RegExp(`^${user.id}/videos/[A-Za-z0-9._-]{1,120}$`);
+      if (!own.test(path)) return fail("no_file", 400);
+      const num = (k: string) => Number(form.get(k));
+      videoMeta = { duration: num("duration"), width: Math.round(num("width")), height: Math.round(num("height")) };
+      if (!(videoMeta.duration > 0 && videoMeta.duration <= 3600) || !(videoMeta.width > 0) || !(videoMeta.height > 0)) return fail("video_unreadable", 422);
+      let times: unknown;
+      try {
+        times = JSON.parse(String(form.get("frameTimes") ?? "[]"));
+      } catch {
+        times = null;
+      }
+      const frameFiles = form.getAll("frames").filter((f): f is File => f instanceof File && f.size > 0);
+      if (!Array.isArray(times) || frameFiles.length === 0 || frameFiles.length > MAX_FRAMES || times.length !== frameFiles.length) return fail("video_unreadable", 422);
+      for (let i = 0; i < frameFiles.length; i++) {
+        const t = Number(times[i]);
+        if (!Number.isFinite(t) || t < 0 || t > videoMeta.duration + 0.5 || frameFiles[i].size > MAX_FRAME_BYTES) return fail("video_unreadable", 422);
+        const fb = new Uint8Array(await frameFiles[i].arrayBuffer());
+        const ft = sniffImageType(fb);
+        if (!ft || ft === "image/gif") return fail("video_unreadable", 422);
+        frames.push({ t, base64: Buffer.from(fb).toString("base64"), mediaType: ft });
+      }
+      frames = frames.sort((a, b) => a.t - b.t);
+      // The video must really be in this user's folder (RLS also enforces it).
+      const folder = path.slice(0, path.lastIndexOf("/"));
+      const name = path.slice(path.lastIndexOf("/") + 1);
+      const { data: listing, error: listErr } = await supabase.storage.from("creatives").list(folder, { search: name, limit: 5 });
+      const obj = listing?.find((o) => o.name === name);
+      if (listErr || !obj) {
+        log("video_missing", { err: listErr?.message });
+        return fail("storage_failed", 502);
+      }
+      videoSize = Number((obj.metadata as Record<string, unknown> | null)?.size ?? 0);
+      if (videoSize > MAX_VIDEO_BYTES) return fail("file_too_large", 413);
+      // Audio is analyzed from the file itself; that needs the bytes (only up to the provider's inline limit).
+      if (videoSize > 0 && videoSize <= MAX_INLINE_VIDEO_BYTES) {
+        const { data: blob, error: dlErr } = await supabase.storage.from("creatives").download(path);
+        if (dlErr || !blob) {
+          log("video_download_error", { err: dlErr?.message });
+          return fail("storage_failed", 502);
+        }
+        bytes = new Uint8Array(await blob.arrayBuffer());
+      }
+      const head = bytes.length ? bytes : null;
+      const sniffed = head ? sniffVideoType(head) : null;
+      const declared = (obj.metadata as Record<string, unknown> | null)?.mimetype;
+      contentType = sniffed ?? (typeof declared === "string" && VIDEO_TYPES.has(declared) ? declared : "");
+      if (!contentType || (head && !sniffed)) return fail("unsupported_type", 415);
+    } else {
+      const file = form.get("file");
+      if (!(file instanceof File) || file.size === 0) return fail("no_file", 400);
+      // Older pages posted videos here directly; videos now go through storage.
+      if (file.type.startsWith("video/")) return fail("unsupported_type", 415);
+      if (file.size > MAX_UPLOAD_BYTES) return fail("file_too_large", 413);
+      bytes = new Uint8Array(await file.arrayBuffer());
+      const imageType = sniffImageType(bytes);
+      if (!imageType) return fail("unsupported_type", 415);
+      if (bytes.length > MAX_AI_IMAGE_BYTES) return fail("file_too_large", 413);
+      contentType = imageType;
+      const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, "_").slice(-80);
+      path = `${user.id}/${Date.now()}-${safeName}`;
+    }
     const fileType: "image" | "video" = isVideo ? "video" : "image";
     const cost = isVideo ? CREDIT_COST_VIDEO : CREDIT_COST_IMAGE;
-    log("received", { type: contentType, bytes: bytes.length });
+    log("received", { type: contentType, bytes: isVideo ? videoSize : bytes.length, frames: frames.length || undefined });
 
     // Weekly reset + unpaid guard (single source of truth for the balance).
     const profile = await getFreshProfile(supabase, user.id);
@@ -144,9 +222,8 @@ export async function POST(request: Request) {
     }
 
     // ── reserve credits atomically ───────────────────────────────────────
-    // Videos are not analyzed by AI yet, so they are never charged.
     let reserved = false;
-    if (!isVideo) {
+    {
       if (ledger) {
         const { data, error } = await ledger.rpc("reserve_analysis_credits", {
           p_user_id: user.id,
@@ -200,33 +277,63 @@ export async function POST(request: Request) {
       return fail(code, status, { ...extra, charged: ok ? false : null });
     };
 
-    // ── store the file under the user's own folder ───────────────────────
-    const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, "_").slice(-80);
-    const path = `${user.id}/${Date.now()}-${safeName}`;
-    const { error: uploadError } = await supabase.storage
-      .from("creatives")
-      .upload(path, bytes, { contentType, upsert: false });
-    if (uploadError) {
-      log("storage_error", { err: uploadError.message });
-      return failAfterReserve("storage_failed", 502);
+    // ── store the file under the user's own folder (videos are already there) ──
+    if (!isVideo) {
+      const { error: uploadError } = await supabase.storage
+        .from("creatives")
+        .upload(path, bytes, { contentType, upsert: false });
+      if (uploadError) {
+        log("storage_error", { err: uploadError.message });
+        return failAfterReserve("storage_failed", 502);
+      }
     }
     const { data: signed } = await supabase.storage.from("creatives").createSignedUrl(path, 60 * 60 * 24 * 365);
     const fileUrl = signed?.signedUrl ?? path;
     log("stored");
 
     // ── analysis ─────────────────────────────────────────────────────────
-    let finalResult: Record<string, unknown> & { score: number; summary: string; whats_working: string; whats_not: string; what_to_test: string };
-    let isSimulated: boolean;
+    // Only a real, complete analysis is ever saved or charged. If the AI
+    // fails, nothing is saved, the reserved credits go back, and the user gets
+    // an error — never a placeholder report.
+    let finalResult: CreativeReport;
     if (isVideo) {
-      // Video analysis isn't built yet — a clearly labelled placeholder, never charged.
-      finalResult = {
-        score: 30 + Math.floor(Math.random() * 60),
-        summary: "Video analysis is simulated for now — real video AI analysis is a larger feature.",
-        whats_working: "This is a placeholder result because video isn't analyzed yet.",
-        whats_not: "No real creative analysis has been performed on this video.",
-        what_to_test: "Upload an image instead for a real AI-powered analysis.",
-      };
-      isSimulated = true;
+      const deadline = t0 + AI_BUDGET_MS;
+      const [visual, audio] = await Promise.all([
+        analyzeVideoWithClaudeMeta(frames, videoMeta, { deadline }).then(
+          (r) => ({ ok: true as const, ...r }),
+          (e: unknown) => ({ ok: false as const, error: e instanceof AnalysisError ? e : new AnalysisError("ai_failed", String(e)) })
+        ),
+        bytes.length
+          ? analyzeVideoAudio({ bytes, mime: contentType, duration: videoMeta.duration, deadline })
+          : Promise.resolve({
+              status: "not_analyzed" as const,
+              note: `Audio was not analyzed: this video is larger than ${Math.round(MAX_INLINE_VIDEO_BYTES / 1048576)} MB, the limit for audio analysis.`,
+              speech: false,
+              transcript: [],
+              spoken_hook: "",
+              sound: "",
+              consistency: "",
+              error: "too_large",
+            }),
+      ]);
+      log("ai_done", {
+        kind: "video",
+        ok: visual.ok,
+        model: process.env.ANTHROPIC_MODEL || "claude-haiku-5-5",
+        aiMs: visual.ok ? visual.meta.ms : undefined,
+        parts: visual.ok ? visual.meta.parts : undefined,
+        code: visual.ok ? undefined : visual.error.code,
+        audio: audio.status,
+        audioErr: "error" in audio ? audio.error : undefined,
+      });
+      if (!visual.ok) {
+        // The upload stays in the user's folder so "Try again" doesn't re-upload it.
+        const map = AI_TO_HTTP[visual.error.code ?? "ai_failed"];
+        const ref = `${visual.error.part || "ai"}:${visual.error.reason || visual.error.code || "failed"}`;
+        return failAfterReserve(map.code, map.status, { retryAfter: visual.error.retryAfterSec ?? null, ref });
+      }
+      const { error: _e, ...audioResult } = audio as typeof audio & { error?: string };
+      finalResult = { ...visual.report, video: { ...visual.report.video!, audio: audioResult } };
     } else {
       const ai = await runCreativeAnalysis(bytes, contentType, { deadline: t0 + AI_BUDGET_MS });
       log("ai_done", {
@@ -237,18 +344,17 @@ export async function POST(request: Request) {
         code: ai.error?.code,
       });
       if (ai.isSimulated) {
-        // No real analysis: don't save a placeholder, don't charge.
+        // No real analysis: don't save anything, don't charge.
         await supabase.storage.from("creatives").remove([path]).catch(() => {});
         const map = AI_TO_HTTP[ai.error?.code ?? "ai_failed"];
         const ref = `${ai.error?.part || "ai"}:${ai.error?.reason || ai.error?.code || "failed"}`;
         return failAfterReserve(map.code, map.status, { retryAfter: ai.error?.retryAfterSec ?? null, ref });
       }
-      finalResult = ai.result as unknown as typeof finalResult;
-      isSimulated = false;
+      finalResult = ai.result;
     }
 
     // ── save the report ──────────────────────────────────────────────────
-    const charged = isSimulated ? 0 : cost;
+    const charged = cost;
     const row: Record<string, unknown> = {
       user_id: user.id,
       file_url: fileUrl,
@@ -260,7 +366,7 @@ export async function POST(request: Request) {
       whats_not: finalResult.whats_not,
       what_to_test: finalResult.what_to_test,
       credits_used: charged,
-      is_simulated: isSimulated,
+      is_simulated: false,
       report: finalResult,
     };
     if (ledger) row.request_id = requestId;
@@ -268,7 +374,7 @@ export async function POST(request: Request) {
     const { data: creative, error: insertError } = await supabase.from("creatives").insert(row).select().single();
     if (insertError || !creative) {
       log("save_error", { err: insertError?.message });
-      await supabase.storage.from("creatives").remove([path]).catch(() => {});
+      if (!isVideo) await supabase.storage.from("creatives").remove([path]).catch(() => {});
       return failAfterReserve("save_failed", 500);
     }
     log("saved", { creativeId: creative.id });

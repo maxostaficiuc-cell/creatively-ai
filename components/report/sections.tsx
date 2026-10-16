@@ -265,25 +265,117 @@ export function SignalsSection({ ctx, index }: P) {
   );
 }
 
+/* ── Video breakdown (video reports only) ────────────────────────────── */
+
+const mmss = (sec: number) => {
+  const t = Math.max(0, Math.round(sec));
+  return `${Math.floor(t / 60)}:${String(t % 60).padStart(2, "0")}`;
+};
+
+export function VideoSection({ ctx, index }: P) {
+  const v = ctx.view.video;
+  if (!v) return null;
+  const a = v.audio;
+  const moments: { label: string; text: string }[] = [
+    { label: "Opening (first seconds)", text: v.opening },
+    { label: "Pacing", text: v.pacing },
+    { label: "Closing and CTA", text: v.closing },
+  ].filter((m) => has(m.text));
+
+  return (
+    <ReportSection id="rp-video" index={index} title="Video breakdown" kicker="What happens on screen, scene by scene, and what the soundtrack adds.">
+      {moments.length > 0 && (
+        <div className="grid gap-3 sm:grid-cols-3">
+          {moments.map((m, i) => (
+            <div key={m.label} className="rp-card p-4" data-rv style={{ ["--d" as string]: i }}>
+              <p className="rp-field-label">{m.label}</p>
+              <p className="text-sm leading-relaxed text-ink-primary/90">{m.text}</p>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {v.scenes.length > 0 && (
+        <ol className="mt-3 space-y-2">
+          {v.scenes.map((sc, i) => (
+            <li key={i} className="rp-card flex gap-3 p-4" data-rv style={{ ["--d" as string]: i }}>
+              <span className="shrink-0">
+                <Tag tone="brand">
+                  {mmss(sc.start)}
+                  {sc.end > sc.start ? `–${mmss(sc.end)}` : ""}
+                </Tag>
+              </span>
+              <div className="min-w-0 text-sm leading-relaxed">
+                <p className="text-ink-primary/90">{sc.shows}</p>
+                {has(sc.on_screen_text) && <p className="mt-1 text-ink-secondary">On screen: “{sc.on_screen_text.replace(/^[“"]|[”"]$/g, "")}”</p>}
+                {has(sc.readability) && <p className="mt-0.5 text-xs text-ink-muted">Readability: {sc.readability}</p>}
+              </div>
+            </li>
+          ))}
+        </ol>
+      )}
+
+      <div className="rp-card mt-3 p-4" data-rv>
+        <p className="rp-field-label">Audio</p>
+        {a.status === "analyzed" ? (
+          <div className="space-y-2 text-sm leading-relaxed text-ink-primary/90">
+            {has(a.sound) && <p>{a.sound}</p>}
+            {has(a.spoken_hook) && (
+              <p>
+                <span className="text-ink-secondary">First words: </span>“{a.spoken_hook}”
+              </p>
+            )}
+            {has(a.consistency) && (
+              <p>
+                <span className="text-ink-secondary">Spoken vs. on screen: </span>
+                {a.consistency}
+              </p>
+            )}
+            {a.transcript.length > 0 && (
+              <ul className="mt-2 max-h-56 space-y-1 overflow-y-auto border-t border-white/[0.06] pt-2">
+                {a.transcript.map((l, i) => (
+                  <li key={i} className="flex gap-2 text-[13px]">
+                    <span className="shrink-0 tabular-nums text-ink-muted">{mmss(l.start)}</span>
+                    <span>{l.text}</span>
+                  </li>
+                ))}
+              </ul>
+            )}
+            {!a.speech && <p className="text-ink-secondary">No speech was heard.</p>}
+          </div>
+        ) : (
+          <p className="text-sm leading-relaxed text-ink-secondary">{a.note}</p>
+        )}
+      </div>
+
+      <p className="mt-3 text-xs text-ink-muted">
+        Based on {v.frame_times.length} frames from the video, taken at {v.frame_times.map(mmss).join(", ")}. The score reflects what is shown on screen.
+      </p>
+    </ReportSection>
+  );
+}
+
 /* ── 07 Why this score ───────────────────────────────────────────────── */
 
-export function WhyScoreSection({ ctx, index }: P) {
-  const { view } = ctx;
-  const scored = view.signals.filter((s) => s.score !== null) as { label: string; score: number }[];
-  const top = [...scored].sort((a, b) => b.score - a.score).slice(0, 3);
-  const low = [...scored].sort((a, b) => a.score - b.score).slice(0, 3);
-
-  const Col = ({
-    title,
-    items,
-    tone,
-    sigs,
-  }: {
-    title: string;
-    items: string[];
-    tone: "good" | "bad";
-    sigs: { label: string; score: number }[];
-  }) => (
+// Defined at module level (not inside WhyScoreSection) so React keeps the same
+// card elements across re-renders. A component created inside the section was
+// a new type on every render, so each re-render (e.g. the sticky nav marking
+// this section active) swapped in fresh cards that never received the reveal
+// class and stayed invisible — the blank "Why this score" section.
+function WhyCol({
+  ctx,
+  title,
+  items,
+  tone,
+  sigs,
+}: {
+  ctx: ReportCtx;
+  title: string;
+  items: string[];
+  tone: "good" | "bad";
+  sigs: { label: string; score: number }[];
+}) {
+  return (
     <div className={`rp-card p-5 ${tone === "good" ? "rp-card-good" : "rp-card-bad"}`} data-rv>
       <h3 className={`flex items-center gap-2 text-sm font-semibold ${tone === "good" ? "text-accent-green" : "text-[#F87171]"}`}>
         {tone === "good" ? <Plus size={15} aria-hidden /> : <Minus size={15} aria-hidden />}
@@ -319,12 +411,31 @@ export function WhyScoreSection({ ctx, index }: P) {
       )}
     </div>
   );
+}
+
+export function WhyScoreSection({ ctx, index }: P) {
+  const { view } = ctx;
+  const scored = view.signals.filter((s) => s.score !== null) as { label: string; score: number }[];
+  const top = [...scored].sort((a, b) => b.score - a.score).slice(0, 3);
+  const low = [...scored].sort((a, b) => a.score - b.score).slice(0, 3);
+
+  // Older saved reports may not include the score factors: say so compactly
+  // instead of leaving an empty section.
+  if (!view.positive.length && !view.negative.length) {
+    return (
+      <ReportSection id="rp-why" index={index} title="Why this score">
+        <div className="rp-card p-4 text-sm leading-relaxed text-ink-secondary" data-rv>
+          We couldn&apos;t retrieve the score explanation for this report. Reanalyze the creative to generate a complete report.
+        </div>
+      </ReportSection>
+    );
+  }
 
   return (
     <ReportSection id="rp-why" index={index} title="Why this score" kicker={`What pushed the score up, and what kept it at ${view.score}.`}>
       <div className="grid gap-3 md:grid-cols-2">
-        {view.positive.length > 0 && <Col title="Supporting the score" items={view.positive} tone="good" sigs={top} />}
-        {view.negative.length > 0 && <Col title="Holding it back" items={view.negative} tone="bad" sigs={low} />}
+        {view.positive.length > 0 && <WhyCol ctx={ctx} title="Supporting the score" items={view.positive} tone="good" sigs={top} />}
+        {view.negative.length > 0 && <WhyCol ctx={ctx} title="Holding it back" items={view.negative} tone="bad" sigs={low} />}
       </div>
     </ReportSection>
   );

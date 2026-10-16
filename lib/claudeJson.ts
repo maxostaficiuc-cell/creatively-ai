@@ -59,7 +59,7 @@ export async function claudeJSON(opts: {
           continue;
         }
         const retryable = res.status === 429 || res.status >= 500;
-        err = new AnalysisError(res.status === 429 ? "ai_rate_limited" : res.status === 401 || res.status === 403 ? "ai_auth" : "ai_unavailable", `${opts.tag} HTTP ${res.status}: ${body.slice(0, 200)}`, retryable);
+        err = new AnalysisError(res.status === 429 ? "ai_rate_limited" : res.status === 401 || res.status === 403 || res.status === 404 ? "ai_auth" : "ai_unavailable", `${opts.tag} HTTP ${res.status}: ${body.slice(0, 200)}`, retryable);
       } else {
         const data = await res.json();
         const text: string = (data.content ?? []).filter((b: { type?: string }) => b.type === "text").map((b: { text?: string }) => b.text ?? "").join("");
