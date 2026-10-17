@@ -10,7 +10,8 @@ import {
   completePendingClaim,
   releasePendingClaim,
 } from "@/lib/freeReport";
-import { sendLoopsEvent, upsertLoopsContact } from "@/lib/loops";
+import { sendLoopsEvent } from "@/lib/loops";
+import { recordMarketingConsent } from "@/lib/marketingConsent";
 import { verifyTurnstileToken } from "@/lib/turnstile";
 
 export const runtime = "nodejs";
@@ -109,18 +110,12 @@ export async function POST(request: Request) {
     // Don't hard-block real users over a bot-check outage — proceed.
   }
 
-  // Every free-report request from someone who ticked the opt-in lands in Loops
-  // as a contact (name + email), even if they already used their free report.
-  // Without the tick, nothing is sent to Loops — the lead is still saved with
-  // the report in Supabase (creatives.lead_name / lead_email).
+  // Someone who ticked the (unticked-by-default) opt-in: record their consent
+  // and add them to Loops on the marketing list — even if they already used
+  // their free report. Without the tick, nothing is recorded or sent to Loops
+  // as a contact; the lead stays only with the report (creatives.lead_*).
   if (emailConsent) {
-    await upsertLoopsContact({
-      email,
-      fullName: name,
-      source: "Free report",
-      userGroup: "Free report lead",
-      mailingListId: process.env.LOOPS_FREE_REPORT_LIST_ID || null,
-    });
+    await recordMarketingConsent({ email, fullName: name, source: "free_report" });
   }
 
   const ip = getClientIp(request);

@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import { redirectTo, safePath } from "@/lib/redirect";
+import { syncSignupConsent } from "@/lib/marketingConsent";
 
 // Handles the redirect from Supabase email links (signup confirmation
 // and password reset) and exchanges the code for a session.
@@ -11,7 +12,10 @@ export async function GET(request: Request) {
 
   if (code) {
     const supabase = createClient();
-    await supabase.auth.exchangeCodeForSession(code);
+    const { data } = await supabase.auth.exchangeCodeForSession(code);
+    // The email is now confirmed: if they ticked the sign-up opt-in, record it
+    // and add them to Loops. Never blocks or breaks the redirect.
+    await syncSignupConsent(data?.user ?? null).catch(() => null);
   }
 
   // Relative redirect: on Netlify the request origin is the internal deploy

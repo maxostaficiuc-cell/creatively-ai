@@ -60,14 +60,14 @@ export async function loopsContactExists(email: string): Promise<boolean> {
 }
 
 /**
- * Create or update a contact in Loops (PUT /contacts/update creates the contact
- * when it doesn't exist yet). Only call this when the visitor ticked the email
- * opt-in in this request. Best-effort: never throws, never blocks for more than
- * the request timeout.
+ * Create or update a contact in Loops, keyed by email (PUT /contacts/update
+ * creates it when it doesn't exist, so retries never make duplicates). Only
+ * call this for someone who explicitly opted in to marketing emails — see
+ * lib/marketingConsent.ts. Never throws; resolves to what happened.
  *
  * `subscribed` is deliberately not sent: Loops recommends leaving it out unless
  * you mean to resubscribe someone, so a contact who unsubscribed earlier stays
- * unsubscribed even if they request another free report.
+ * unsubscribed even if they opt in again somewhere.
  */
 export async function upsertLoopsContact(params: {
   email: string;
@@ -76,10 +76,10 @@ export async function upsertLoopsContact(params: {
   source: string;
   /** Shown as "User group" in Loops (default contact property). */
   userGroup: string;
-  /** Optional Loops mailing list id to add the contact to. */
+  /** Loops mailing list id to add the contact to (the marketing list). */
   mailingListId?: string | null;
-}): Promise<boolean> {
-  if (!apiKey()) return false;
+}): Promise<{ ok: true } | { ok: false; error: string }> {
+  if (!apiKey()) return { ok: false, error: "LOOPS_API_KEY is not set on the server" };
   const parts = (params.fullName || "").trim().split(/\s+/).filter(Boolean);
   const body: Record<string, unknown> = {
     email: params.email,
@@ -91,14 +91,21 @@ export async function upsertLoopsContact(params: {
   if (params.mailingListId) body.mailingLists = { [params.mailingListId]: true };
   try {
     const res = await call("/contacts/update", { method: "PUT", body: JSON.stringify(body) });
-    if (res && !res.ok) {
-      console.error(`loops: contact upsert failed with ${res.status}`);
-      return false;
+    if (!res) return { ok: false, error: "LOOPS_API_KEY is not set on the server" };
+    if (!res.ok) {
+      // Loops' own message (e.g. an unknown mailing list id) — never contains the key.
+      const msg = await res
+        .json()
+        .then((j: { message?: string }) => j?.message ?? "")
+        .catch(() => "");
+      console.error(`loops: contact upsert failed with ${res.status}${msg ? `: ${msg}` : ""}`);
+      return { ok: false, error: `Loops returned ${res.status}${msg ? `: ${msg.slice(0, 160)}` : ""}` };
     }
-    return !!res;
+    return { ok: true };
   } catch (err) {
-    console.error("loops: contact upsert threw:", err instanceof Error ? err.message : err);
-    return false;
+    const msg = err instanceof Error ? err.message : String(err);
+    console.error("loops: contact upsert threw:", msg);
+    return { ok: false, error: `Couldn't reach Loops (${msg.slice(0, 120)})` };
   }
 }
 

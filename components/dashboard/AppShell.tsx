@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { X } from "lucide-react";
 import { Sidebar } from "@/components/dashboard/Sidebar";
+import { ConsentSync } from "@/components/dashboard/ConsentSync";
 import { TopBar } from "@/components/dashboard/TopBar";
 import { UpgradePrompt } from "@/components/dashboard/UpgradePrompt";
 import type { Profile } from "@/lib/types";
@@ -26,6 +27,7 @@ export function AppShell({
   return (
     <CreditsProvider initialBalance={profile?.ai_credits ?? 0} allowance={creditCapFor(weeklyAllowanceFor(profile?.plan ?? "Pro"), profile)}>
     <div className="flex min-h-screen bg-base-bg">
+      <ConsentSync />
       <div className="hidden lg:block">
         <Sidebar profile={profile} />
       </div>

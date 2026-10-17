@@ -5,6 +5,7 @@ import { useSearchParams } from "next/navigation";
 import { Logo } from "@/components/ui/Logo";
 import { Button } from "@/components/ui/Button";
 import { createClient } from "@/lib/supabase/client";
+import { ConsentSync } from "@/components/dashboard/ConsentSync";
 import { checkoutUrlFor } from "@/lib/whop-plans";
 import { STARTER_TRIAL, TRIAL_TERMS } from "@/lib/starterTrial";
 
@@ -37,6 +38,7 @@ const VALID_PLANS = ["Starter", "Pro", "Business"];
 export default function OnboardingPage() {
   return (
     <Suspense fallback={null}>
+      <ConsentSync />
       <OnboardingForm />
     </Suspense>
   );

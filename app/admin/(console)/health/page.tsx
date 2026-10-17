@@ -3,7 +3,8 @@ import { hasRole, requireAdminPage } from "@/lib/admin/auth";
 import { getHealth, parseRange, RANGE_LABEL, RANGES } from "@/lib/admin/data";
 import { fmtAgo, fmtDateTime, fmtNum, NA, shortId } from "@/lib/admin/format";
 import { Badge, Empty, Notice, PageHeader, Panel, Segmented, Stat, Table, Td } from "@/components/admin/console/ui";
-import { ResolveButton } from "@/components/admin/console/actions";
+import { LoopsSyncButton, ResolveButton } from "@/components/admin/console/actions";
+import { countPendingConsents, marketingListId } from "@/lib/marketingConsent";
 
 export const dynamic = "force-dynamic";
 
@@ -23,7 +24,9 @@ export default async function AdminHealthPage({ searchParams }: { searchParams: 
   const admin = await requireAdminPage("viewer", "/admin/health");
   const range = parseRange(searchParams.range, "7d");
   const onlyOpen = searchParams.open === "1";
-  const h = await getHealth(range);
+  const [h, consents] = await Promise.all([getHealth(range), countPendingConsents().catch(() => null)]);
+  const loopsReady = !!process.env.LOOPS_API_KEY;
+  const listSet = !!marketingListId();
   const events = onlyOpen ? h.events.filter((e) => !e.resolved_at) : h.events;
   const count = (cat: string) => h.events.filter((e) => e.category === cat && e.severity !== "info").length;
   const canResolve = hasRole(admin, "admin");
@@ -67,6 +70,32 @@ export default async function AdminHealthPage({ searchParams }: { searchParams: 
         <Stat label="Credit errors" value={logOn ? fmtNum(count("credits")) : NA} unavailable={!logOn} tone={count("credits") ? "bad" : undefined} source="system_events with category credits: ledger errors and refunds that couldn't be confirmed." />
         <Stat label="Auth problems" value={NA} unavailable sub="See Supabase → Logs → Auth" source="Sign-in failures happen inside Supabase Auth, which keeps its own logs. The app doesn't receive them, so they can't be shown here." />
       </div>
+
+      <Panel
+        title="Marketing consent → Loops"
+        subtitle="People who ticked an 'email me' box (free report or sign-up). Only they are added to Loops as marketing contacts."
+        className="mt-6"
+      >
+        {consents === null ? (
+          <Notice tone="error">Consent records aren&apos;t available: run supabase/migration-017-marketing-consent.sql in the Supabase SQL Editor.</Notice>
+        ) : (
+          <div className="flex flex-wrap items-start justify-between gap-4">
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3">
+              <Stat label="Consents recorded" value={fmtNum(consents.total)} source="Rows in marketing_consents: one per email address that opted in." />
+              <Stat label="Not in Loops yet" value={fmtNum(consents.pending)} tone={consents.pending ? "warn" : "good"} source="Consents whose last Loops sync failed or never ran (for example while LOOPS_API_KEY was missing)." />
+              <Stat
+                label="Loops setup"
+                value={loopsReady ? (listSet ? "Ready" : "No list") : "Missing key"}
+                tone={loopsReady && listSet ? "good" : "warn"}
+                sub={!loopsReady ? "Set LOOPS_API_KEY in Netlify" : !listSet ? "Set LOOPS_MARKETING_LIST_ID" : undefined}
+                source="LOOPS_API_KEY must be set for any sync. LOOPS_MARKETING_LIST_ID puts consenting contacts on your marketing mailing list."
+              />
+            </div>
+            {canResolve ? <LoopsSyncButton pending={consents.pending} /> : null}
+          </div>
+        )}
+        {consents?.lastError ? <p className="mt-3 text-xs text-ink-muted">Last sync error: {consents.lastError}</p> : null}
+      </Panel>
 
       <Panel
         title="Error log"
