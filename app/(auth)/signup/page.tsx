@@ -5,6 +5,7 @@ import { useRouter, useSearchParams } from "next/navigation";
 import { Logo } from "@/components/ui/Logo";
 import { Button } from "@/components/ui/Button";
 import { createClient } from "@/lib/supabase/client";
+import { CONSENT_TEXT } from "@/lib/consentText";
 
 const VALID_PLANS = ["Starter", "Pro", "Business"];
 
@@ -40,6 +41,8 @@ function SignupForm() {
   const [fullName, setFullName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  // Unticked by default. Only recorded (and sent to Loops) after the email is confirmed.
+  const [marketingOptIn, setMarketingOptIn] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [needsVerification, setNeedsVerification] = useState(false);
@@ -54,7 +57,7 @@ function SignupForm() {
       email,
       password,
       options: {
-        data: { full_name: fullName },
+        data: { full_name: fullName, ...(marketingOptIn ? { marketing_opt_in: true, marketing_opt_in_at: new Date().toISOString() } : {}) },
         emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(onboardingPath)}`,
       },
     });
@@ -151,6 +154,17 @@ function SignupForm() {
                 placeholder="At least 8 characters"
               />
             </div>
+
+            <label className="flex cursor-pointer items-start gap-2.5 text-xs leading-relaxed text-ink-secondary">
+              <input
+                type="checkbox"
+                name="marketingOptIn"
+                checked={marketingOptIn}
+                onChange={(e) => setMarketingOptIn(e.target.checked)}
+                className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer rounded border-base-border bg-base-surface accent-[#8b5cf6]"
+              />
+              <span>{CONSENT_TEXT.signup}</span>
+            </label>
 
             {error && <p className="text-sm text-accent-red">{error}</p>}
 

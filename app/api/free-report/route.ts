@@ -11,6 +11,7 @@ import {
   releasePendingClaim,
 } from "@/lib/freeReport";
 import { sendLoopsEvent } from "@/lib/loops";
+import { recordMarketingConsent } from "@/lib/marketingConsent";
 import { verifyTurnstileToken } from "@/lib/turnstile";
 
 export const runtime = "nodejs";
@@ -107,6 +108,14 @@ export async function POST(request: Request) {
   } catch (err) {
     console.error("free-report: turnstile verification threw:", err);
     // Don't hard-block real users over a bot-check outage — proceed.
+  }
+
+  // Someone who ticked the (unticked-by-default) opt-in: record their consent
+  // and add them to Loops on the marketing list — even if they already used
+  // their free report. Without the tick, nothing is recorded or sent to Loops
+  // as a contact; the lead stays only with the report (creatives.lead_*).
+  if (emailConsent) {
+    await recordMarketingConsent({ email, fullName: name, source: "free_report" });
   }
 
   const ip = getClientIp(request);

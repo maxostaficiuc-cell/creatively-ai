@@ -290,6 +290,38 @@ export function ResolveButton({ id }: { id: number }) {
   );
 }
 
+// ── Marketing consent → Loops ───────────────────────────────────────────────
+export function LoopsSyncButton({ pending }: { pending: number }) {
+  const router = useRouter();
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<{ ok: boolean; text: string } | null>(null);
+  return (
+    <div>
+      <button
+        type="button"
+        disabled={busy || pending === 0}
+        className={btnPrimary}
+        onClick={async () => {
+          setBusy(true);
+          const r = await postJson("/api/admin/control/loops-sync", {});
+          setBusy(false);
+          const b = r.body as { synced?: number; failed?: number; error?: string };
+          setMsg(
+            r.ok && !b.failed
+              ? { ok: true, text: `Synced ${b.synced ?? 0} contact${b.synced === 1 ? "" : "s"} to Loops.` }
+              : { ok: false, text: `${b.synced ? `Synced ${b.synced}. ` : ""}${b.error ?? "Sync failed."}` }
+          );
+          router.refresh();
+        }}
+      >
+        {busy ? <Loader2 size={14} className="animate-spin" /> : null}
+        {pending === 0 ? "Everything is synced" : `Sync ${pending} to Loops now`}
+      </button>
+      {msg && (msg.ok ? <p className="mt-2 flex items-center gap-1.5 text-xs text-emerald-300"><Check size={13} /> {msg.text}</p> : <ErrorLine text={msg.text} />)}
+    </div>
+  );
+}
+
 // ── Admin roles (owners) ────────────────────────────────────────────────────
 export function RoleForm() {
   const router = useRouter();
