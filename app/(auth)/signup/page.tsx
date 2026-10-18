@@ -2,10 +2,11 @@
 
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Logo } from "@/components/ui/Logo";
-import { Button } from "@/components/ui/Button";
+import { Check, Info, Lock, Mail, MailCheck, User } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { CONSENT_TEXT } from "@/lib/consentText";
+import { AuthShell } from "@/components/auth/AuthShell";
+import { Field, FormError, PasswordField, SubmitButton } from "@/components/auth/fields";
 
 const VALID_PLANS = ["Starter", "Pro", "Business"];
 
@@ -81,109 +82,120 @@ function SignupForm() {
 
   if (needsVerification) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-base-bg px-6">
-        <div className="w-full max-w-sm text-center">
-          <div className="mb-8 flex justify-center">
-            <Logo />
-          </div>
-          <div className="rounded-2xl border border-base-border bg-base-card p-8">
-            <h1 className="text-xl font-semibold text-ink-primary">Check your email</h1>
-            <p className="mt-2 text-sm text-ink-secondary">
-              We sent a verification link to <span className="text-ink-primary">{email}</span>.
-              Confirm your email to finish creating your account.
-            </p>
-            {paidFirst && (
-              <p className="mt-3 text-sm text-ink-secondary">
-                Your plan activates as soon as you confirm — as long as this is the email you used at checkout.
-              </p>
-            )}
-          </div>
+      <AuthShell>
+        <div className="flex h-14 w-14 items-center justify-center rounded-2xl border border-brand/30 bg-brand/[0.1] text-brand-light shadow-glow">
+          <MailCheck aria-hidden className="h-6 w-6" />
         </div>
-      </div>
+        <h1 className="mt-7 text-[28px] font-semibold leading-tight tracking-[-0.02em] text-ink-primary">Check your email</h1>
+        <p className="mt-3 text-[15px] leading-relaxed text-ink-secondary" role="status">
+          We sent a verification link to <span className="font-medium text-ink-primary">{email}</span>.
+          Confirm your email to finish creating your account.
+        </p>
+        {paidFirst && (
+          <p className="mt-4 rounded-xl border border-brand/30 bg-brand/[0.07] px-4 py-3 text-sm leading-relaxed text-ink-secondary">
+            Your plan activates as soon as you confirm — as long as this is the email you used at checkout.
+          </p>
+        )}
+      </AuthShell>
     );
   }
 
+  const longEnough = password.length >= 8;
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-base-bg px-6">
-      <div className="w-full max-w-sm">
-        <div className="mb-8 flex justify-center">
-          <Logo />
-        </div>
-        <div className="rounded-2xl border border-base-border bg-base-card p-8">
-          <h1 className="text-xl font-semibold text-ink-primary">Create your account</h1>
-          <p className="mt-1 text-sm text-ink-secondary">Start creating better ads today.</p>
-          {paidFirst && (
-            <p className="mt-4 rounded-xl border border-brand/30 bg-brand/[0.07] px-3.5 py-2.5 text-xs leading-relaxed text-ink-secondary">
-              <span className="font-medium text-ink-primary">Use the same email you paid with.</span> That&apos;s how
-              we attach your plan to your new account.
-            </p>
-          )}
+    <AuthShell>
+      <h1 className="text-[28px] font-semibold leading-tight tracking-[-0.02em] text-ink-primary">Create your account</h1>
+      <p className="mt-2 text-[15px] text-ink-secondary">Start creating better ads today.</p>
+      {paidFirst && (
+        <p className="mt-5 flex gap-3 rounded-xl border border-brand/30 bg-brand/[0.07] px-4 py-3 text-[13px] leading-relaxed text-ink-secondary">
+          <Info aria-hidden className="mt-0.5 h-4 w-4 shrink-0 text-brand-light" />
+          <span>
+            <span className="font-medium text-ink-primary">Use the same email you paid with.</span> That&apos;s how we
+            attach your plan to your new account.
+          </span>
+        </p>
+      )}
 
-          <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-            <div>
-              <label className="mb-1.5 block text-xs text-ink-secondary">Full name</label>
-              <input
-                type="text"
-                required
-                value={fullName}
-                onChange={(e) => setFullName(e.target.value)}
-                className="w-full rounded-xl border border-base-border bg-base-surface px-4 py-2.5 text-sm text-ink-primary outline-none focus:border-brand"
-                placeholder="Max Ostaficiuc"
-              />
-            </div>
-            <div>
-              <label className="mb-1.5 block text-xs text-ink-secondary">Email</label>
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full rounded-xl border border-base-border bg-base-surface px-4 py-2.5 text-sm text-ink-primary outline-none focus:border-brand"
-                placeholder="you@company.com"
-              />
-            </div>
-            <div>
-              <label className="mb-1.5 block text-xs text-ink-secondary">Password</label>
-              <input
-                type="password"
-                required
-                minLength={8}
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full rounded-xl border border-base-border bg-base-surface px-4 py-2.5 text-sm text-ink-primary outline-none focus:border-brand"
-                placeholder="At least 8 characters"
-              />
-            </div>
-
-            <label className="flex cursor-pointer items-start gap-2.5 text-xs leading-relaxed text-ink-secondary">
-              <input
-                type="checkbox"
-                name="marketingOptIn"
-                checked={marketingOptIn}
-                onChange={(e) => setMarketingOptIn(e.target.checked)}
-                className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer rounded border-base-border bg-base-surface accent-[#8b5cf6]"
-              />
-              <span>{CONSENT_TEXT.signup}</span>
-            </label>
-
-            {error && <p className="text-sm text-accent-red">{error}</p>}
-
-            <Button type="submit" disabled={loading} className="w-full">
-              {loading ? "Creating account…" : "Get Started"}
-            </Button>
-          </form>
-
-          <p className="mt-6 text-center text-sm text-ink-secondary">
-            Already have an account?{" "}
-            <a
-              href={trialOffer ? `/login?next=${encodeURIComponent("/onboarding?plan=Starter&offer=trial")}` : "/login"}
-              className="text-brand-light hover:underline"
+      <form onSubmit={handleSubmit} className="mt-8 space-y-5">
+        <Field
+          id="fullName"
+          label="Full name"
+          icon={User}
+          type="text"
+          name="name"
+          autoComplete="name"
+          required
+          value={fullName}
+          onChange={(e) => setFullName(e.target.value)}
+          placeholder="Max Ostaficiuc"
+        />
+        <Field
+          id="email"
+          label="Email"
+          icon={Mail}
+          type="email"
+          name="email"
+          autoComplete="email"
+          inputMode="email"
+          required
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="you@company.com"
+        />
+        <PasswordField
+          id="password"
+          label="Password"
+          icon={Lock}
+          name="password"
+          autoComplete="new-password"
+          required
+          minLength={8}
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="At least 8 characters"
+          aria-describedby="password-rule"
+          hint={
+            <p
+              id="password-rule"
+              className={`mt-2 flex items-center gap-1.5 text-xs transition-colors ${
+                longEnough ? "text-accent-green" : "text-ink-muted"
+              }`}
             >
-              Log in
-            </a>
-          </p>
+              <Check aria-hidden className={`h-3.5 w-3.5 transition-opacity ${longEnough ? "opacity-100" : "opacity-40"}`} />
+              At least 8 characters
+            </p>
+          }
+        />
+
+        <label className="flex cursor-pointer items-start gap-3 rounded-xl border border-base-border bg-base-surface/60 px-3.5 py-3 text-xs leading-relaxed text-ink-secondary transition-colors hover:border-[#34343c] has-[:checked]:border-brand/40 has-[:checked]:bg-brand/[0.06] has-[:focus-visible]:ring-2 has-[:focus-visible]:ring-brand/50">
+          <input
+            type="checkbox"
+            name="marketingOptIn"
+            checked={marketingOptIn}
+            onChange={(e) => setMarketingOptIn(e.target.checked)}
+            className="mt-0.5 h-4 w-4 shrink-0 cursor-pointer rounded border-base-border bg-base-surface accent-[#8b5cf6] focus:outline-none"
+          />
+          <span>{CONSENT_TEXT.signup}</span>
+        </label>
+
+        {error && <FormError>{error}</FormError>}
+
+        <div className="pt-1">
+          <SubmitButton loading={loading} loadingLabel="Creating account…">
+            Get Started
+          </SubmitButton>
         </div>
-      </div>
-    </div>
+      </form>
+
+      <p className="mt-8 border-t border-base-border pt-6 text-sm text-ink-secondary">
+        Already have an account?{" "}
+        <a
+          href={trialOffer ? `/login?next=${encodeURIComponent("/onboarding?plan=Starter&offer=trial")}` : "/login"}
+          className="text-brand-light hover:underline"
+        >
+          Log in
+        </a>
+      </p>
+    </AuthShell>
   );
 }
