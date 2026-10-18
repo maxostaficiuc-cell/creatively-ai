@@ -99,6 +99,9 @@ export default async function LandingPage() {
       {/* CINEMATIC HERO — hand + phone + scroll-driven example analysis */}
       <HeroScrollSequence />
 
+      {/* BEFORE → AFTER — visual-first comparison, directly above "Understand every ad before you scale it." */}
+      <BeforeAfter />
+
       {/* FEATURE CAROUSEL — five premium cards: what's working, Creative Strategy, ad accounts, what's holding it back, winning ads */}
       <FeatureCarousel />
       {STARTER_TRIAL.enabled && (
@@ -109,9 +112,6 @@ export default async function LandingPage() {
 
       {/* CREATIVE STRATEGY — brand → strategy → generated ads (hero "Explore Creative Strategy" target) */}
       <StrategyShowcase />
-
-      {/* BEFORE → AFTER — visual-first comparison, directly under the features CTA */}
-      <BeforeAfter />
 
       {/* HOW IT WORKS — scroll-driven four-step timeline (nav "How It Works" target) */}
       <HowItWorks />

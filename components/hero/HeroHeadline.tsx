@@ -1,6 +1,5 @@
 import { forwardRef } from "react";
 import { ArrowRight, Sparkles } from "lucide-react";
-import { ButtonLink } from "@/components/ui/Button";
 import { GetFreeReportButton } from "@/components/marketing/GetFreeReportButton";
 import { TrialButton } from "@/components/marketing/TrialButton";
 import { ScrollToButton } from "@/components/marketing/ScrollToButton";
@@ -42,13 +41,13 @@ export const HeroHeadline = forwardRef<HTMLDivElement, { className?: string; sty
               Get your free report <ArrowRight size={15} />
             </GetFreeReportButton>
           )}
-          <ButtonLink
-            href="#winning-ads"
+          {/* Opens the existing free report modal (same component as every other "Get Your Free Report" button). */}
+          <GetFreeReportButton
             variant="secondary"
             className="w-full border-white/10 bg-white/[0.04] px-7 py-3 text-[12.5px] font-semibold uppercase tracking-[0.08em] backdrop-blur focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-white/70 sm:w-auto sm:py-3.5 sm:text-[13px]"
           >
-            Explore winning ads
-          </ButtonLink>
+            Get your free report
+          </GetFreeReportButton>
         </div>
         {/* Trial terms (when the $1 offer exists) and the Creative Strategy link share one
             line, so the hero keeps its original height on desktop. */}

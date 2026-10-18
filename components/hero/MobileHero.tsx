@@ -70,7 +70,62 @@ export function MobileHero({ creative, reduced }: { creative: DemoCreative; redu
   const linesRef = useRef<ConnectorLinesHandle>(null);
   const measuredRef = useRef<Measured | null>(null);
   const progressRef = useRef(0);
+  const headlineRef = useRef<HTMLDivElement>(null);
   const [measured, setMeasured] = useState<Measured | null>(null);
+
+  // ── headline fade: the same effect as desktop (HeroScrollSequence → apply) ──
+  // Desktop fades the headline over the first 20% of its 150vh pinned scroll,
+  // i.e. 30vh of scrolling: opacity 1 → 0 and a 56px lift (easeOutCubic).
+  // Mobile isn't pinned, so the same curve is driven by the page's scroll
+  // position over the same 30vh. Only the headline block is touched — the
+  // phone scene, cards and the rest of the page are not.
+  useEffect(() => {
+    const el = headlineRef.current;
+    if (!el) return;
+    const reset = () => {
+      el.style.opacity = "";
+      el.style.transform = "";
+      el.style.pointerEvents = "";
+      el.style.visibility = "";
+    };
+    if (reduced) {
+      reset();
+      return;
+    }
+    // Measured once (and on width/orientation changes) so the mobile browser's
+    // address bar collapsing while you scroll doesn't make the fade jump.
+    let fadeRange = window.innerHeight * 0.3;
+    let lastWidth = window.innerWidth;
+    let frame = 0;
+    const read = () => {
+      frame = 0;
+      const h = clamp01(window.scrollY / fadeRange);
+      el.style.opacity = String(1 - h);
+      el.style.transform = h > 0 ? `translate3d(0, ${-56 * easeOutCubic(h)}px, 0)` : "";
+      // The buttons stay tappable while they are still clearly visible.
+      el.style.pointerEvents = h > 0.85 ? "none" : "";
+      el.style.visibility = h >= 1 ? "hidden" : "";
+    };
+    const onScroll = () => {
+      if (!frame) frame = requestAnimationFrame(read);
+    };
+    const onResize = () => {
+      if (window.innerWidth !== lastWidth) {
+        lastWidth = window.innerWidth;
+        fadeRange = window.innerHeight * 0.3;
+      }
+      onScroll();
+    };
+    read();
+    window.addEventListener("scroll", onScroll, { passive: true });
+    window.addEventListener("resize", onResize);
+    return () => {
+      window.removeEventListener("scroll", onScroll);
+      window.removeEventListener("resize", onResize);
+      if (frame) cancelAnimationFrame(frame);
+      reset();
+    };
+  }, [reduced]);
 
   // ── one progress value (0 → 1) drives cards + lines, transform/opacity only ──
   const apply = useCallback(
@@ -223,7 +278,7 @@ export function MobileHero({ creative, reduced }: { creative: DemoCreative; redu
     >
       <HeroAmbient />
 
-      <HeroHeadline className="relative z-10" />
+      <HeroHeadline ref={headlineRef} className="relative z-10 will-change-transform" />
 
       {/* ── the scene: desktop composition, scaled for a narrow screen ── */}
       <div ref={sceneRef} className="m-scene relative mx-auto mt-7 w-full max-w-[560px]" style={handPhoneCssVars() as React.CSSProperties}>
