@@ -45,7 +45,8 @@ export type TrialPlacement =
   | "footer"
   | "free-report-modal"
   | "post-analysis"
-  | "onboarding";
+  | "onboarding"
+  | "login";
 
 /** Every trial button goes through /start-trial, which picks signup vs checkout. */
 export function trialHref(placement: TrialPlacement) {

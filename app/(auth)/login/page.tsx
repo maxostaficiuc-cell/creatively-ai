@@ -2,9 +2,11 @@
 
 import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Logo } from "@/components/ui/Logo";
-import { Button } from "@/components/ui/Button";
+import { Lock, Mail } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
+import { trialHref } from "@/lib/starterTrial";
+import { AuthShell } from "@/components/auth/AuthShell";
+import { Field, FormError, PasswordField, SubmitButton } from "@/components/auth/fields";
 
 export default function LoginPage() {
   return (
@@ -43,59 +45,58 @@ function LoginForm() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-base-bg px-6">
-      <div className="w-full max-w-sm">
-        <div className="mb-8 flex justify-center">
-          <Logo />
-        </div>
-        <div className="rounded-2xl border border-base-border bg-base-card p-8">
-          <h1 className="text-xl font-semibold text-ink-primary">Welcome back</h1>
-          <p className="mt-1 text-sm text-ink-secondary">Log in to your Creatively.ai account.</p>
+    <AuthShell>
+      <h1 className="text-[28px] font-semibold leading-tight tracking-[-0.02em] text-ink-primary">Welcome back</h1>
+      <p className="mt-2 text-[15px] text-ink-secondary">Log in to your Creatively.ai account.</p>
 
-          <form onSubmit={handleSubmit} className="mt-6 space-y-4">
-            <div>
-              <label className="mb-1.5 block text-xs text-ink-secondary">Email</label>
-              <input
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                className="w-full rounded-xl border border-base-border bg-base-surface px-4 py-2.5 text-sm text-ink-primary outline-none focus:border-brand"
-                placeholder="you@company.com"
-              />
-            </div>
-            <div>
-              <div className="mb-1.5 flex items-center justify-between">
-                <label className="block text-xs text-ink-secondary">Password</label>
-                <a href="/forgot-password" className="text-xs text-brand-light hover:underline">
-                  Forgot password?
-                </a>
-              </div>
-              <input
-                type="password"
-                required
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                className="w-full rounded-xl border border-base-border bg-base-surface px-4 py-2.5 text-sm text-ink-primary outline-none focus:border-brand"
-                placeholder="••••••••"
-              />
-            </div>
-
-            {error && <p className="text-sm text-accent-red">{error}</p>}
-
-            <Button type="submit" disabled={loading} className="w-full">
-              {loading ? "Logging in…" : "Log In"}
-            </Button>
-          </form>
-
-          <p className="mt-6 text-center text-sm text-ink-secondary">
-            Don&apos;t have an account?{" "}
-            <a href="/signup" className="text-brand-light hover:underline">
-              Start free trial
+      <form onSubmit={handleSubmit} className="mt-9 space-y-5">
+        <Field
+          id="email"
+          label="Email"
+          icon={Mail}
+          type="email"
+          name="email"
+          autoComplete="email"
+          inputMode="email"
+          required
+          value={email}
+          onChange={(e) => setEmail(e.target.value)}
+          placeholder="you@company.com"
+        />
+        <PasswordField
+          id="password"
+          label="Password"
+          icon={Lock}
+          name="password"
+          autoComplete="current-password"
+          required
+          value={password}
+          onChange={(e) => setPassword(e.target.value)}
+          placeholder="••••••••"
+          aside={
+            <a href="/forgot-password" className="text-xs font-medium text-brand-light hover:underline">
+              Forgot password?
             </a>
-          </p>
+          }
+        />
+
+        {error && <FormError>{error}</FormError>}
+
+        <div className="pt-1">
+          <SubmitButton loading={loading} loadingLabel="Logging in…">
+            Log In
+          </SubmitButton>
         </div>
-      </div>
-    </div>
+      </form>
+
+      <p className="mt-8 border-t border-base-border pt-6 text-sm text-ink-secondary">
+        Don&apos;t have an account?{" "}
+        {/* Same route every "Try for $1" button uses: logged-out visitors go
+            straight to the existing Whop $1 Starter checkout. */}
+        <a href={trialHref("login")} className="text-brand-light hover:underline">
+          Try now for $1
+        </a>
+      </p>
+    </AuthShell>
   );
 }
